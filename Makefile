@@ -1,4 +1,4 @@
-.PHONY: help all dist gallery-run gallery-bin clean test repl check cabal-check watch pb-dev pb-migrate pb-test-migrate develop
+.PHONY: help all dist gallery-run gallery-bin clean test repl check cabal-check watch pb-dev pb-migrate pb-test-migrate pb-configure develop
 
 default: help
 
@@ -52,6 +52,20 @@ pb-dev: ## Start a local PocketBase server (data in pb_data/, hot-reload admin U
 pb-migrate: ## Apply pending PocketBase migrations against pb_data/
 	rm -f ./pb_migrations/types.d.ts
 	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations
+
+pb-configure: ## Configure PocketBase OTP auth via admin API (requires PB_SUPERUSER_EMAIL + PB_SUPERUSER_PASSWORD + POCKETBASE_URL)
+	@test -n "$$POCKETBASE_URL"       || (echo "POCKETBASE_URL not set"; exit 1)
+	@test -n "$$PB_SUPERUSER_EMAIL"   || (echo "PB_SUPERUSER_EMAIL not set"; exit 1)
+	@test -n "$$PB_SUPERUSER_PASSWORD" || (echo "PB_SUPERUSER_PASSWORD not set"; exit 1)
+	@TOKEN=$$(curl -s -X POST "$$POCKETBASE_URL/api/admins/auth-with-password" \
+	  -H "Content-Type: application/json" \
+	  -d "{\"identity\":\"$$PB_SUPERUSER_EMAIL\",\"password\":\"$$PB_SUPERUSER_PASSWORD\"}" \
+	  | grep -o '"token":"[^"]*"' | cut -d'"' -f4) && \
+	curl -s -X PATCH "$$POCKETBASE_URL/api/collections/users" \
+	  -H "Authorization: $$TOKEN" \
+	  -H "Content-Type: application/json" \
+	  -d '{"passwordAuth":{"enabled":false},"otp":{"enabled":true,"duration":600,"length":6}}' \
+	  | grep -q '"id"' && echo "pb-configure: PASS" || echo "pb-configure: FAIL"
 
 pb-test-migrate: ## Smoke-test all migrations against a throwaway data dir (no state left behind)
 	@rm -f ./pb_migrations/types.d.ts && \
