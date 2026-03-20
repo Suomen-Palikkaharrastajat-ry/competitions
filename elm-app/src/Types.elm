@@ -2,18 +2,25 @@ module Types exposing
     ( AuthResponse
     , AuthState(..)
     , AuthUser
+    , Competition
+    , Entry
+    , EntryStatus(..)
     , Flags
     , Lang(..)
     , Model
     , Msg(..)
     , OtpResponse
     , Page(..)
+    , SubmitForm
+    , SubmitFormStep(..)
     )
 
 {-| Core types for the competition platform application.
 -}
 
+import File exposing (File)
 import Http
+import RemoteData exposing (RemoteData)
 
 
 {-| Supported display languages.
@@ -56,6 +63,63 @@ type AuthState
     | LoggedIn AuthUser
 
 
+{-| A competition event from PocketBase.
+-}
+type alias Competition =
+    { id : String
+    , title : String
+    , slug : String
+    , theme : Maybe String
+    , description : Maybe String
+    , endDate : String
+    , coverImage : Maybe String
+    , maxEntriesPerUser : Maybe Int
+    }
+
+
+{-| Possible statuses for an entry submission.
+-}
+type EntryStatus
+    = Draft
+    | Submitted
+    | Approved
+    | Rejected
+
+
+{-| A MOC entry from PocketBase.
+-}
+type alias Entry =
+    { id : String
+    , competitionId : String
+    , title : String
+    , description : Maybe String
+    , images : List String
+    , status : EntryStatus
+    }
+
+
+{-| Steps in the submission form workflow.
+-}
+type SubmitFormStep
+    = FillingForm
+    | Uploading
+    | UploadError String
+    | SubmitSuccess
+
+
+{-| State for the entry submission/edit form.
+-}
+type alias SubmitForm =
+    { entryId : Maybe String
+    , title : String
+    , description : String
+    , selectedFiles : List File
+    , existingImages : List String
+    , imagesToRemove : List String
+    , step : SubmitFormStep
+    }
+
+
 {-| All pages in the application.
 -}
 type Page
@@ -87,13 +151,18 @@ type alias Model =
     , displayNameInput : String
     , page : Page
     , lang : Lang
+    , competitions : RemoteData Http.Error (List Competition)
+    , myEntries : RemoteData Http.Error (List Entry)
+    , submitForm : SubmitForm
+    , selectedCompetition : Maybe Competition
     }
 
 
 {-| All messages in the Elm Architecture update loop.
 -}
 type Msg
-    = EmailChanged String
+    = -- Auth
+      EmailChanged String
     | OtpCodeChanged String
     | RequestOtp
     | OtpRequested (Result Http.Error OtpResponse)
@@ -103,4 +172,21 @@ type Msg
     | DisplayNameChanged String
     | SaveDisplayName
     | DisplayNameSaved (Result Http.Error AuthUser)
+      -- Navigation
     | NavigateTo Page
+      -- Competitions
+    | CompetitionsLoaded (Result Http.Error (List Competition))
+    | SelectCompetition Competition
+      -- Entry form
+    | EntryTitleChanged String
+    | EntryDescriptionChanged String
+    | FilesSelected File (List File)
+    | RemoveExistingImage String
+    | SaveDraft
+    | DraftSaved (Result Http.Error Entry)
+    | SubmitEntry
+    | EntrySubmitted (Result Http.Error Entry)
+      -- My entries
+    | MyEntriesLoaded (Result Http.Error (List Entry))
+    | EditDraft String
+    | CancelEdit

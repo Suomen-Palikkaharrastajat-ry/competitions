@@ -14,8 +14,21 @@ Then   Ok or Err is returned according to the validation rules
 import Expect
 import Http
 import Main exposing (update, validateEmail, validateOtpCode)
+import RemoteData
 import Test exposing (Test, describe, test)
 import Types exposing (..)
+
+
+emptyForm : SubmitForm
+emptyForm =
+    { entryId = Nothing
+    , title = ""
+    , description = ""
+    , selectedFiles = []
+    , existingImages = []
+    , imagesToRemove = []
+    , step = FillingForm
+    }
 
 
 baseModel : Model
@@ -28,6 +41,10 @@ baseModel =
     , displayNameInput = ""
     , page = LoginPage
     , lang = Fi
+    , competitions = RemoteData.NotAsked
+    , myEntries = RemoteData.NotAsked
+    , submitForm = emptyForm
+    , selectedCompetition = Nothing
     }
 
 

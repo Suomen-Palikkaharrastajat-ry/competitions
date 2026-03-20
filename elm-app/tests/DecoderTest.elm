@@ -12,8 +12,9 @@ This file defines the expected shapes as compile-time documentation.
 
 import Expect
 import Json.Decode as Decode
-import Main exposing (authResponseDecoder, otpResponseDecoder)
+import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, otpResponseDecoder)
 import Test exposing (Test, describe, test)
+import Types exposing (EntryStatus(..))
 
 
 -- ---------------------------------------------------------------------------
@@ -210,6 +211,92 @@ suite =
                                 , \_ -> Expect.equal False resp.record.isReviewer
                                 ]
                                 ()
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            ]
+        , describe "Competition PocketBase decoder"
+            [ test "decodes all fields" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","theme":"Kaupunki","description":"Kuvaile kaupunkia","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","max_entries_per_user":3}"""
+
+                        result =
+                            Decode.decodeString competitionDecoder json
+                    in
+                    case result of
+                        Ok comp ->
+                            Expect.all
+                                [ \_ -> Expect.equal "c1" comp.id
+                                , \_ -> Expect.equal "Kaupunki 2026" comp.title
+                                , \_ -> Expect.equal "kaupunki-2026" comp.slug
+                                , \_ -> Expect.equal (Just "Kaupunki") comp.theme
+                                , \_ -> Expect.equal (Just 3) comp.maxEntriesPerUser
+                                ]
+                                ()
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "empty cover_image decoded as Nothing" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
+
+                        result =
+                            Decode.decodeString competitionDecoder json
+                    in
+                    case result of
+                        Ok comp ->
+                            comp.coverImage |> Expect.equal Nothing
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            ]
+        , describe "Entry PocketBase decoder"
+            [ test "decodes status draft" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"e1","competition":"c1","title":"My MOC","images":["photo.jpg"],"status":"draft"}"""
+
+                        result =
+                            Decode.decodeString entryDecoder json
+                    in
+                    case result of
+                        Ok entry ->
+                            entry.status |> Expect.equal Draft
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "decodes status submitted" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"e1","competition":"c1","title":"My MOC","images":[],"status":"submitted"}"""
+
+                        result =
+                            Decode.decodeString entryDecoder json
+                    in
+                    case result of
+                        Ok entry ->
+                            entry.status |> Expect.equal Submitted
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "decodes images list" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"e1","competition":"c1","title":"MOC","images":["a.jpg","b.jpg"],"status":"draft"}"""
+
+                        result =
+                            Decode.decodeString entryDecoder json
+                    in
+                    case result of
+                        Ok entry ->
+                            List.length entry.images |> Expect.equal 2
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
