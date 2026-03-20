@@ -13,6 +13,7 @@ import Main exposing (emptyReview, filteredReviewQueue, update)
 import RemoteData
 import Scoring exposing (entryAverage, reviewTotal)
 import Test exposing (Test, describe, test)
+import Time
 import Types exposing (..)
 
 
@@ -47,6 +48,7 @@ testEntry =
     , description = Nothing
     , images = [ "photo.jpg" ]
     , status = Submitted
+    , publishedReviews = []
     }
 
 
@@ -100,6 +102,7 @@ baseModel =
     , displayNameInput = ""
     , page = ReviewQueuePage
     , lang = Fi
+    , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked
     , submitForm = emptyForm

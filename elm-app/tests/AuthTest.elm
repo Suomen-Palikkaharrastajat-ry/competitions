@@ -16,6 +16,7 @@ import Http
 import Main exposing (update, validateEmail, validateOtpCode)
 import RemoteData
 import Test exposing (Test, describe, test)
+import Time
 import Types exposing (..)
 
 
@@ -41,6 +42,7 @@ baseModel =
     , displayNameInput = ""
     , page = LoginPage
     , lang = Fi
+    , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked
     , submitForm = emptyForm
@@ -332,6 +334,42 @@ suite =
                             update LogOut loggedInModel
                     in
                     updated.page |> Expect.equal LoginPage
+            ]
+        , describe "401 auto-logout"
+            [ test "CompetitionsLoaded 401 clears auth and goes to LoginPage" <|
+                \_ ->
+                    let
+                        loggedInModel =
+                            { baseModel | auth = LoggedIn testUser }
+
+                        ( updated, _ ) =
+                            update (CompetitionsLoaded (Err (Http.BadStatus 401))) loggedInModel
+                    in
+                    Expect.all
+                        [ \m -> m.auth |> Expect.equal LoggedOut
+                        , \m -> m.page |> Expect.equal LoginPage
+                        ]
+                        updated
+            , test "MyEntriesLoaded 401 clears auth and goes to LoginPage" <|
+                \_ ->
+                    let
+                        loggedInModel =
+                            { baseModel | auth = LoggedIn testUser }
+
+                        ( updated, _ ) =
+                            update (MyEntriesLoaded (Err (Http.BadStatus 401))) loggedInModel
+                    in
+                    updated.auth |> Expect.equal LoggedOut
+            , test "ReviewQueueLoaded 401 clears auth and goes to LoginPage" <|
+                \_ ->
+                    let
+                        loggedInModel =
+                            { baseModel | auth = LoggedIn testUser }
+
+                        ( updated, _ ) =
+                            update (ReviewQueueLoaded (Err (Http.BadStatus 401))) loggedInModel
+                    in
+                    updated.auth |> Expect.equal LoggedOut
             ]
         , describe "DisplayNameChanged"
             [ test "updates displayNameInput" <|

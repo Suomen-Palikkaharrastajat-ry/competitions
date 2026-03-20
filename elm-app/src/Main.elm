@@ -2,9 +2,12 @@ module Main exposing
     ( authResponseDecoder
     , canSubmitMore
     , competitionDecoder
+    , deadlineUrgency
     , emptyReview
     , entryDecoder
     , filteredReviewQueue
+    , handleHttpError
+    , httpErrorMessage
     , isDeadlinePassed
     , main
     , otpResponseDecoder
@@ -92,6 +95,7 @@ init flags =
       , displayNameInput = ""
       , page = page
       , lang = Fi
+      , now = Time.millisToPosix 0
       , competitions = competitionsState
       , myEntries = RemoteData.NotAsked
       , submitForm = emptyForm
@@ -245,7 +249,12 @@ update msg model =
             ( { model | competitions = RemoteData.Success comps }, Cmd.none )
 
         CompetitionsLoaded (Err err) ->
-            ( { model | competitions = RemoteData.Failure err }, Cmd.none )
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | competitions = RemoteData.Failure err }, Cmd.none )
 
         SelectCompetition comp ->
             ( { model
@@ -382,7 +391,12 @@ update msg model =
             ( { model | myEntries = RemoteData.Success entries }, Cmd.none )
 
         MyEntriesLoaded (Err err) ->
-            ( { model | myEntries = RemoteData.Failure err }, Cmd.none )
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | myEntries = RemoteData.Failure err }, Cmd.none )
 
         EditDraft entryId ->
             ( { model | page = SubmitEntryPage (Just entryId) }, Cmd.none )
@@ -395,7 +409,12 @@ update msg model =
             ( { model | reviewQueue = RemoteData.Success entries }, Cmd.none )
 
         ReviewQueueLoaded (Err err) ->
-            ( { model | reviewQueue = RemoteData.Failure err }, Cmd.none )
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | reviewQueue = RemoteData.Failure err }, Cmd.none )
 
         ReviewFilterChanged filter ->
             ( { model | reviewFilter = filter }, Cmd.none )
@@ -540,6 +559,9 @@ update msg model =
         EntryStatusChanged _ _ (Err _) ->
             ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
 
+        Tick time ->
+            ( { model | now = time }, Cmd.none )
+
 
 view : Model -> Html Msg
 view model =
@@ -548,7 +570,7 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Time.every 60000 Tick
 
 
 
@@ -635,6 +657,60 @@ updateDraftScore f model =
 
         Nothing ->
             ( model, Cmd.none )
+
+
+-- | Map an Http.Error to a Finnish user-facing message.
+httpErrorMessage : Http.Error -> String
+httpErrorMessage err =
+    case err of
+        Http.NetworkError ->
+            "Verkkovirhe — tarkista yhteys"
+
+        Http.BadStatus 401 ->
+            "Istunto vanhentunut — kirjaudu uudelleen"
+
+        Http.BadStatus 403 ->
+            "Ei oikeutta"
+
+        Http.BadStatus 404 ->
+            "Ei löydy"
+
+        _ ->
+            "Odottamaton virhe; yritä uudelleen"
+
+
+-- | Handle a 401 response by logging out; otherwise leave model unchanged.
+handleHttpError : Http.Error -> Model -> ( Model, Cmd Msg )
+handleHttpError err model =
+    case err of
+        Http.BadStatus 401 ->
+            ( { model | auth = LoggedOut, page = LoginPage }
+            , Ports.clearAuth ()
+            )
+
+        _ ->
+            ( model, Cmd.none )
+
+
+-- | Return Just "text-red-600" when the competition ends within 7 days.
+deadlineUrgency : String -> Time.Posix -> Maybe String
+deadlineUrgency endDate now =
+    parseDateToMillis endDate
+        |> Maybe.andThen
+            (\deadlineMs ->
+                let
+                    nowMs =
+                        Time.posixToMillis now
+
+                    sevenDaysMs =
+                        7 * 24 * 60 * 60 * 1000
+                in
+                if deadlineMs > nowMs && deadlineMs - nowMs <= sevenDaysMs then
+                    Just "text-red-600"
+
+                else
+                    Nothing
+            )
 
 
 canSubmitMore : Competition -> List Entry -> Bool
@@ -815,7 +891,7 @@ fetchMyEntries pbUrl token userId =
                 ++ "/api/collections/entries/records"
                 ++ "?filter=submitter%3D%22"
                 ++ userId
-                ++ "%22&sort=-created"
+                ++ "%22&sort=-created&expand=reviews_via_entry"
         , body = Http.emptyBody
         , expect = Http.expectJson MyEntriesLoaded (pbListDecoder entryDecoder)
         , timeout = Nothing
@@ -987,15 +1063,44 @@ entryStatusDecoder =
             )
 
 
+-- | Decode published reviews from the expand.reviews_via_entry field.
+-- Returns [] when the field is absent (entries fetched without expand).
+publishedReviewsDecoder : Decode.Decoder (List ReviewSummary)
+publishedReviewsDecoder =
+    let
+        rawDecoder =
+            Decode.map3
+                (\published total comment ->
+                    if published then
+                        Just (ReviewSummary total comment)
+
+                    else
+                        Nothing
+                )
+                (Decode.field "is_published" Decode.bool)
+                (Decode.map4 (\t o tc p -> t + o + tc + p)
+                    (Decode.field "score_theme" Decode.int)
+                    (Decode.field "score_originality" Decode.int)
+                    (Decode.field "score_technique" Decode.int)
+                    (Decode.field "score_presentation" Decode.int)
+                )
+                (Decode.maybe (Decode.field "comment" Decode.string))
+    in
+    Decode.maybe
+        (Decode.at [ "expand", "reviews_via_entry" ] (Decode.list rawDecoder))
+        |> Decode.map (Maybe.withDefault [] >> List.filterMap identity)
+
+
 entryDecoder : Decode.Decoder Entry
 entryDecoder =
-    Decode.map6 Entry
+    Decode.map7 Entry
         (Decode.field "id" Decode.string)
         (Decode.field "competition" Decode.string)
         (Decode.field "title" Decode.string)
         (Decode.maybe (Decode.field "description" Decode.string))
         (Decode.field "images" (Decode.list Decode.string))
         (Decode.field "status" entryStatusDecoder)
+        publishedReviewsDecoder
 
 
 fetchReviewQueue : String -> String -> Cmd Msg

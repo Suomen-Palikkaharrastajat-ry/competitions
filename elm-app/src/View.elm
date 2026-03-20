@@ -1,4 +1,4 @@
-module View exposing (starRating, view)
+module View exposing (starRating, view, viewEntryRow, viewHeader)
 
 {-| View rendering for the competition platform.
 -}
@@ -10,6 +10,7 @@ import Html.Events as Events
 import Json.Decode as Decode
 import RemoteData
 import Scoring
+import Time
 import Types exposing (..)
 
 
@@ -139,14 +140,14 @@ viewSetDisplayName model =
 viewAppShell : AuthUser -> Model -> Html Msg
 viewAppShell user model =
     div [ Attr.class "min-h-screen bg-gray-50" ]
-        [ viewHeader user
+        [ viewHeader user model.pbUrl
         , main_ [ Attr.class "max-w-5xl mx-auto px-4 py-8" ]
             [ viewPage user model ]
         ]
 
 
-viewHeader : AuthUser -> Html Msg
-viewHeader user =
+viewHeader : AuthUser -> String -> Html Msg
+viewHeader user pbUrl =
     header [ Attr.class "bg-white border-b border-gray-200" ]
         [ div [ Attr.class "max-w-5xl mx-auto px-4 flex items-center justify-between h-14" ]
             [ span [ Attr.class "font-bold text-brand" ] [ text "Palikkakilpailu" ]
@@ -171,6 +172,13 @@ viewHeader user =
                                 , Events.onClick (NavigateTo ReviewQueuePage)
                                 ]
                                 [ text "Arvosteltavat" ]
+                            , a
+                                [ Attr.href (pbUrl ++ "/_/")
+                                , Attr.class "text-brand hover:underline"
+                                , Attr.target "_blank"
+                                , Attr.rel "noopener"
+                                ]
+                                [ text "Admin UI →" ]
                             ]
 
                         else
@@ -237,12 +245,12 @@ viewDashboard _ model =
 
                 else
                     div [ Attr.class "grid grid-cols-1 sm:grid-cols-2 gap-4" ]
-                        (List.map viewCompetitionCard comps)
+                        (List.map (viewCompetitionCard model.now) comps)
         ]
 
 
-viewCompetitionCard : Competition -> Html Msg
-viewCompetitionCard comp =
+viewCompetitionCard : Time.Posix -> Competition -> Html Msg
+viewCompetitionCard now comp =
     div
         [ Attr.class "rounded-lg overflow-hidden border border-gray-200 bg-white hover:shadow-md transition-shadow"
         ]
@@ -266,7 +274,7 @@ viewCompetitionCard comp =
 
                 Nothing ->
                     text ""
-            , p [ Attr.class "text-sm text-gray-500 mb-4" ]
+            , p [ Attr.class ("text-sm mb-4 " ++ deadlineColorClass comp.endDate now) ]
                 [ text ("Päättyy: " ++ String.left 10 comp.endDate) ]
             , button
                 [ Attr.class "bg-brand-yellow text-brand font-semibold px-4 py-2 rounded hover:opacity-90 transition-opacity"
@@ -275,6 +283,110 @@ viewCompetitionCard comp =
                 [ text "Osallistu →" ]
             ]
         ]
+
+
+{-| Returns "text-red-600" when endDate is within 7 days of now, else "text-gray-500".
+See also Main.deadlineUrgency which is the tested version of this logic.
+-}
+deadlineColorClass : String -> Time.Posix -> String
+deadlineColorClass endDate now =
+    let
+        datePart =
+            String.left 10 endDate
+
+        mMillis =
+            case List.filterMap String.toInt (String.split "-" datePart) of
+                [ y, m, d ] ->
+                    Just (deadlineCalendarToMillis y m d)
+
+                _ ->
+                    Nothing
+    in
+    case mMillis of
+        Nothing ->
+            "text-gray-500"
+
+        Just deadlineMs ->
+            let
+                nowMs =
+                    Time.posixToMillis now
+
+                sevenDaysMs =
+                    7 * 24 * 60 * 60 * 1000
+            in
+            if deadlineMs > nowMs && deadlineMs - nowMs <= sevenDaysMs then
+                "text-red-600"
+
+            else
+                "text-gray-500"
+
+
+deadlineCalendarToMillis : Int -> Int -> Int -> Int
+deadlineCalendarToMillis year month day =
+    let
+        isLeap y =
+            (modBy 4 y == 0 && modBy 100 y /= 0) || modBy 400 y == 0
+
+        daysPerYear y =
+            if isLeap y then
+                366
+
+            else
+                365
+
+        yearDays =
+            List.range 1970 (year - 1)
+                |> List.map daysPerYear
+                |> List.sum
+
+        daysPerMonth y m =
+            case m of
+                1 ->
+                    31
+
+                2 ->
+                    if isLeap y then
+                        29
+
+                    else
+                        28
+
+                3 ->
+                    31
+
+                4 ->
+                    30
+
+                5 ->
+                    31
+
+                6 ->
+                    30
+
+                7 ->
+                    31
+
+                8 ->
+                    31
+
+                9 ->
+                    30
+
+                10 ->
+                    31
+
+                11 ->
+                    30
+
+                _ ->
+                    31
+
+        monthDays =
+            List.range 1 (month - 1)
+                |> List.map (daysPerMonth year)
+                |> List.sum
+    in
+    (yearDays + monthDays + day - 1) * 86400000
 
 
 viewMyEntries : AuthUser -> Model -> Html Msg
@@ -314,6 +426,7 @@ viewEntryRow entry =
         [ div [ Attr.class "flex-1" ]
             [ p [ Attr.class "font-medium text-brand" ] [ text entry.title ]
             , p [ Attr.class "text-sm text-gray-500" ] [ text entry.competitionId ]
+            , viewPublishedScores entry.publishedReviews
             ]
         , viewStatusBadge entry.status
         , case entry.status of
@@ -329,6 +442,30 @@ viewEntryRow entry =
             _ ->
                 text ""
         ]
+
+
+viewPublishedScores : List ReviewSummary -> Html msg
+viewPublishedScores reviews =
+    if List.isEmpty reviews then
+        text ""
+
+    else
+        let
+            avg =
+                Scoring.entryAverage (List.map .total reviews)
+
+            -- Always show one decimal place, e.g. 17.0, 16.5
+            intPart =
+                floor avg
+
+            decPart =
+                round ((avg - toFloat intPart) * 10)
+
+            avgStr =
+                String.fromInt intPart ++ "." ++ String.fromInt decPart
+        in
+        p [ Attr.class "text-sm text-gray-600 mt-1" ]
+            [ text ("Pisteet: " ++ avgStr ++ " / " ++ String.fromInt Scoring.scoreMax) ]
 
 
 viewStatusBadge : EntryStatus -> Html msg
@@ -402,11 +539,12 @@ viewSubmitForm model =
                         , Events.onInput EntryDescriptionChanged
                         ]
                         []
-                    , label [ Attr.class "block mb-1 font-medium text-brand" ]
+                    , label [ Attr.class "block mb-1 font-medium text-brand", Attr.for "entry-images" ]
                         [ text "Kuvat * (max 10, jpg/png/webp, max 10 MB/kuva)" ]
                     , div [ Attr.class "border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4" ]
                         [ input
-                            [ Attr.type_ "file"
+                            [ Attr.id "entry-images"
+                            , Attr.type_ "file"
                             , Attr.multiple True
                             , Attr.accept "image/jpeg,image/png,image/webp"
                             , Attr.class "mb-2"
@@ -615,6 +753,7 @@ viewReviewFormPanel rf =
     in
     div
         [ Attr.attribute "role" "dialog"
+        , Attr.attribute "aria-modal" "true"
         , Attr.attribute "aria-labelledby" "review-form-title"
         , Attr.class "fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
         ]
@@ -720,7 +859,11 @@ viewError : Maybe String -> Html msg
 viewError maybeError =
     case maybeError of
         Just err ->
-            p [ Attr.class "mt-3 text-sm text-red-600" ] [ text ("Virhe: " ++ err) ]
+            p
+                [ Attr.class "mt-3 text-sm text-red-600"
+                , Attr.attribute "role" "alert"
+                ]
+                [ text ("Virhe: " ++ err) ]
 
         Nothing ->
             text ""

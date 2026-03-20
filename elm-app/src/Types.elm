@@ -14,6 +14,7 @@ module Types exposing
     , Review
     , ReviewFilter(..)
     , ReviewForm
+    , ReviewSummary
     , ReviewableEntry
     , SubmitForm
     , SubmitFormStep(..)
@@ -25,6 +26,7 @@ module Types exposing
 import File exposing (File)
 import Http
 import RemoteData exposing (RemoteData)
+import Time
 
 
 {-| Supported display languages.
@@ -90,6 +92,14 @@ type EntryStatus
     | Rejected
 
 
+{-| A published review score summary shown to the entry submitter.
+-}
+type alias ReviewSummary =
+    { total : Int
+    , comment : Maybe String
+    }
+
+
 {-| A MOC entry from PocketBase.
 -}
 type alias Entry =
@@ -99,6 +109,7 @@ type alias Entry =
     , description : Maybe String
     , images : List String
     , status : EntryStatus
+    , publishedReviews : List ReviewSummary
     }
 
 
@@ -198,6 +209,7 @@ type alias Model =
     , displayNameInput : String
     , page : Page
     , lang : Lang
+    , now : Time.Posix
     , competitions : RemoteData Http.Error (List Competition)
     , myEntries : RemoteData Http.Error (List Entry)
     , submitForm : SubmitForm
@@ -257,3 +269,5 @@ type Msg
     | ApproveEntry String
     | RejectEntry String
     | EntryStatusChanged String EntryStatus (Result Http.Error ())
+      -- Time
+    | Tick Time.Posix

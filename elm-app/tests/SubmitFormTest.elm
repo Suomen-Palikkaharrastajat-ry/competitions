@@ -9,7 +9,7 @@ Then   state transitions and validation errors are correct
 
 import Expect
 import Http
-import Main exposing (canSubmitMore, isDeadlinePassed, update, validateForm)
+import Main exposing (canSubmitMore, deadlineUrgency, isDeadlinePassed, update, validateForm)
 import RemoteData
 import Test exposing (Test, describe, test)
 import Time
@@ -49,6 +49,7 @@ testEntry =
     , description = Nothing
     , images = [ "photo.jpg" ]
     , status = Draft
+    , publishedReviews = []
     }
 
 
@@ -72,6 +73,7 @@ baseModel =
     , displayNameInput = ""
     , page = DashboardPage
     , lang = Fi
+    , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked
     , submitForm = emptyForm
@@ -313,5 +315,34 @@ suite =
                     in
                     isDeadlinePassed "2026-01-01 00:00:00.000Z" jan2
                         |> Expect.equal True
+            ]
+        , describe "deadlineUrgency"
+            [ test "Given endDate tomorrow, Then Just text-red-600" <|
+                \_ ->
+                    -- now = Jan 1 2026, endDate = Jan 3 2026 (2 days away)
+                    let
+                        jan1 =
+                            Time.millisToPosix 1767225600000
+                    in
+                    deadlineUrgency "2026-01-03" jan1
+                        |> Expect.equal (Just "text-red-600")
+            , test "Given endDate 8 days away, Then Nothing" <|
+                \_ ->
+                    -- now = Jan 1 2026, endDate = Jan 9 2026 (8 days away)
+                    let
+                        jan1 =
+                            Time.millisToPosix 1767225600000
+                    in
+                    deadlineUrgency "2026-01-09" jan1
+                        |> Expect.equal Nothing
+            , test "Given past deadline, Then Nothing" <|
+                \_ ->
+                    -- now = Jan 10 2026, endDate = Jan 1 2026 (already passed)
+                    let
+                        jan10 =
+                            Time.millisToPosix (1767225600000 + 9 * 24 * 60 * 60 * 1000)
+                    in
+                    deadlineUrgency "2026-01-01" jan10
+                        |> Expect.equal Nothing
             ]
         ]
