@@ -11,6 +11,33 @@ let
       allowUnfree = true;
     };
   };
+
+  # Override the GHC 9.6 package set to add htoml-megaparsec, which is
+  # not in the standard nixpkgs Haskell package set.
+  haskellPackages = stable.haskell.packages.ghc96.override {
+    overrides = _self: _super: {
+      htoml-megaparsec = _self.callHackageDirect {
+        pkg = "htoml-megaparsec";
+        ver = "2.1.0.5";
+        sha256 = "sha256-9YLTZ2akIu5j2v2BHmT3Mc0fhnsk1CJPmu3CaTuJlXg=";
+      } {};
+    };
+  };
+
+  # GHC bundled with all project dependencies pre-compiled from nixpkgs.
+  # This is the nixpkgs best practice: provide packages via nix so that
+  # `cabal build` / `cabal test` can find them in GHC's global package db
+  # without downloading or compiling anything from Hackage.
+  ghcForProject = haskellPackages.ghcWithPackages (ps: with ps; [
+    # Library build-depends (from competition.cabal)
+    text bytestring directory filepath time containers
+    unordered-containers htoml-megaparsec
+    http-conduit http-client http-client-tls
+    blaze-html blaze-markup tagsoup aeson http-types
+    # Test-suite build-depends
+    tasty tasty-hunit tasty-quickcheck
+  ]);
+
   shell = { pkgs, ... }: {
     # https://devenv.sh/packages/
     packages = [
@@ -35,7 +62,9 @@ let
 
     # https://devenv.sh/languages/
     languages.haskell.enable = true;
-    languages.haskell.package = stable.haskell.compiler.ghc96;
+    # Use ghcWithPackages so all project deps are pre-compiled by nix and
+    # available in GHC's global package db — no Hackage downloads needed.
+    languages.haskell.package = ghcForProject;
     languages.haskell.stack.enable = true;
     languages.haskell.languageServer = stable.haskell.packages.ghc96.haskell-language-server;
     languages.elm.enable = true;
