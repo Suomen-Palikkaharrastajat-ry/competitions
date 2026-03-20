@@ -23,6 +23,7 @@ let
       pkgs.nodejs
       pkgs.openssl
       pkgs.pkg-config
+      pkgs.mailpit
       pkgs.pocketbase
       pkgs.treefmt
       pkgs.zlib
@@ -52,11 +53,17 @@ let
     processes.elm-dev.exec =
       "cd elm-app && npm install --silent && npm run dev -- --host 0.0.0.0";
 
+    # ── Mailpit (local SMTP + web UI) ────────────────────────────────────────────
+    # SMTP server at 127.0.0.1:1025; web UI at http://127.0.0.1:8025
+    # PocketBase is configured to send OTP emails via mailpit (run make pb-configure).
+    processes.mailpit.exec =
+      "mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025";
+
     enterShell = ''
       git --version
       echo ""
       echo "=== Palikkakilpailu dev environment ==="
-      echo "  devenv up           → start PocketBase (port 8090) + Elm dev server (port 5173)"
+      echo "  devenv up           → start PocketBase (8090) + Elm dev server (5173) + Mailpit (8025)"
       echo "  make gallery-run    → generate static gallery (requires devenv up first)"
       echo "  make test           → run Haskell tests"
       echo "  cd elm-app && npm test → run Elm tests"

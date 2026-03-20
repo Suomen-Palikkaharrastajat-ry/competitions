@@ -25,17 +25,17 @@ A LEGO MOC competition platform for Suomen Palikkaharrastajat ry. Participants s
 11. make pb-seed                     ← (optional) load dev seed competition
 ```
 
-`devenv up` runs PocketBase with `--dev`, which logs OTP codes to the console — no SMTP needed for local development.
+`devenv up` also starts **Mailpit**, a local SMTP server. Run `make pb-configure` once to point PocketBase at it. OTP emails then appear at `http://127.0.0.1:8025` instead of requiring real SMTP.
 
 ## 3. Common Commands
 
 ```bash
-devenv up                    # start PocketBase (8090) + Elm dev server (5173)
+devenv up                    # start PocketBase (8090) + Elm dev server (5173) + Mailpit (8025)
 make test                    # hlint + cabal test (Haskell)
 cd elm-app && npm test       # elm-test (Elm)
 make pb-test-migrate         # smoke-test migrations against a throwaway pb_data dir
 make pb-seed                 # apply dev seed data (pb_migrations_dev/) — local only
-make pb-configure            # enable OTP + disable password auth via PocketBase API
+make pb-configure            # enable OTP + configure mailpit SMTP via PocketBase API
 make gallery-run             # generate dist/index.html (requires devenv up first)
 ```
 
@@ -48,12 +48,12 @@ make gallery-run             # generate dist/index.html (requires devenv up firs
 
 ## 5. Production Deployment
 
-### SMTP Setup (required for OTP email delivery)
+### SMTP Setup (required for OTP email delivery in production)
 1. Open PocketBase Admin UI → Settings → Mail
-2. Configure SMTP server credentials
+2. Configure production SMTP server credentials (replace mailpit settings)
 3. Test with Settings → Mail → Send test email
 
-Without SMTP, OTP login will not work in production. In local dev, OTP codes appear in the PocketBase console output instead (when running with `--dev`).
+In local dev, `devenv up` starts Mailpit (`127.0.0.1:1025`) and `make pb-configure` points PocketBase at it. OTP emails appear in the Mailpit web UI at `http://127.0.0.1:8025`.
 
 ### PocketBase Auth Configuration
 Run `make pb-configure` once after first deployment to enable OTP and disable password auth.
