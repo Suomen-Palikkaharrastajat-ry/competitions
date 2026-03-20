@@ -13,6 +13,8 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import qualified Data.Aeson as A
+
 import GalleryFetcher
 import GalleryTypes
 
@@ -68,4 +70,25 @@ tests =
 
         , testCase "groupByCompetition empty list gives empty map" $
             groupByCompetition [] @?= Map.empty
+
+        -- Given a list of raw PocketBase user records
+        -- When parseDisplayNames is called
+        -- Then a map of user id -> display_name is returned
+        , testCase "parseDisplayNames builds user id -> display_name map" $ do
+            let userJson = A.object
+                    [ "id"           A..= ("user1" :: T.Text)
+                    , "display_name" A..= ("Alice Smith" :: T.Text)
+                    ]
+            Map.lookup "user1" (parseDisplayNames [userJson]) @?= Just "Alice Smith"
+
+        , testCase "parseDisplayNames skips records without display_name" $ do
+            let userJson = A.object [ "id" A..= ("user2" :: T.Text) ]
+            Map.lookup "user2" (parseDisplayNames [userJson]) @?= Nothing
+
+        , testCase "parseDisplayNames skips empty display_name" $ do
+            let userJson = A.object
+                    [ "id"           A..= ("user3" :: T.Text)
+                    , "display_name" A..= ("" :: T.Text)
+                    ]
+            Map.lookup "user3" (parseDisplayNames [userJson]) @?= Nothing
         ]

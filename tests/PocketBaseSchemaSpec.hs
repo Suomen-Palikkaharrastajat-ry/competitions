@@ -58,6 +58,16 @@ postNoAuth url body = do
     resp <- httpLBS req
     return (getResponseStatusCode resp)
 
+-- | POST with a bearer token; returns HTTP status code.
+postWithToken :: String -> T.Text -> A.Value -> IO Int
+postWithToken url token body = do
+    req0 <- parseRequest ("POST " <> url)
+    let req = setRequestBodyLBS (A.encode body)
+            $ addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token)
+            $ addRequestHeader hContentType "application/json" req0
+    resp <- httpLBS req
+    return (getResponseStatusCode resp)
+
 -- | PATCH with a bearer token; returns HTTP status code.
 patchWithToken :: String -> T.Text -> A.Value -> IO Int
 patchWithToken url token body = do
@@ -83,6 +93,33 @@ createTestUser cfg email = do
     result <- createRecord cfg "users" body
     case result of
         Left err  -> fail $ "createTestUser failed: " <> err
+        Right uid -> return uid
+
+-- | Create a verified non-reviewer test user via admin API; returns the new user id.
+createVerifiedNonReviewerUser :: PbConfig -> T.Text -> IO T.Text
+createVerifiedNonReviewerUser cfg email = do
+    let body = A.object
+            [ "email"           A..= email
+            , "emailVisibility" A..= True
+            , "verified"        A..= True
+            ]
+    result <- createRecord cfg "users" body
+    case result of
+        Left err  -> fail $ "createVerifiedNonReviewerUser failed: " <> err
+        Right uid -> return uid
+
+-- | Create a reviewer test user via admin API; returns the new user id.
+createReviewerUser :: PbConfig -> T.Text -> IO T.Text
+createReviewerUser cfg email = do
+    let body = A.object
+            [ "email"           A..= email
+            , "emailVisibility" A..= True
+            , "verified"        A..= True
+            , "is_reviewer"     A..= True
+            ]
+    result <- createRecord cfg "users" body
+    case result of
+        Left err  -> fail $ "createReviewerUser failed: " <> err
         Right uid -> return uid
 
 -- | Obtain a user auth token via PocketBase admin impersonation.
@@ -348,4 +385,182 @@ tests =
                 unpublished = Review "r2" "e1" "rev2" 1 1 1 1 Nothing False
                 ranked = rankEntries [(entry, [published, unpublished])]
             rankedTotalScore (head ranked) @?= 20  -- only published counts
+
+        -- -----------------------------------------------------------------------
+        -- Access control: competitions write rules require is_reviewer (migration 005)
+        -- -----------------------------------------------------------------------
+
+        -- Given a verified user who is NOT a reviewer
+        -- When POST /api/collections/competitions/records
+        -- Then HTTP 403 is returned (only reviewers may create competitions)
+        , testCase "verified non-reviewer cannot create competition -> 403" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    uid <- createVerifiedNonReviewerUser cfg "comp-create-nonrev@test.invalid"
+                    tok <- impersonateUser cfg uid
+                    let compUrl = url <> "/api/collections/competitions/records"
+                    let body = A.object
+                            [ "title"      A..= ("NonReviewer Comp" :: T.Text)
+                            , "slug"       A..= ("nonreviewer-comp" :: T.Text)
+                            , "status"     A..= ("draft"            :: T.Text)
+                            , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
+                            , "end_date"   A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
+                            ]
+                    code <- postWithToken compUrl tok body
+                    deleteTestRecord cfg "users" uid
+                    code @?= 403
+
+        -- Given a reviewer user
+        -- When POST /api/collections/competitions/records
+        -- Then HTTP 200 is returned
+        , testCase "reviewer can create competition -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    uid <- createReviewerUser cfg "comp-create-reviewer@test.invalid"
+                    tok <- impersonateUser cfg uid
+                    let compUrl = url <> "/api/collections/competitions/records"
+                    let body = A.object
+                            [ "title"      A..= ("Reviewer Comp" :: T.Text)
+                            , "slug"       A..= ("reviewer-comp" :: T.Text)
+                            , "status"     A..= ("draft"         :: T.Text)
+                            , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
+                            , "end_date"   A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
+                            ]
+                    code <- postWithToken compUrl tok body
+                    -- Cleanup: fetch and delete the created competition if it succeeded
+                    deleteTestRecord cfg "users" uid
+                    assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
+
+        -- -----------------------------------------------------------------------
+        -- Access control: users cannot self-promote to reviewer (migration 006)
+        -- -----------------------------------------------------------------------
+
+        -- Given a regular user
+        -- When PATCH own user record with is_reviewer = true
+        -- Then HTTP 403 is returned
+        , testCase "user cannot self-promote to reviewer -> 403" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    uid <- createTestUser cfg "self-promote@test.invalid"
+                    tok <- impersonateUser cfg uid
+                    let userUrl = url <> "/api/collections/users/records/" <> T.unpack uid
+                    code <- patchWithToken userUrl tok
+                                (A.object [("is_reviewer", A.toJSON True)])
+                    deleteTestRecord cfg "users" uid
+                    code @?= 403
+
+        -- -----------------------------------------------------------------------
+        -- Access control matrix: full coverage
+        -- -----------------------------------------------------------------------
+
+        -- Given an unauthenticated request to GET /api/collections/competitions/records
+        -- Then HTTP 200 is returned (listRule = "")
+        , testCase "anon can list competitions -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing  -> assertBool skipMsg True
+                Just url -> do
+                    req0 <- parseRequest (url <> "/api/collections/competitions/records")
+                    resp <- httpLBS req0
+                    getResponseStatusCode resp @?= 200
+
+        -- Given an unauthenticated GET on entries
+        -- Then HTTP 200 is returned (approved entries are public)
+        , testCase "anon can list approved entries -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing  -> assertBool skipMsg True
+                Just url -> do
+                    req0 <- parseRequest
+                        (url <> "/api/collections/entries/records?filter=status%3D%22approved%22")
+                    resp <- httpLBS req0
+                    getResponseStatusCode resp @?= 200
+
+        -- Given a verified participant
+        -- When POST /api/collections/entries/records
+        -- Then HTTP 200 is returned (verified users may create entries)
+        , testCase "participant can create entry -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    uid <- createVerifiedNonReviewerUser cfg "entry-create@test.invalid"
+                    cid <- createTestCompetition cfg
+                    tok <- impersonateUser cfg uid
+                    let entryUrl = url <> "/api/collections/entries/records"
+                    let body = A.object
+                            [ "title"       A..= ("Participant Entry" :: T.Text)
+                            , "competition" A..= cid
+                            , "submitter"   A..= uid
+                            , "status"      A..= ("draft" :: T.Text)
+                            ]
+                    code <- postWithToken entryUrl tok body
+                    deleteTestRecord cfg "competitions" cid
+                    deleteTestRecord cfg "users" uid
+                    assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
+
+        -- Given a participant and their own draft entry
+        -- When PATCH that entry
+        -- Then HTTP 200 is returned
+        , testCase "participant can update own draft entry -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    uid <- createVerifiedNonReviewerUser cfg "entry-update-own@test.invalid"
+                    cid <- createTestCompetition cfg
+                    let body = A.object
+                            [ "title"       A..= ("My Draft" :: T.Text)
+                            , "competition" A..= cid
+                            , "submitter"   A..= uid
+                            , "status"      A..= ("draft" :: T.Text)
+                            ]
+                    entryResult <- createRecord cfg "entries" body
+                    case entryResult of
+                        Left err -> do
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "users" uid
+                            assertFailure $ "setup failed: " <> err
+                        Right eid -> do
+                            tok <- impersonateUser cfg uid
+                            let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
+                            code <- patchWithToken patchUrl tok
+                                        (A.object [("title", A.toJSON ("Updated Title" :: T.Text))])
+                            deleteTestRecord cfg "entries"      eid
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "users"        uid
+                            assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
+
+        -- Given an unauthenticated GET on reviews (published only)
+        -- Then HTTP 200 is returned
+        , testCase "anon can list published reviews -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing  -> assertBool skipMsg True
+                Just url -> do
+                    req0 <- parseRequest
+                        (url <> "/api/collections/reviews/records?filter=is_published%3Dtrue")
+                    resp <- httpLBS req0
+                    getResponseStatusCode resp @?= 200
         ]

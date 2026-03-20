@@ -8,9 +8,10 @@ module GalleryFetcher
     , resolveFileUrl
     , sortCompetitions
     , groupByCompetition
+    , parseDisplayNames
     ) where
 
-import Data.Aeson (FromJSON, Value, parseJSON)
+import Data.Aeson (FromJSON, Value, parseJSON, withObject, (.:), (.:?))
 import Data.Aeson.Types (parseMaybe)
 import Data.List (sortBy)
 import Data.Maybe (mapMaybe)
@@ -66,6 +67,17 @@ groupByCompetition entries =
 -- IO: fetch everything from PocketBase
 -- ---------------------------------------------------------------------------
 
+-- | Build a user id → display_name map from raw PocketBase user records.
+-- Records without a non-empty display_name are silently skipped.
+parseDisplayNames :: [Value] -> Map.Map Text Text
+parseDisplayNames = Map.fromList . mapMaybe extract
+  where
+    extract v = do
+        (uid, mName) <- parseMaybe (withObject "user" $ \o ->
+            (,) <$> o .: "id" <*> o .:? "display_name") v
+        name <- mName
+        if T.null name then Nothing else Just (uid, name)
+
 -- | Fetch all gallery data from PocketBase.
 -- Only approved entries and published reviews are included.
 fetchGalleryData :: PbConfig -> IO GalleryData
@@ -73,10 +85,12 @@ fetchGalleryData cfg = do
     compsRaw   <- fetchAll cfg "competitions"
     entriesRaw <- fetchAll cfg "entries"
     reviewsRaw <- fetchAll cfg "reviews"
+    usersRaw   <- fetchAll cfg "users"
 
     let comps   = parseAll compsRaw   :: [Competition]
-        entries = parseAll entriesRaw :: [Entry]
-        reviews = parseAll reviewsRaw :: [Review]
+        entries      = parseAll entriesRaw :: [Entry]
+        reviews      = parseAll reviewsRaw :: [Review]
+        displayNames = parseDisplayNames usersRaw
 
         approvedEntries  = filter ((== Approved) . entryStatus) entries
         publishedReviews = filter reviewIsPublished reviews
@@ -98,7 +112,7 @@ fetchGalleryData cfg = do
     return $ GalleryData
         { gdCompetitions = sortCompetitions comps
         , gdRankedByComp = rankedByComp
-        , gdDisplayNames = Map.empty   -- populated separately if needed
+        , gdDisplayNames = displayNames
         , gdPbUrl        = pbBaseUrl cfg
         }
   where

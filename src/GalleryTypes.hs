@@ -20,7 +20,9 @@ import Data.Aeson
     , (.:)
     , (.:?)
     )
+import Data.List (sortBy)
 import Data.Maybe (fromMaybe)
+import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -152,7 +154,7 @@ data RankedEntry = RankedEntry
 rankEntries :: [(Entry, [Review])] -> [RankedEntry]
 rankEntries pairs =
     let scored = map scoreEntry pairs
-        sorted = reverse $ map snd $ sort $ map (\re -> (rankedTotalScore re, re)) scored
+        sorted = map snd $ sortBy (comparing (Down . fst)) $ map (\re -> (rankedTotalScore re, re)) scored
         ranked = zipWith (\rank re -> re { rankedRank = rank }) [1..] sorted
     in ranked
   where
@@ -166,9 +168,3 @@ rankEntries pairs =
         + reviewScoreOriginality r
         + reviewScoreTechnique r
         + reviewScorePresentation r
-
-    sort [] = []
-    sort (x:xs) =
-        sort [y | y <- xs, fst y <= fst x]
-        ++ [x]
-        ++ sort [y | y <- xs, fst y > fst x]
