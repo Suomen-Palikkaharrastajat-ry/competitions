@@ -22,6 +22,9 @@ import GalleryTypes
 -- Fixtures
 -- ---------------------------------------------------------------------------
 
+-- | Build a minimal Competition fixture.
+-- First argument: competition id. Second argument: endDate.
+-- startDate is always fixed at "2026-01-01" for test purposes.
 mkComp :: Text -> Text -> Competition
 mkComp cid =
     Competition cid ("Title " <> cid) ("slug-" <> cid) Nothing Nothing Open "2026-01-01"

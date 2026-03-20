@@ -14,7 +14,7 @@ Your understanding and actions must be guided by the following artifacts, in thi
 2.  **ADRs (`agents/adrs/`)**: Define the architectural constraints and non-negotiable rules.
 3.  **User Stories (`agents/stories/`)**: Explain the "why" behind the features and define product intent.
 4.  **Glossary (`agents/GLOSSARY.md`)**: Provides the canonical vocabulary for this project.
-5.  **TODO files (`TODO-00-cleanup.md` through `TODO-06-devenv.md`)**: Define the implementation plan in sequential order. Read the relevant TODO before working on any feature.
+5.  **TODO files (`TODO-00-cleanup.md` through `TODO-08-fixes.md`)**: Define the implementation plan in sequential order. Read the relevant TODO before working on any feature.
 6.  **Inline Source Code Comments**: Provide context but are subordinate to the artifacts above.
 
 ---
@@ -48,6 +48,7 @@ competitions/
 ├── TODO-05-haskell-gallery.md  ← Step 5: Haskell static gallery pipeline
 ├── TODO-06-devenv.md           ← Step 6: Developer environment
 ├── TODO-07-missing-features.md ← Step 7: Admin tools, accessibility, SMTP, scores, error boundaries
+├── TODO-08-fixes.md            ← Step 8: Security, quality, and test gap fixes
 ├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
 ├── competition.cabal           ← Haskell project (after TODO-00)
 ├── Makefile                    ← Build targets
@@ -92,7 +93,9 @@ competitions/
 │   ├── 001_create_competitions.js
 │   ├── 002_create_entries.js
 │   ├── 003_create_reviews.js
-│   └── 004_extend_users.js
+│   ├── 004_extend_users.js
+│   ├── 005_restrict_competitions_write.js
+│   └── 006_restrict_users_update.js
 │
 ├── pb_data/                    ← PocketBase runtime data (gitignored)
 │
@@ -191,9 +194,10 @@ devenv up              # start PocketBase + Elm dev server simultaneously
 Work on TODOs in numerical order. Each TODO has its own acceptance criteria. Do not start a later TODO until all acceptance criteria of the previous TODO are met.
 
 ```
-TODO-00 → TODO-01 → TODO-02 → TODO-03 → TODO-04 → TODO-05 → TODO-06 → TODO-07
-cleanup    schema     auth      submit    review    gallery   devenv    polish
+TODO-00 → TODO-01 → TODO-02 → TODO-03 → TODO-04 → TODO-05 → TODO-06 → TODO-07 → TODO-08
+cleanup    schema     auth      submit    review    gallery   devenv    polish     fixes
 ```
 
 > TODO-05 (gallery) and TODO-06 (devenv) can be worked on in parallel with TODO-03/04 if the PocketBase schema (TODO-01) is complete.
-> TODO-07 must come last — it depends on all prior TODOs being complete.
+> TODO-07 must come before TODO-08 — it depends on all prior TODOs being complete.
+> TODO-08 must come last — it addresses security, quality, and test gaps introduced in prior steps.
