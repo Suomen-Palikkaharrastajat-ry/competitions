@@ -2,13 +2,11 @@ module Main exposing
     ( authResponseDecoder
     , canSubmitMore
     , competitionDecoder
-    , deadlineUrgency
     , emptyReview
     , entryDecoder
     , filteredReviewQueue
     , handleHttpError
     , httpErrorMessage
-    , isDeadlinePassed
     , main
     , otpResponseDecoder
     , update
@@ -27,6 +25,7 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Ports
 import RemoteData
+import Scoring
 import Time
 import Types exposing (..)
 import View
@@ -220,8 +219,13 @@ update msg model =
                 ]
             )
 
-        DisplayNameSaved (Err _) ->
-            ( { model | authError = Just "Näyttönimen tallennus epäonnistui" }, Cmd.none )
+        DisplayNameSaved (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | authError = Just "Näyttönimen tallennus epäonnistui" }, Cmd.none )
 
         -- Navigation
         NavigateTo page ->
@@ -348,14 +352,19 @@ update msg model =
             , Cmd.none
             )
 
-        DraftSaved (Err _) ->
-            let
-                form =
-                    model.submitForm
-            in
-            ( { model | submitForm = { form | step = UploadError "Luonnoksen tallennus epäonnistui" } }
-            , Cmd.none
-            )
+        DraftSaved (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    let
+                        form =
+                            model.submitForm
+                    in
+                    ( { model | submitForm = { form | step = UploadError "Luonnoksen tallennus epäonnistui" } }
+                    , Cmd.none
+                    )
 
         SubmitEntry ->
             case ( model.auth, model.submitForm.entryId ) of
@@ -377,14 +386,19 @@ update msg model =
             in
             ( { model | submitForm = { form | step = SubmitSuccess } }, Cmd.none )
 
-        EntrySubmitted (Err _) ->
-            let
-                form =
-                    model.submitForm
-            in
-            ( { model | submitForm = { form | step = UploadError "Lähettäminen epäonnistui" } }
-            , Cmd.none
-            )
+        EntrySubmitted (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    let
+                        form =
+                            model.submitForm
+                    in
+                    ( { model | submitForm = { form | step = UploadError "Lähettäminen epäonnistui" } }
+                    , Cmd.none
+                    )
 
         -- My entries
         MyEntriesLoaded (Ok entries) ->
@@ -506,22 +520,27 @@ update msg model =
                 Nothing ->
                     ( { model | reviewQueue = updatedQueue }, Cmd.none )
 
-        ReviewSaved (Err _) ->
-            case model.activeReview of
-                Just rf ->
-                    ( { model
-                        | activeReview =
-                            Just
-                                { rf
-                                    | saving = False
-                                    , saveError = Just "Arvostelun tallennus epäonnistui"
-                                }
-                      }
-                    , Cmd.none
-                    )
+        ReviewSaved (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
 
-                Nothing ->
-                    ( model, Cmd.none )
+                _ ->
+                    case model.activeReview of
+                        Just rf ->
+                            ( { model
+                                | activeReview =
+                                    Just
+                                        { rf
+                                            | saving = False
+                                            , saveError = Just "Arvostelun tallennus epäonnistui"
+                                        }
+                              }
+                            , Cmd.none
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
         ApproveEntry entryId ->
             case model.auth of
@@ -556,8 +575,13 @@ update msg model =
             , Cmd.none
             )
 
-        EntryStatusChanged _ _ (Err _) ->
-            ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
+        EntryStatusChanged _ _ (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
 
         Tick time ->
             ( { model | now = time }, Cmd.none )
@@ -692,27 +716,6 @@ handleHttpError err model =
             ( model, Cmd.none )
 
 
--- | Return Just "text-red-600" when the competition ends within 7 days.
-deadlineUrgency : String -> Time.Posix -> Maybe String
-deadlineUrgency endDate now =
-    parseDateToMillis endDate
-        |> Maybe.andThen
-            (\deadlineMs ->
-                let
-                    nowMs =
-                        Time.posixToMillis now
-
-                    sevenDaysMs =
-                        7 * 24 * 60 * 60 * 1000
-                in
-                if deadlineMs > nowMs && deadlineMs - nowMs <= sevenDaysMs then
-                    Just "text-red-600"
-
-                else
-                    Nothing
-            )
-
-
 canSubmitMore : Competition -> List Entry -> Bool
 canSubmitMore competition entries =
     let
@@ -725,96 +728,6 @@ canSubmitMore competition entries =
     limit == 0 || myCount < limit
 
 
-isDeadlinePassed : String -> Time.Posix -> Bool
-isDeadlinePassed endDate now =
-    case parseDateToMillis endDate of
-        Just deadlineMs ->
-            Time.posixToMillis now >= deadlineMs
-
-        Nothing ->
-            False
-
-
-parseDateToMillis : String -> Maybe Int
-parseDateToMillis s =
-    let
-        datePart =
-            String.left 10 s
-    in
-    case List.filterMap String.toInt (String.split "-" datePart) of
-        [ y, m, d ] ->
-            Just (calendarToMillis y m d)
-
-        _ ->
-            Nothing
-
-
-calendarToMillis : Int -> Int -> Int -> Int
-calendarToMillis year month day =
-    let
-        isLeap y =
-            (modBy 4 y == 0 && modBy 100 y /= 0) || modBy 400 y == 0
-
-        daysPerYear y =
-            if isLeap y then
-                366
-
-            else
-                365
-
-        yearDays =
-            List.range 1970 (year - 1)
-                |> List.map daysPerYear
-                |> List.sum
-
-        daysPerMonth y m =
-            case m of
-                1 ->
-                    31
-
-                2 ->
-                    if isLeap y then
-                        29
-
-                    else
-                        28
-
-                3 ->
-                    31
-
-                4 ->
-                    30
-
-                5 ->
-                    31
-
-                6 ->
-                    30
-
-                7 ->
-                    31
-
-                8 ->
-                    31
-
-                9 ->
-                    30
-
-                10 ->
-                    31
-
-                11 ->
-                    30
-
-                _ ->
-                    31
-
-        monthDays =
-            List.range 1 (month - 1)
-                |> List.map (daysPerMonth year)
-                |> List.sum
-    in
-    (yearDays + monthDays + day - 1) * 86400000
 
 
 

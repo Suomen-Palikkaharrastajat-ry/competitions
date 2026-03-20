@@ -349,7 +349,18 @@ suite =
                             Expect.fail "Expected activeReview"
             ]
         , describe "ReviewSaved"
-            [ test "Ok clears saving and updates queue entry" <|
+            [ test "Err 401 clears auth and navigates to LoginPage" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (ReviewSaved (Err (Http.BadStatus 401))) baseModel
+                    in
+                    Expect.all
+                        [ \m -> m.auth |> Expect.equal LoggedOut
+                        , \m -> m.page |> Expect.equal LoginPage
+                        ]
+                        model
+            , test "Ok clears saving and updates queue entry" <|
                 \_ ->
                     let
                         queueModel =

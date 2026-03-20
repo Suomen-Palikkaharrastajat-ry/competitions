@@ -13,11 +13,27 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import System.Environment (lookupEnv)
+import Network.HTTP.Simple
+    ( addRequestHeader
+    , getResponseBody
+    , getResponseStatusCode
+    , httpLBS
+    , parseRequest
+    , setRequestBodyLBS
+    )
+import Network.HTTP.Types (hAuthorization, hContentType)
 
 import GalleryTypes
 import PocketBase
+
+-- ---------------------------------------------------------------------------
+-- Helpers
+-- ---------------------------------------------------------------------------
 
 -- | Run a test only when POCKETBASE_URL is set; skip otherwise.
 withPocketBase :: (PbConfig -> IO ()) -> IO ()
@@ -32,6 +48,105 @@ withPocketBase action = do
 
 skipMsg :: String
 skipMsg = "POCKETBASE_URL / POCKETBASE_API_KEY not set — skipping integration tests"
+
+-- | POST with no auth headers; returns HTTP status code.
+postNoAuth :: String -> A.Value -> IO Int
+postNoAuth url body = do
+    req0 <- parseRequest ("POST " <> url)
+    let req = setRequestBodyLBS (A.encode body)
+            $ addRequestHeader hContentType "application/json" req0
+    resp <- httpLBS req
+    return (getResponseStatusCode resp)
+
+-- | PATCH with a bearer token; returns HTTP status code.
+patchWithToken :: String -> T.Text -> A.Value -> IO Int
+patchWithToken url token body = do
+    req0 <- parseRequest ("PATCH " <> url)
+    let req = setRequestBodyLBS (A.encode body)
+            $ addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token)
+            $ addRequestHeader hContentType "application/json" req0
+    resp <- httpLBS req
+    return (getResponseStatusCode resp)
+
+-- | GET with a bearer token; returns HTTP status code.
+getWithToken :: String -> T.Text -> IO Int
+getWithToken url token = do
+    req0 <- parseRequest ("GET " <> url)
+    let req = addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token) req0
+    resp <- httpLBS req
+    return (getResponseStatusCode resp)
+
+-- | Create a test user via admin API; returns the new user id.
+createTestUser :: PbConfig -> T.Text -> IO T.Text
+createTestUser cfg email = do
+    let body = A.object [ "email" A..= email, "emailVisibility" A..= True ]
+    result <- createRecord cfg "users" body
+    case result of
+        Left err  -> fail $ "createTestUser failed: " <> err
+        Right uid -> return uid
+
+-- | Obtain a user auth token via PocketBase admin impersonation.
+impersonateUser :: PbConfig -> T.Text -> IO T.Text
+impersonateUser cfg userId = do
+    let url = T.unpack $ pbBaseUrl cfg
+                <> "/api/collections/users/impersonate/"
+                <> userId
+    req0 <- parseRequest ("POST " <> url)
+    let req = setRequestBodyLBS (A.encode (A.object []))
+            $ foldr (uncurry addRequestHeader) req0 (authHeaders cfg)
+    resp <- httpLBS req
+    let body = getResponseBody resp
+    case A.eitherDecode body of
+        Left err -> fail $ "impersonateUser decode error: " <> err
+        Right (A.Object km) ->
+            case KM.lookup "token" km of
+                Just (A.String t) -> return t
+                _                 -> fail "impersonateUser: no token in response"
+        Right _ -> fail "impersonateUser: unexpected response shape"
+
+-- | Delete a record via admin API (best-effort; ignores errors).
+deleteTestRecord :: PbConfig -> T.Text -> T.Text -> IO ()
+deleteTestRecord cfg col recId = do
+    let url = T.unpack $ pbBaseUrl cfg
+                <> "/api/collections/" <> col
+                <> "/records/" <> recId
+    req0 <- parseRequest ("DELETE " <> url)
+    let req = foldr (uncurry addRequestHeader) req0 (authHeaders cfg)
+    _ <- httpLBS req
+    return ()
+
+-- | Create a minimal open competition via admin API; returns competition id.
+createTestCompetition :: PbConfig -> IO T.Text
+createTestCompetition cfg = do
+    let body = A.object
+            [ "title"      A..= ("AC Test Competition" :: T.Text)
+            , "slug"       A..= ("ac-test-comp"        :: T.Text)
+            , "status"     A..= ("open"                :: T.Text)
+            , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
+            , "end_date"   A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
+            ]
+    result <- createRecord cfg "competitions" body
+    case result of
+        Left err  -> fail $ "createTestCompetition failed: " <> err
+        Right cid -> return cid
+
+-- | Create a submitted entry owned by userId via admin API; returns entry id.
+createTestEntry :: PbConfig -> T.Text -> T.Text -> IO T.Text
+createTestEntry cfg userId cid = do
+    let body = A.object
+            [ "title"       A..= ("AC Test MOC"  :: T.Text)
+            , "competition" A..= cid
+            , "submitter"   A..= userId
+            , "status"      A..= ("submitted"    :: T.Text)
+            ]
+    result <- createRecord cfg "entries" body
+    case result of
+        Left err  -> fail $ "createTestEntry failed: " <> err
+        Right eid -> return eid
+
+-- ---------------------------------------------------------------------------
+-- Tests
+-- ---------------------------------------------------------------------------
 
 tests :: TestTree
 tests =
@@ -60,6 +175,106 @@ tests =
                 Just _  -> withPocketBase $ \cfg -> do
                     page <- fetchPage cfg "reviews" 1
                     assertBool "fetchPage returned a PbList" (pbTotalItems page >= 0)
+
+        -- -----------------------------------------------------------------------
+        -- Access control: anonymous requests
+        -- -----------------------------------------------------------------------
+
+        , testCase "anon POST to entries ->401" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing -> assertBool skipMsg True
+                Just url -> do
+                    code <- postNoAuth (url <> "/api/collections/entries/records") (A.object [])
+                    code @?= 401
+
+        , testCase "anon POST to competitions ->401" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing -> assertBool skipMsg True
+                Just url -> do
+                    code <- postNoAuth (url <> "/api/collections/competitions/records") (A.object [])
+                    code @?= 401
+
+        , testCase "anon POST to reviews ->401" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            case mUrl of
+                Nothing -> assertBool skipMsg True
+                Just url -> do
+                    code <- postNoAuth (url <> "/api/collections/reviews/records") (A.object [])
+                    code @?= 401
+
+        -- -----------------------------------------------------------------------
+        -- Access control: participant cannot edit another user's entry
+        -- -----------------------------------------------------------------------
+
+        , testCase "participant PATCH on others' entry ->403" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    -- Setup
+                    u1 <- createTestUser cfg "actest-owner@test.invalid"
+                    u2 <- createTestUser cfg "actest-other@test.invalid"
+                    cid <- createTestCompetition cfg
+                    eid <- createTestEntry cfg u1 cid
+                    tok2 <- impersonateUser cfg u2
+                    -- Act: participant2 tries to PATCH participant1's entry
+                    let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
+                    code <- patchWithToken patchUrl tok2
+                                (A.object [("title", A.toJSON ("Hacked" :: T.Text))])
+                    -- Cleanup (best-effort)
+                    deleteTestRecord cfg "entries"      eid
+                    deleteTestRecord cfg "competitions" cid
+                    deleteTestRecord cfg "users"        u1
+                    deleteTestRecord cfg "users"        u2
+                    -- Assert
+                    assertBool ("expected 403 or 404, got " <> show code)
+                               (code == 403 || code == 404)
+
+        -- -----------------------------------------------------------------------
+        -- Access control: participant can read own draft
+        -- -----------------------------------------------------------------------
+
+        , testCase "participant can read own draft entry" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    -- Setup
+                    uid <- createTestUser cfg "actest-owner2@test.invalid"
+                    cid <- createTestCompetition cfg
+                    -- Create a draft entry owned by uid via admin
+                    let body = A.object
+                            [ "title"       A..= ("My Draft" :: T.Text)
+                            , "competition" A..= cid
+                            , "submitter"   A..= uid
+                            , "status"      A..= ("draft" :: T.Text)
+                            ]
+                    entryResult <- createRecord cfg "entries" body
+                    case entryResult of
+                        Left err -> do
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "users" uid
+                            assertFailure $ "createRecord failed: " <> err
+                        Right eid -> do
+                            tok <- impersonateUser cfg uid
+                            let getUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
+                            code <- getWithToken getUrl tok
+                            deleteTestRecord cfg "entries"      eid
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "users"        uid
+                            code @?= 200
+
+        -- -----------------------------------------------------------------------
+        -- GalleryTypes unit tests (no PocketBase connection needed)
+        -- -----------------------------------------------------------------------
 
         , testCase "GalleryTypes: Competition JSON decoding" $ do
             let json = A.object

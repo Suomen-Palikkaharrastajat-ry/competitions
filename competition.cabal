@@ -96,6 +96,8 @@ test-suite competition-tests
     , containers
     , tagsoup
     , aeson
+    , http-conduit
+    , http-types
     , tasty
     , tasty-hunit
     , tasty-quickcheck

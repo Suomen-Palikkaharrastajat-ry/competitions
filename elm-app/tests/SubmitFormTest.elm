@@ -9,7 +9,8 @@ Then   state transitions and validation errors are correct
 
 import Expect
 import Http
-import Main exposing (canSubmitMore, deadlineUrgency, isDeadlinePassed, update, validateForm)
+import Main exposing (canSubmitMore, update, validateForm)
+import Scoring exposing (deadlineUrgency, isDeadlinePassed)
 import RemoteData
 import Test exposing (Test, describe, test)
 import Time

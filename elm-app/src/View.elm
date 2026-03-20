@@ -172,13 +172,16 @@ viewHeader user pbUrl =
                                 , Events.onClick (NavigateTo ReviewQueuePage)
                                 ]
                                 [ text "Arvosteltavat" ]
-                            , a
-                                [ Attr.href (pbUrl ++ "/_/")
-                                , Attr.class "text-brand hover:underline"
-                                , Attr.target "_blank"
-                                , Attr.rel "noopener"
+                            , span []
+                                [ text "Kilpailujen hallinta: "
+                                , a
+                                    [ Attr.href (pbUrl ++ "/_/")
+                                    , Attr.class "text-brand hover:underline"
+                                    , Attr.target "_blank"
+                                    , Attr.rel "noopener"
+                                    ]
+                                    [ text "Admin UI →" ]
                                 ]
-                                [ text "Admin UI →" ]
                             ]
 
                         else
@@ -234,7 +237,7 @@ viewDashboard _ model =
                 text ""
 
             RemoteData.Loading ->
-                p [ Attr.class "text-gray-500" ] [ text "Ladataan..." ]
+                viewLoadingSkeleton
 
             RemoteData.Failure _ ->
                 p [ Attr.class "text-red-600" ] [ text "Kilpailujen lataus epäonnistui." ]
@@ -274,7 +277,7 @@ viewCompetitionCard now comp =
 
                 Nothing ->
                     text ""
-            , p [ Attr.class ("text-sm mb-4 " ++ deadlineColorClass comp.endDate now) ]
+            , p [ Attr.class ("text-sm mb-4 " ++ (Scoring.deadlineUrgency comp.endDate now |> Maybe.withDefault "text-gray-500")) ]
                 [ text ("Päättyy: " ++ String.left 10 comp.endDate) ]
             , button
                 [ Attr.class "bg-brand-yellow text-brand font-semibold px-4 py-2 rounded hover:opacity-90 transition-opacity"
@@ -285,108 +288,13 @@ viewCompetitionCard now comp =
         ]
 
 
-{-| Returns "text-red-600" when endDate is within 7 days of now, else "text-gray-500".
-See also Main.deadlineUrgency which is the tested version of this logic.
--}
-deadlineColorClass : String -> Time.Posix -> String
-deadlineColorClass endDate now =
-    let
-        datePart =
-            String.left 10 endDate
-
-        mMillis =
-            case List.filterMap String.toInt (String.split "-" datePart) of
-                [ y, m, d ] ->
-                    Just (deadlineCalendarToMillis y m d)
-
-                _ ->
-                    Nothing
-    in
-    case mMillis of
-        Nothing ->
-            "text-gray-500"
-
-        Just deadlineMs ->
-            let
-                nowMs =
-                    Time.posixToMillis now
-
-                sevenDaysMs =
-                    7 * 24 * 60 * 60 * 1000
-            in
-            if deadlineMs > nowMs && deadlineMs - nowMs <= sevenDaysMs then
-                "text-red-600"
-
-            else
-                "text-gray-500"
-
-
-deadlineCalendarToMillis : Int -> Int -> Int -> Int
-deadlineCalendarToMillis year month day =
-    let
-        isLeap y =
-            (modBy 4 y == 0 && modBy 100 y /= 0) || modBy 400 y == 0
-
-        daysPerYear y =
-            if isLeap y then
-                366
-
-            else
-                365
-
-        yearDays =
-            List.range 1970 (year - 1)
-                |> List.map daysPerYear
-                |> List.sum
-
-        daysPerMonth y m =
-            case m of
-                1 ->
-                    31
-
-                2 ->
-                    if isLeap y then
-                        29
-
-                    else
-                        28
-
-                3 ->
-                    31
-
-                4 ->
-                    30
-
-                5 ->
-                    31
-
-                6 ->
-                    30
-
-                7 ->
-                    31
-
-                8 ->
-                    31
-
-                9 ->
-                    30
-
-                10 ->
-                    31
-
-                11 ->
-                    30
-
-                _ ->
-                    31
-
-        monthDays =
-            List.range 1 (month - 1)
-                |> List.map (daysPerMonth year)
-                |> List.sum
-    in
-    (yearDays + monthDays + day - 1) * 86400000
+viewLoadingSkeleton : Html msg
+viewLoadingSkeleton =
+    div
+        [ Attr.attribute "aria-busy" "true"
+        , Attr.attribute "aria-label" "Ladataan…"
+        ]
+        (List.repeat 3 (div [ Attr.class "animate-pulse bg-gray-200 rounded h-6 mb-2" ] []))
 
 
 viewMyEntries : AuthUser -> Model -> Html Msg
@@ -398,7 +306,7 @@ viewMyEntries _ model =
                 text ""
 
             RemoteData.Loading ->
-                p [ Attr.class "text-gray-500" ] [ text "Ladataan..." ]
+                viewLoadingSkeleton
 
             RemoteData.Failure _ ->
                 p [ Attr.class "text-red-600" ] [ text "Lataus epäonnistui." ]
@@ -650,7 +558,7 @@ viewReviewQueue _ model =
             [ text "Arvosteltavat osallistumiset" ]
         , case model.reviewQueue of
             RemoteData.Loading ->
-                p [ Attr.class "text-gray-500" ] [ text "Ladataan..." ]
+                viewLoadingSkeleton
 
             RemoteData.Failure _ ->
                 p [ Attr.class "text-red-600" ] [ text "Lataus epäonnistui." ]
