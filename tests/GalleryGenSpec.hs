@@ -149,8 +149,13 @@ tests =
 
         , testCase "renderGallery has lang attribute" $ do
             let html = render testConfig galleryWithRankings
-            assertBool "html lang attribute present" $
-                "lang=" `T.isInfixOf` html
+            assertBool "html lang=\"fi\" attribute present" $
+                "lang=\"fi\"" `T.isInfixOf` html
+
+        , testCase "renderGallery lightbox has role=dialog" $ do
+            let html = render testConfig galleryWithRankings
+            assertBool "lightbox has role=dialog" $
+                "role=\"dialog\"" `T.isInfixOf` html
 
         , testCase "renderGallery has skip link for accessibility" $ do
             let html = render testConfig galleryWithRankings

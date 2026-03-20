@@ -69,6 +69,12 @@ galleryHtml config msgs gd = do
                 H.p $ do
                     H.toHtml (msgGeneratedOn msgs <> " ")
                     H.toHtml (msgPoweredBy msgs)
+            H.div ! HA.id "lightbox"
+                  ! H.customAttribute "role" "dialog"
+                  ! H.customAttribute "aria-modal" "true"
+                  ! H.customAttribute "aria-label" "Image viewer"
+                  ! HA.tabindex "-1" $
+                H.img ! HA.alt ""
             H.script $ H.toHtml js
 
 -- ---------------------------------------------------------------------------
