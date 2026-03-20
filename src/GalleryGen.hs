@@ -113,7 +113,7 @@ renderPodiumItem config msgs gd re = do
                $ H.toHtml (show rank <> ".")
         case imgUrl of
             Just url -> H.img ! HA.src (H.toValue url)
-                              ! HA.alt (H.toValue (entryTitle entry))
+                              ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
                               ! HA.class_ "podium-img"
                               ! H.dataAttribute "lightbox" (H.toValue url)
             Nothing  -> return ()
@@ -144,7 +144,7 @@ renderEntryCard config msgs gd re = do
             Just url ->
                 H.div ! HA.class_ "entry-img-wrap" $
                     H.img ! HA.src (H.toValue url)
-                          ! HA.alt (H.toValue (entryTitle entry))
+                          ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
                           ! HA.class_ "entry-img"
                           ! H.dataAttribute "lightbox" (H.toValue url)
             Nothing  -> return ()
@@ -174,6 +174,15 @@ coverImageUrl pbUrl entry =
             let idx  = min (entryCoverIndex entry) (length imgs - 1)
                 fname = imgs !! idx
             in Just $ resolveFileUrl pbUrl (entryId entry) fname
+
+-- | Build the img alt text, appending " by {name}" when not anonymized.
+altText :: Config -> GalleryData -> Entry -> Text -> Text
+altText config gd entry title
+    | configAnonymize config = title
+    | otherwise =
+        case Map.lookup (entrySubmitter entry) (gdDisplayNames gd) of
+            Just name -> title <> " by " <> name
+            Nothing   -> title
 
 submitterName :: Config -> Messages -> GalleryData -> Entry -> Maybe Text
 submitterName config msgs gd entry

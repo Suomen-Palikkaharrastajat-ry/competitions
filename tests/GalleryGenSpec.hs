@@ -156,4 +156,14 @@ tests =
             let html = render testConfig galleryWithRankings
             assertBool "has skip link" $
                 "skip-link" `T.isInfixOf` html
+
+        , testCase "renderGallery alt text includes submitter when not anonymized" $ do
+            let html = render testConfig galleryWithRankings
+            assertBool "alt contains 'by Pekka'" $
+                "by Pekka" `T.isInfixOf` html
+
+        , testCase "renderGallery alt text omits submitter when anonymized" $ do
+            let html = render anonConfig galleryWithRankings
+            assertBool "alt does not contain 'by Pekka'" $
+                not $ "by Pekka" `T.isInfixOf` html
         ]
