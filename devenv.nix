@@ -44,13 +44,26 @@ let
     # Data dir: pb_data/   Admin UI: http://127.0.0.1:8090/_/
     # Migrations are applied automatically on every start from pb_migrations/.
     processes.pocketbase.exec =
-      "pocketbase serve --dir=./pb_data --http=127.0.0.1:8090 --migrationsDir=./pb_migrations";
+      "pocketbase serve --dir=./pb_data --http=127.0.0.1:8090 --migrationsDir=./pb_migrations --dev";
+
+    # ── Elm / Vite dev server ────────────────────────────────────────────────────
+    # Runs the Elm app dev server at http://localhost:5173 (start with: devenv up).
+    # --host 0.0.0.0 makes it reachable from the host machine in devcontainer.
+    processes.elm-dev.exec =
+      "cd elm-app && npm install --silent && npm run dev -- --host 0.0.0.0";
 
     enterShell = ''
       git --version
-      stack --version
-      echo "PocketBase: run 'devenv up' to start the local instance at http://127.0.0.1:8090"
-      echo "  Set POCKETBASE_URL and POCKETBASE_API_KEY in .env (copy from .env.example)"
+      echo ""
+      echo "=== Palikkakilpailu dev environment ==="
+      echo "  devenv up           → start PocketBase (port 8090) + Elm dev server (port 5173)"
+      echo "  make gallery-run    → generate static gallery (requires devenv up first)"
+      echo "  make test           → run Haskell tests"
+      echo "  cd elm-app && npm test → run Elm tests"
+      echo ""
+      echo "  Copy .env.example → .env and fill in POCKETBASE_API_KEY"
+      echo "  PocketBase admin UI: http://127.0.0.1:8090/_/"
+      echo ""
     '';
 
     # Load POCKETBASE_URL and POCKETBASE_API_KEY from .env automatically.

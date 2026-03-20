@@ -1,4 +1,4 @@
-.PHONY: help all dist gallery-run gallery-bin clean test repl check cabal-check watch pb-dev pb-migrate pb-test-migrate pb-configure develop
+.PHONY: help all dist gallery-run gallery-bin clean test repl check cabal-check watch pb-dev pb-migrate pb-seed pb-test-migrate pb-configure develop
 
 default: help
 
@@ -52,6 +52,9 @@ pb-dev: ## Start a local PocketBase server (data in pb_data/, hot-reload admin U
 pb-migrate: ## Apply pending PocketBase migrations against pb_data/
 	rm -f ./pb_migrations/types.d.ts
 	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations
+
+pb-seed: ## Apply dev seed data against local pb_data/ (never run in production)
+	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations_dev
 
 pb-configure: ## Configure PocketBase OTP auth via admin API (requires PB_SUPERUSER_EMAIL + PB_SUPERUSER_PASSWORD + POCKETBASE_URL)
 	@test -n "$$POCKETBASE_URL"       || (echo "POCKETBASE_URL not set"; exit 1)

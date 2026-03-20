@@ -20,6 +20,7 @@ import Data.Aeson
     , (.:)
     , (.:?)
     )
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -106,7 +107,7 @@ instance FromJSON Entry where
             <*> o .:  "title"
             <*> o .:? "description"
             <*> o .:  "images"
-            <*> (maybe 0 id <$> o .:? "cover_image_index")
+            <*> (fromMaybe 0 <$> o .:? "cover_image_index")
             <*> o .:  "status"
 
 data Review = Review
@@ -132,7 +133,7 @@ instance FromJSON Review where
             <*> o .:  "score_technique"
             <*> o .:  "score_presentation"
             <*> o .:? "comment"
-            <*> (maybe False id <$> o .:? "is_published")
+            <*> (fromMaybe False <$> o .:? "is_published")
 
 -- ---------------------------------------------------------------------------
 -- Ranking

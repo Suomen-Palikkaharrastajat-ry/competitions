@@ -3,6 +3,7 @@
 -- | Generates the static public gallery HTML from competition data.
 module GalleryGen (renderGallery) where
 
+import Control.Monad (when)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -58,13 +59,13 @@ galleryHtml config msgs gd = do
             H.a ! HA.href "#main-content"
                 ! HA.class_ "skip-link"
                 $ H.toHtml (msgSkipToContent msgs)
-            H.header ! HA.class_ "site-header" $ do
-                H.div ! HA.class_ "header-inner" $ do
+            H.header ! HA.class_ "site-header" $
+                H.div ! HA.class_ "header-inner" $
                     H.h1 $ H.toHtml (configTitle config)
-            H.main ! HA.id "main-content" $ do
+            H.main ! HA.id "main-content" $
                 mapM_ (renderCompetitionSection config msgs gd)
                     (gdCompetitions gd)
-            H.footer ! HA.class_ "site-footer" $ do
+            H.footer ! HA.class_ "site-footer" $
                 H.p $ do
                     H.toHtml (msgGeneratedOn msgs <> " ")
                     H.toHtml (msgPoweredBy msgs)
@@ -77,16 +78,15 @@ galleryHtml config msgs gd = do
 renderCompetitionSection :: Config -> Messages -> GalleryData -> Competition -> H.Html
 renderCompetitionSection config msgs gd comp = do
     let ranked  = fromMaybe [] $ Map.lookup (compId comp) (gdRankedByComp gd)
-        hasScores = any (not . null . rankedReviews) ranked
+        hasScores = not (all (null . rankedReviews) ranked)
     H.section ! HA.class_ "competition-section"
               ! HA.id (H.toValue (compSlug comp)) $ do
         H.h2 ! HA.class_ "competition-title" $ H.toHtml (compTitle comp)
         case compDescription comp of
             Just desc -> H.p ! HA.class_ "competition-desc" $ H.toHtml desc
             Nothing   -> return ()
-        if hasScores
-            then renderPodium config msgs gd (take 3 ranked)
-            else return ()
+        when hasScores $
+            renderPodium config msgs gd (take 3 ranked)
         H.div ! HA.class_ "entry-grid" $
             mapM_ (renderEntryCard config msgs gd) ranked
 
@@ -95,7 +95,7 @@ renderCompetitionSection config msgs gd comp = do
 -- ---------------------------------------------------------------------------
 
 renderPodium :: Config -> Messages -> GalleryData -> [RankedEntry] -> H.Html
-renderPodium config msgs gd top3 = do
+renderPodium config msgs gd top3 =
     H.div ! HA.class_ "podium" $ do
         H.h3 ! HA.class_ "podium-title" $ H.toHtml (msgWinners msgs)
         H.ol ! HA.class_ "podium-list" $
@@ -157,11 +157,10 @@ renderEntryCard config msgs gd re = do
                 Just name ->
                     H.p ! HA.class_ "entry-submitter" $ H.toHtml name
                 Nothing   -> return ()
-            if hasScore
-                then H.p ! HA.class_ "entry-score" $ do
+            when hasScore $
+                H.p ! HA.class_ "entry-score" $ do
                     H.toHtml (msgScore msgs <> ": ")
                     H.toHtml (show score)
-                else return ()
 
 -- ---------------------------------------------------------------------------
 -- Helpers

@@ -96,7 +96,7 @@ galleryNoScores =
         { gdRankedByComp = Map.singleton "comp1" [unranked] }
 
 render :: Config -> GalleryData -> Text
-render cfg gd = renderGallery cfg (getMessages (configLocale cfg)) gd
+render cfg = renderGallery cfg (getMessages (configLocale cfg))
 
 -- ---------------------------------------------------------------------------
 -- Tests

@@ -1,99 +1,70 @@
-# Repository Orientation Index for Agents
+# Palikkakilpailu — Repository Orientation
 
 ## 1. What This System Is
 
-This repository contains the source code for `planet`, a Haskell CLI tool that aggregates RSS/Atom feeds into a static, single-page HTML overview. Additionally, it includes an interactive Elm-based web viewer for displaying the aggregated content in a modern, responsive interface.
+A LEGO MOC competition platform for Suomen Palikkaharrastajat ry. Participants submit MOC entries, reviewers score them, and a static gallery is generated from the results.
 
-## 2. What This System Is NOT
+**Components:**
+- **PocketBase** (≥ 0.22) — SQLite backend, OTP-only auth, file storage, REST API
+- **Elm 0.19.1 + TailwindCSS v4 + Vite** — participant and reviewer SPA
+- **Haskell (GHC 9.6) + blaze-html** — static gallery pipeline
 
-- It is **not** a dynamic web server.
-- It is **not** a content management system (CMS).
-- It does **not** have a database.
-- It does **not** handle user accounts or interactions.
+## 2. First-Run Setup
 
-## 3. Core Invariants
+```
+1.  Clone repository
+2.  Install devenv: https://devenv.sh/getting-started/
+3.  devenv shell       (or: make develop for devcontainer setup)
+4.  cp .env.example .env
+5.  devenv up          ← starts PocketBase (port 8090) + Elm dev server (port 5173)
+6.  Open http://127.0.0.1:8090/_/ → create superuser account when prompted
+7.  Settings → API Keys → New API key → paste into .env as POCKETBASE_API_KEY
+8.  cp elm-app/.env.example elm-app/.env
+9.  make test                        ← run Haskell tests
+10. cd elm-app && npm test           ← run Elm tests
+11. make pb-seed                     ← (optional) load dev seed competition
+```
 
-- **Single-File Output**: The primary output MUST be a single, self-contained `public/index.html` file with embedded CSS and JS.
-- **Configuration Driven**: All content and primary settings (title, feeds, locale) MUST be driven by the `planet.toml` file.
-- **Stateless Execution**: Each run is independent and generates the site from scratch.
+`devenv up` runs PocketBase with `--dev`, which logs OTP codes to the console — no SMTP needed for local development.
 
-## 4. How to Get Started (Agent Reading Order)
+## 3. Common Commands
 
-1.  **Start Here**: Begin with `AGENTS.md` to understand the rules of engagement and the project's structure from an agent's perspective.
-2.  **Understand the Architecture**: Review the ADRs in `agents/adrs/` to grasp the key architectural decisions and constraints.
-3.  **Understand the "Why"**: Read the user stories in `agents/stories/` to understand the intended features and user-facing behavior.
-4.  **Understand the "What"**: Examine the tests in `test/` (especially `test/Spec.hs`) to see the concrete, verifiable behaviors that are considered correct.
-    - For the Elm application, review `elm-app/tests/` for frontend-specific tests.
-5.  **Understand the "How"**: Finally, read the implementation in `src/`.
-    - `src/Planet.hs`: The main orchestration logic.
-    - `src/FeedParser.hs`: Handles `planet.toml` parsing and feed data extraction.
-    - `src/HtmlGen.hs`: Constructs the final HTML output.
-    - `src/ElmGen.hs`: Generates Elm data modules from parsed feeds.
-    - For the Elm application: `elm-app/src/Main.elm`, `elm-app/src/Types.elm`, `elm-app/src/DateUtils.elm`, `elm-app/src/View.elm`.
+```bash
+devenv up                    # start PocketBase (8090) + Elm dev server (5173)
+make test                    # hlint + cabal test (Haskell)
+cd elm-app && npm test       # elm-test (Elm)
+make pb-test-migrate         # smoke-test migrations against a throwaway pb_data dir
+make pb-seed                 # apply dev seed data (pb_migrations_dev/) — local only
+make pb-configure            # enable OTP + disable password auth via PocketBase API
+make gallery-run             # generate dist/index.html (requires devenv up first)
+```
 
-**Remember the Precedence:** Tests > ADRs > User Stories > Implementation Comments.
+## 4. Migration Directories
 
----
+| Directory | Purpose |
+|-----------|---------|
+| `pb_migrations/` | Schema migrations — run in all environments |
+| `pb_migrations_dev/` | Dev seed data — run locally only, **never in production** |
 
-## 5. PocketBase
+## 5. Production Deployment
 
-Phase 1 introduces PocketBase as a persistent item store. See `agents/adrs/ADR-0001-pocketbase.md` for the full rationale.
+### SMTP Setup (required for OTP email delivery)
+1. Open PocketBase Admin UI → Settings → Mail
+2. Configure SMTP server credentials
+3. Test with Settings → Mail → Send test email
 
-### Quick start (local development)
+Without SMTP, OTP login will not work in production. In local dev, OTP codes appear in the PocketBase console output instead (when running with `--dev`).
 
-1. **Copy the env example:**
-   ```sh
-   cp .env.example .env
-   ```
+### PocketBase Auth Configuration
+Run `make pb-configure` once after first deployment to enable OTP and disable password auth.
+Requires `POCKETBASE_URL`, `PB_SUPERUSER_EMAIL`, and `PB_SUPERUSER_PASSWORD` to be set in the environment.
 
-2. **Start PocketBase** (two options):
-   - Via devenv (recommended): `devenv up`  — runs PocketBase at `http://127.0.0.1:8090`
-   - Via Makefile: `make pb-dev`  — same, but outside devenv
+## 6. Agent Reading Order
 
-3. **Open the Admin UI:** `http://127.0.0.1:8090/_/`
-   - First run: create a superuser account when prompted.
+1. `AGENTS.md` — rules of engagement, repository map, build commands
+2. `agents/adrs/` — architectural decisions and constraints
+3. `agents/GLOSSARY.md` — Finnish/English domain vocabulary
+4. `tests/` and `elm-app/tests/` — the authoritative source of truth for behavior
+5. `src/` and `elm-app/src/` — implementation
 
-4. **Generate an API token:** Admin UI → Settings → API Tokens → Create token.
-
-5. **Fill in `.env`:**
-   ```dotenv
-   POCKETBASE_URL=http://127.0.0.1:8090
-   POCKETBASE_API_KEY=<paste token here>
-   ```
-
-6. **Apply migrations:**
-   ```sh
-   make pb-migrate
-   ```
-   This creates the `feed_items` collection.
-
-7. **Run the generator:**
-   ```sh
-   make run
-   ```
-   Items are synced to PocketBase; `Data.elm` is built from the PocketBase catalogue.
-
-### Environment variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `POCKETBASE_URL` | No | Base URL of the PocketBase instance (e.g. `http://127.0.0.1:8090`). Omit to skip sync and use raw feed data. |
-| `POCKETBASE_API_KEY` | No | Superuser API token (PocketBase ≥ 0.22). Generate in Admin UI → Settings → API Tokens. |
-
-Both variables are loaded automatically from `.env` by devenv (`dotenv.enable = true`).
-Without them, the build falls back to raw feed data (backwards-compatible, no crash).
-
-### Makefile targets
-
-| Target | Description |
-|---|---|
-| `make pb-dev` | Start a local PocketBase server (`pb_data/` as data directory) |
-| `make pb-migrate` | Apply pending migrations from `pb_migrations/` |
-
-### Integration tests
-
-Integration tests for PocketBase require `POCKETBASE_URL` to be set and a live instance running. They are automatically skipped when the variable is absent, so **unit tests must always pass without PocketBase**.
-
-### CI invariant
-
-The build **must succeed and fall back to raw feed data** when `POCKETBASE_URL` is absent. This is a hard invariant enforced by the test suite (`make test` passes with no PocketBase configured).
+**Precedence:** Tests > ADRs > User Stories > Implementation Comments

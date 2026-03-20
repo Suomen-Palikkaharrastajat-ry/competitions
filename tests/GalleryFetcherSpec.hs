@@ -21,8 +21,8 @@ import GalleryTypes
 -- ---------------------------------------------------------------------------
 
 mkComp :: Text -> Text -> Competition
-mkComp cid endDate =
-    Competition cid ("Title " <> cid) ("slug-" <> cid) Nothing Nothing Open "2026-01-01" endDate
+mkComp cid =
+    Competition cid ("Title " <> cid) ("slug-" <> cid) Nothing Nothing Open "2026-01-01"
 
 mkEntry :: Text -> Text -> Entry
 mkEntry eid cid =
@@ -55,7 +55,7 @@ tests =
             let c = mkComp "c1" "2026-01-01"
             sortCompetitions [c] @?= [c]
 
-        , testCase "sortCompetitions empty list unchanged" $ do
+        , testCase "sortCompetitions empty list unchanged" $
             sortCompetitions [] @?= []
 
         , testCase "groupByCompetition groups entries by competition" $ do
@@ -66,6 +66,6 @@ tests =
             length (Map.findWithDefault [] "comp1" grouped) @?= 2
             length (Map.findWithDefault [] "comp2" grouped) @?= 1
 
-        , testCase "groupByCompetition empty list gives empty map" $ do
+        , testCase "groupByCompetition empty list gives empty map" $
             groupByCompetition [] @?= Map.empty
         ]

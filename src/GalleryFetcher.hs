@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Fetches and organises gallery data from PocketBase.
 module GalleryFetcher
@@ -9,9 +10,10 @@ module GalleryFetcher
     , groupByCompetition
     ) where
 
-import Data.Aeson (parseJSON)
+import Data.Aeson (FromJSON, Value, parseJSON)
 import Data.Aeson.Types (parseMaybe)
 import Data.List (sortBy)
+import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
@@ -100,4 +102,5 @@ fetchGalleryData cfg = do
         , gdPbUrl        = pbBaseUrl cfg
         }
   where
-    parseAll vs = [ v' | Just v' <- map (parseMaybe parseJSON) vs ]
+    parseAll :: FromJSON a => [Value] -> [a]
+    parseAll = mapMaybe (parseMaybe parseJSON)

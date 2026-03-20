@@ -1,6 +1,7 @@
 /dist
 /.elm-land
 /.env
+/.env.local
 /elm-stuff
 /node_modules
 .DS_Store
