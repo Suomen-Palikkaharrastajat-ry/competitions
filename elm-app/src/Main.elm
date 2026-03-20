@@ -2,7 +2,9 @@ module Main exposing
     ( authResponseDecoder
     , canSubmitMore
     , competitionDecoder
+    , emptyReview
     , entryDecoder
+    , filteredReviewQueue
     , isDeadlinePassed
     , main
     , otpResponseDecoder
@@ -94,6 +96,9 @@ init flags =
       , myEntries = RemoteData.NotAsked
       , submitForm = emptyForm
       , selectedCompetition = Nothing
+      , reviewQueue = RemoteData.NotAsked
+      , activeReview = Nothing
+      , reviewFilter = AllEntries
       }
     , fetchCmd
     )
@@ -225,6 +230,11 @@ update msg model =
                 ( MyEntriesPage, LoggedIn user ) ->
                     ( { model | page = page, myEntries = RemoteData.Loading }
                     , fetchMyEntries model.pbUrl user.token user.id
+                    )
+
+                ( ReviewQueuePage, LoggedIn user ) ->
+                    ( { model | page = page, reviewQueue = RemoteData.Loading }
+                    , fetchReviewQueue model.pbUrl user.token
                     )
 
                 _ ->
@@ -380,6 +390,156 @@ update msg model =
         CancelEdit ->
             ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
 
+        -- Review queue
+        ReviewQueueLoaded (Ok entries) ->
+            ( { model | reviewQueue = RemoteData.Success entries }, Cmd.none )
+
+        ReviewQueueLoaded (Err err) ->
+            ( { model | reviewQueue = RemoteData.Failure err }, Cmd.none )
+
+        ReviewFilterChanged filter ->
+            ( { model | reviewFilter = filter }, Cmd.none )
+
+        OpenReviewForm reviewableEntry ->
+            let
+                draft =
+                    case reviewableEntry.myReview of
+                        Just existing ->
+                            existing
+
+                        Nothing ->
+                            case model.auth of
+                                LoggedIn user ->
+                                    emptyReview reviewableEntry.entry.id user.id
+
+                                _ ->
+                                    emptyReview reviewableEntry.entry.id ""
+            in
+            ( { model
+                | activeReview =
+                    Just
+                        { reviewableEntry = reviewableEntry
+                        , draftReview = draft
+                        , saving = False
+                        , saveError = Nothing
+                        }
+              }
+            , Cmd.none
+            )
+
+        CloseReviewForm ->
+            ( { model | activeReview = Nothing }, Cmd.none )
+
+        -- Scoring
+        ScoreThemeChanged n ->
+            updateDraftScore (\r -> { r | scoreTheme = n }) model
+
+        ScoreOriginalityChanged n ->
+            updateDraftScore (\r -> { r | scoreOriginality = n }) model
+
+        ScoreTechniqueChanged n ->
+            updateDraftScore (\r -> { r | scoreTechnique = n }) model
+
+        ScorePresentationChanged n ->
+            updateDraftScore (\r -> { r | scorePresentation = n }) model
+
+        ReviewCommentChanged comment ->
+            updateDraftScore (\r -> { r | comment = comment }) model
+
+        -- Review actions
+        SaveReview ->
+            case ( model.auth, model.activeReview ) of
+                ( LoggedIn user, Just reviewForm ) ->
+                    ( { model | activeReview = Just { reviewForm | saving = True } }
+                    , saveReviewCmd model.pbUrl user.token reviewForm.draftReview
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ReviewSaved (Ok review) ->
+            let
+                updateQueueEntry re =
+                    if re.entry.id == review.entryId then
+                        { re | myReview = Just review }
+
+                    else
+                        re
+
+                updatedQueue =
+                    RemoteData.map (List.map updateQueueEntry) model.reviewQueue
+            in
+            case model.activeReview of
+                Just rf ->
+                    ( { model
+                        | activeReview =
+                            Just
+                                { rf
+                                    | saving = False
+                                    , draftReview = review
+                                    , saveError = Nothing
+                                }
+                        , reviewQueue = updatedQueue
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( { model | reviewQueue = updatedQueue }, Cmd.none )
+
+        ReviewSaved (Err _) ->
+            case model.activeReview of
+                Just rf ->
+                    ( { model
+                        | activeReview =
+                            Just
+                                { rf
+                                    | saving = False
+                                    , saveError = Just "Arvostelun tallennus epäonnistui"
+                                }
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ApproveEntry entryId ->
+            case model.auth of
+                LoggedIn user ->
+                    ( model, changeEntryStatus model.pbUrl user.token entryId "approved" Approved )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        RejectEntry entryId ->
+            case model.auth of
+                LoggedIn user ->
+                    ( model, changeEntryStatus model.pbUrl user.token entryId "rejected" Rejected )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        EntryStatusChanged entryId newStatus (Ok ()) ->
+            let
+                updateEntry re =
+                    if re.entry.id == entryId then
+                        let
+                            e =
+                                re.entry
+                        in
+                        { re | entry = { e | status = newStatus } }
+
+                    else
+                        re
+            in
+            ( { model | reviewQueue = RemoteData.map (List.map updateEntry) model.reviewQueue }
+            , Cmd.none
+            )
+
+        EntryStatusChanged _ _ (Err _) ->
+            ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
+
 
 view : Model -> Html Msg
 view model =
@@ -436,6 +596,45 @@ validateForm form =
 
     else
         Ok form
+
+
+emptyReview : String -> String -> Review
+emptyReview entryId reviewerId =
+    { id = Nothing
+    , entryId = entryId
+    , reviewerId = reviewerId
+    , scoreTheme = 3
+    , scoreOriginality = 3
+    , scoreTechnique = 3
+    , scorePresentation = 3
+    , comment = ""
+    , isPublished = False
+    }
+
+
+filteredReviewQueue : ReviewFilter -> List ReviewableEntry -> List ReviewableEntry
+filteredReviewQueue filter entries =
+    case filter of
+        AllEntries ->
+            entries
+
+        NotYetReviewed ->
+            List.filter (\re -> re.myReview == Nothing) entries
+
+        ByCompetition compId ->
+            List.filter (\re -> re.competition.id == compId) entries
+
+
+updateDraftScore : (Review -> Review) -> Model -> ( Model, Cmd Msg )
+updateDraftScore f model =
+    case model.activeReview of
+        Just rf ->
+            ( { model | activeReview = Just { rf | draftReview = f rf.draftReview } }
+            , Cmd.none
+            )
+
+        Nothing ->
+            ( model, Cmd.none )
 
 
 canSubmitMore : Competition -> List Entry -> Bool
@@ -797,6 +996,112 @@ entryDecoder =
         (Decode.maybe (Decode.field "description" Decode.string))
         (Decode.field "images" (Decode.list Decode.string))
         (Decode.field "status" entryStatusDecoder)
+
+
+fetchReviewQueue : String -> String -> Cmd Msg
+fetchReviewQueue pbUrl token =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            pbUrl
+                ++ "/api/collections/entries/records"
+                ++ "?filter=status%3D%22submitted%22||status%3D%22approved%22||status%3D%22rejected%22"
+                ++ "&expand=competition%2Csubmitter&sort=created"
+        , body = Http.emptyBody
+        , expect = Http.expectJson ReviewQueueLoaded (pbListDecoder reviewableEntryDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+saveReviewCmd : String -> String -> Review -> Cmd Msg
+saveReviewCmd pbUrl token review =
+    let
+        body =
+            Http.jsonBody
+                (Encode.object
+                    [ ( "entry", Encode.string review.entryId )
+                    , ( "reviewer", Encode.string review.reviewerId )
+                    , ( "score_theme", Encode.int review.scoreTheme )
+                    , ( "score_originality", Encode.int review.scoreOriginality )
+                    , ( "score_technique", Encode.int review.scoreTechnique )
+                    , ( "score_presentation", Encode.int review.scorePresentation )
+                    , ( "comment", Encode.string review.comment )
+                    , ( "is_published", Encode.bool review.isPublished )
+                    ]
+                )
+    in
+    case review.id of
+        Nothing ->
+            Http.request
+                { method = "POST"
+                , headers = [ Http.header "Authorization" token ]
+                , url = pbUrl ++ "/api/collections/reviews/records"
+                , body = body
+                , expect = Http.expectJson ReviewSaved reviewDecoder
+                , timeout = Nothing
+                , tracker = Nothing
+                }
+
+        Just reviewId ->
+            Http.request
+                { method = "PATCH"
+                , headers = [ Http.header "Authorization" token ]
+                , url = pbUrl ++ "/api/collections/reviews/records/" ++ reviewId
+                , body = body
+                , expect = Http.expectJson ReviewSaved reviewDecoder
+                , timeout = Nothing
+                , tracker = Nothing
+                }
+
+
+changeEntryStatus : String -> String -> String -> String -> EntryStatus -> Cmd Msg
+changeEntryStatus pbUrl token entryId statusStr newStatus =
+    Http.request
+        { method = "PATCH"
+        , headers = [ Http.header "Authorization" token ]
+        , url = pbUrl ++ "/api/collections/entries/records/" ++ entryId
+        , body =
+            Http.jsonBody
+                (Encode.object [ ( "status", Encode.string statusStr ) ])
+        , expect = Http.expectWhatever (EntryStatusChanged entryId newStatus)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+reviewDecoder : Decode.Decoder Review
+reviewDecoder =
+    Decode.field "id" Decode.string
+        |> Decode.andThen
+            (\id ->
+                Decode.map8
+                    (Review (Just id))
+                    (Decode.field "entry" Decode.string)
+                    (Decode.field "reviewer" Decode.string)
+                    (Decode.field "score_theme" Decode.int)
+                    (Decode.field "score_originality" Decode.int)
+                    (Decode.field "score_technique" Decode.int)
+                    (Decode.field "score_presentation" Decode.int)
+                    (Decode.maybe (Decode.field "comment" Decode.string)
+                        |> Decode.map (Maybe.withDefault "")
+                    )
+                    (Decode.maybe (Decode.field "is_published" Decode.bool)
+                        |> Decode.map (Maybe.withDefault False)
+                    )
+            )
+
+
+reviewableEntryDecoder : Decode.Decoder ReviewableEntry
+reviewableEntryDecoder =
+    Decode.map4 ReviewableEntry
+        entryDecoder
+        (Decode.at [ "expand", "competition" ] competitionDecoder)
+        (Decode.maybe (Decode.at [ "expand", "submitter", "display_name" ] Decode.string)
+            |> Decode.map (Maybe.withDefault "")
+        )
+        (Decode.succeed Nothing)
 
 
 pbListDecoder : Decode.Decoder a -> Decode.Decoder (List a)

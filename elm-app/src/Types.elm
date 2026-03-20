@@ -11,6 +11,10 @@ module Types exposing
     , Msg(..)
     , OtpResponse
     , Page(..)
+    , Review
+    , ReviewFilter(..)
+    , ReviewForm
+    , ReviewableEntry
     , SubmitForm
     , SubmitFormStep(..)
     )
@@ -120,6 +124,49 @@ type alias SubmitForm =
     }
 
 
+{-| A reviewer's score for one entry (4 criteria, 1–5 each).
+-}
+type alias Review =
+    { id : Maybe String
+    , entryId : String
+    , reviewerId : String
+    , scoreTheme : Int
+    , scoreOriginality : Int
+    , scoreTechnique : Int
+    , scorePresentation : Int
+    , comment : String
+    , isPublished : Bool
+    }
+
+
+{-| An entry with its expanded competition and submitter, ready for review.
+-}
+type alias ReviewableEntry =
+    { entry : Entry
+    , competition : Competition
+    , submitterName : String
+    , myReview : Maybe Review
+    }
+
+
+{-| Working state for the review form panel.
+-}
+type alias ReviewForm =
+    { reviewableEntry : ReviewableEntry
+    , draftReview : Review
+    , saving : Bool
+    , saveError : Maybe String
+    }
+
+
+{-| Filter for the review queue.
+-}
+type ReviewFilter
+    = AllEntries
+    | NotYetReviewed
+    | ByCompetition String
+
+
 {-| All pages in the application.
 -}
 type Page
@@ -155,6 +202,9 @@ type alias Model =
     , myEntries : RemoteData Http.Error (List Entry)
     , submitForm : SubmitForm
     , selectedCompetition : Maybe Competition
+    , reviewQueue : RemoteData Http.Error (List ReviewableEntry)
+    , activeReview : Maybe ReviewForm
+    , reviewFilter : ReviewFilter
     }
 
 
@@ -190,3 +240,20 @@ type Msg
     | MyEntriesLoaded (Result Http.Error (List Entry))
     | EditDraft String
     | CancelEdit
+      -- Review queue
+    | ReviewQueueLoaded (Result Http.Error (List ReviewableEntry))
+    | ReviewFilterChanged ReviewFilter
+    | OpenReviewForm ReviewableEntry
+    | CloseReviewForm
+      -- Scoring
+    | ScoreThemeChanged Int
+    | ScoreOriginalityChanged Int
+    | ScoreTechniqueChanged Int
+    | ScorePresentationChanged Int
+    | ReviewCommentChanged String
+      -- Review actions
+    | SaveReview
+    | ReviewSaved (Result Http.Error Review)
+    | ApproveEntry String
+    | RejectEntry String
+    | EntryStatusChanged String EntryStatus (Result Http.Error ())

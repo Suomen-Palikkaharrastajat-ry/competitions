@@ -45,6 +45,9 @@ baseModel =
     , myEntries = RemoteData.NotAsked
     , submitForm = emptyForm
     , selectedCompetition = Nothing
+    , reviewQueue = RemoteData.NotAsked
+    , activeReview = Nothing
+    , reviewFilter = AllEntries
     }
 
 
