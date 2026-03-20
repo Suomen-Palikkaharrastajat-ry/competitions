@@ -318,7 +318,7 @@ suite =
                         |> Expect.equal True
             ]
         , describe "deadlineUrgency"
-            [ test "Given endDate tomorrow, Then Just text-red-600" <|
+            [ test "Given endDate tomorrow, Then Just text-brand-red" <|
                 \_ ->
                     -- now = Jan 1 2026, endDate = Jan 3 2026 (2 days away)
                     let
@@ -326,7 +326,7 @@ suite =
                             Time.millisToPosix 1767225600000
                     in
                     deadlineUrgency "2026-01-03" jan1
-                        |> Expect.equal (Just "text-red-600")
+                        |> Expect.equal (Just "text-brand-red")
             , test "Given endDate 8 days away, Then Nothing" <|
                 \_ ->
                     -- now = Jan 1 2026, endDate = Jan 9 2026 (8 days away)

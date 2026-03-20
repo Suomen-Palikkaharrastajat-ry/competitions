@@ -33,7 +33,7 @@ viewLoginEmail : Model -> Html Msg
 viewLoginEmail model =
     div [ Attr.class "min-h-screen bg-gray-50 flex items-center justify-center px-4" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
-            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-gray-200 p-8 max-w-md mx-auto" ]
+            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "text-2xl font-bold tracking-tight text-brand mb-6" ]
                     [ text "Kirjaudu sisään" ]
                 , form [ Events.onSubmit RequestOtp ]
@@ -66,7 +66,7 @@ viewLoginOtp : { email : String, otpId : String } -> Model -> Html Msg
 viewLoginOtp state model =
     div [ Attr.class "min-h-screen bg-gray-50 flex items-center justify-center px-4" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
-            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-gray-200 p-8 max-w-md mx-auto" ]
+            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "text-2xl font-bold tracking-tight text-brand mb-2" ]
                     [ text "Tarkista sähköpostisi" ]
                 , p [ Attr.class "text-sm text-gray-600 mb-6" ]
@@ -110,7 +110,7 @@ viewSetDisplayName : Model -> Html Msg
 viewSetDisplayName model =
     div [ Attr.class "min-h-screen bg-gray-50 flex items-center justify-center px-4" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
-            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-gray-200 p-8 max-w-md mx-auto" ]
+            [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "text-2xl font-bold tracking-tight text-brand mb-6" ]
                     [ text "Valitse näyttönimi" ]
                 , form [ Events.onSubmit SaveDisplayName ]
@@ -148,7 +148,7 @@ viewAppShell user model =
 
 viewHeader : AuthUser -> String -> Html Msg
 viewHeader user pbUrl =
-    header [ Attr.class "bg-white border-b border-gray-200" ]
+    header [ Attr.class "bg-white border-b border-border-default" ]
         [ div [ Attr.class "max-w-5xl mx-auto px-4 flex items-center justify-between h-14" ]
             [ span [ Attr.class "font-bold text-brand" ] [ text "Palikkakilpailu" ]
             , nav [ Attr.class "flex items-center gap-4 text-sm" ]
@@ -187,7 +187,7 @@ viewHeader user pbUrl =
                         else
                             []
                        )
-                    ++ [ span [ Attr.class "text-gray-500" ] [ text user.displayName ]
+                    ++ [ span [ Attr.class "text-text-muted" ] [ text user.displayName ]
                        , button
                             [ Attr.class "text-brand underline focus-visible:ring-2 focus-visible:ring-brand outline-none"
                             , Events.onClick LogOut
@@ -240,11 +240,11 @@ viewDashboard _ model =
                 viewLoadingSkeleton
 
             RemoteData.Failure _ ->
-                p [ Attr.class "text-red-600" ] [ text "Kilpailujen lataus epäonnistui." ]
+                p [ Attr.class "text-brand-red" ] [ text "Kilpailujen lataus epäonnistui." ]
 
             RemoteData.Success comps ->
                 if List.isEmpty comps then
-                    p [ Attr.class "text-gray-500" ] [ text "Ei avoimia kilpailuja." ]
+                    p [ Attr.class "text-text-muted" ] [ text "Ei avoimia kilpailuja." ]
 
                 else
                     div [ Attr.class "grid grid-cols-1 sm:grid-cols-2 gap-4" ]
@@ -255,7 +255,7 @@ viewDashboard _ model =
 viewCompetitionCard : Time.Posix -> Competition -> Html Msg
 viewCompetitionCard now comp =
     div
-        [ Attr.class "rounded-lg overflow-hidden border border-gray-200 bg-white hover:shadow-md transition-shadow"
+        [ Attr.class "rounded-lg overflow-hidden border border-border-default bg-white hover:shadow-md transition-shadow"
         ]
         [ case comp.coverImage of
             Just filename ->
@@ -268,7 +268,7 @@ viewCompetitionCard now comp =
 
             Nothing ->
                 div [ Attr.class "aspect-video bg-gray-100 flex items-center justify-center" ]
-                    [ span [ Attr.class "text-gray-400 text-sm" ] [ text "Ei kansikuvaa" ] ]
+                    [ span [ Attr.class "text-text-subtle text-sm" ] [ text "Ei kansikuvaa" ] ]
         , div [ Attr.class "p-4" ]
             [ p [ Attr.class "text-lg font-semibold text-brand mb-1" ] [ text comp.title ]
             , case comp.theme of
@@ -277,7 +277,7 @@ viewCompetitionCard now comp =
 
                 Nothing ->
                     text ""
-            , p [ Attr.class ("text-sm mb-4 " ++ (Scoring.deadlineUrgency comp.endDate now |> Maybe.withDefault "text-gray-500")) ]
+            , p [ Attr.class ("text-sm mb-4 " ++ (Scoring.deadlineUrgency comp.endDate now |> Maybe.withDefault "text-text-muted")) ]
                 [ text ("Päättyy: " ++ String.left 10 comp.endDate) ]
             , button
                 [ Attr.class "bg-brand-yellow text-brand font-semibold px-4 py-2 rounded hover:opacity-90 transition-opacity"
@@ -309,15 +309,15 @@ viewMyEntries _ model =
                 viewLoadingSkeleton
 
             RemoteData.Failure _ ->
-                p [ Attr.class "text-red-600" ] [ text "Lataus epäonnistui." ]
+                p [ Attr.class "text-brand-red" ] [ text "Lataus epäonnistui." ]
 
             RemoteData.Success entries ->
                 div []
                     [ if List.isEmpty entries then
-                        p [ Attr.class "text-gray-500 mb-4" ] [ text "Ei osallistumisia." ]
+                        p [ Attr.class "text-text-muted mb-4" ] [ text "Ei osallistumisia." ]
 
                       else
-                        div [ Attr.class "border border-gray-200 rounded-lg divide-y divide-gray-200 mb-4" ]
+                        div [ Attr.class "border border-border-default rounded-lg divide-y divide-gray-200 mb-4" ]
                             (List.map viewEntryRow entries)
                     , button
                         [ Attr.class "bg-brand-yellow text-brand font-semibold px-4 py-2 rounded hover:opacity-90 transition-opacity"
@@ -333,7 +333,7 @@ viewEntryRow entry =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
             [ p [ Attr.class "font-medium text-brand" ] [ text entry.title ]
-            , p [ Attr.class "text-sm text-gray-500" ] [ text entry.competitionId ]
+            , p [ Attr.class "text-sm text-text-muted" ] [ text entry.competitionId ]
             , viewPublishedScores entry.publishedReviews
             ]
         , viewStatusBadge entry.status
@@ -409,7 +409,7 @@ viewSubmitForm model =
     in
     case form.step of
         SubmitSuccess ->
-            div [ Attr.class "rounded-lg bg-white shadow-sm border border-gray-200 p-8 max-w-2xl" ]
+            div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-2xl" ]
                 [ h1 [ Attr.class "text-2xl font-bold text-brand mb-4" ] [ text "Osallistuminen lähetetty!" ]
                 , p [ Attr.class "text-gray-600 mb-6" ]
                     [ text "Osallistumisesi on lähetetty arvioitavaksi. Näet sen Omat osallistumiset -sivulla." ]
@@ -421,7 +421,7 @@ viewSubmitForm model =
                 ]
 
         _ ->
-            div [ Attr.class "rounded-lg bg-white shadow-sm border border-gray-200 p-8 max-w-2xl" ]
+            div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-2xl" ]
                 [ h1 [ Attr.class "text-2xl font-bold tracking-tight text-brand mb-6" ]
                     [ text ("Osallistu kilpailuun: " ++ competitionTitle) ]
                 , div []
@@ -468,12 +468,12 @@ viewSubmitForm model =
                         ]
                     , case form.step of
                         UploadError err ->
-                            p [ Attr.class "text-red-600 text-sm mb-4" ] [ text err ]
+                            p [ Attr.class "text-brand-red text-sm mb-4" ] [ text err ]
 
                         _ ->
                             text ""
                     , viewError model.authError
-                    , p [ Attr.class "text-sm text-gray-500 mb-4" ]
+                    , p [ Attr.class "text-sm text-text-muted mb-4" ]
                         [ text "ℹ Lähettämisen jälkeen muokkaus ei ole mahdollista." ]
                     , div [ Attr.class "flex gap-3" ]
                         [ button
@@ -506,7 +506,7 @@ viewImageChip removable filename =
         [ text filename
         , if removable then
             button
-                [ Attr.class "ml-1 text-gray-500 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                [ Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
                 , Events.onClick (RemoveExistingImage filename)
                 ]
                 [ text "×" ]
@@ -561,7 +561,7 @@ viewReviewQueue _ model =
                 viewLoadingSkeleton
 
             RemoteData.Failure _ ->
-                p [ Attr.class "text-red-600" ] [ text "Lataus epäonnistui." ]
+                p [ Attr.class "text-brand-red" ] [ text "Lataus epäonnistui." ]
 
             _ ->
                 div []
@@ -570,10 +570,10 @@ viewReviewQueue _ model =
                         , filterBtn NotYetReviewed model.reviewFilter "Ei vielä arvosteltu"
                         ]
                     , if List.isEmpty entries then
-                        p [ Attr.class "text-gray-500" ] [ text "Ei osallistumisia." ]
+                        p [ Attr.class "text-text-muted" ] [ text "Ei osallistumisia." ]
 
                       else
-                        div [ Attr.class "border border-gray-200 rounded-lg divide-y divide-gray-200" ]
+                        div [ Attr.class "border border-border-default rounded-lg divide-y divide-gray-200" ]
                             (List.map viewReviewQueueRow entries)
                     ]
         , case model.activeReview of
@@ -593,7 +593,7 @@ filterBtn target current label =
                 "font-semibold text-brand underline"
 
              else
-                "text-gray-500 hover:text-brand"
+                "text-text-muted hover:text-brand"
             )
         , Events.onClick (ReviewFilterChanged target)
         ]
@@ -605,7 +605,7 @@ viewReviewQueueRow re =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
             [ p [ Attr.class "font-medium text-brand" ] [ text re.entry.title ]
-            , p [ Attr.class "text-sm text-gray-500" ]
+            , p [ Attr.class "text-sm text-text-muted" ]
                 [ text (re.competition.title ++ " — " ++ re.submitterName) ]
             , case re.myReview of
                 Just review ->
@@ -619,7 +619,7 @@ viewReviewQueueRow re =
                         ]
 
                 Nothing ->
-                    span [ Attr.class "text-sm text-gray-400" ] [ text "Ei vielä arvosteltu" ]
+                    span [ Attr.class "text-sm text-text-subtle" ] [ text "Ei vielä arvosteltu" ]
             ]
         , viewStatusBadge re.entry.status
         , button
@@ -642,7 +642,7 @@ viewReviewQueueRow re =
             ]
             [ text "Hyväksy" ]
         , button
-            [ Attr.class "text-sm bg-red-700 text-white px-3 py-1 rounded hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand outline-none"
+            [ Attr.class "text-sm bg-brand-red text-white px-3 py-1 rounded hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand outline-none"
             , Attr.attribute "aria-label" ("Hylkää osallistuminen: " ++ re.entry.title)
             , Events.onClick (RejectEntry re.entry.id)
             ]
@@ -673,7 +673,7 @@ viewReviewFormPanel rf =
                     ]
                     [ text ("Arvostele: " ++ rf.reviewableEntry.entry.title) ]
                 , button
-                    [ Attr.class "text-gray-400 hover:text-brand text-2xl focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                    [ Attr.class "text-text-subtle hover:text-brand text-2xl focus-visible:ring-2 focus-visible:ring-brand outline-none"
                     , Attr.attribute "aria-label" "Sulje arvostelulomake"
                     , Events.onClick CloseReviewForm
                     ]
@@ -699,7 +699,7 @@ viewReviewFormPanel rf =
                 []
             , case rf.saveError of
                 Just err ->
-                    p [ Attr.class "text-red-600 text-sm mb-4" ] [ text err ]
+                    p [ Attr.class "text-brand-red text-sm mb-4" ] [ text err ]
 
                 Nothing ->
                     text ""
@@ -768,7 +768,7 @@ viewError maybeError =
     case maybeError of
         Just err ->
             p
-                [ Attr.class "mt-3 text-sm text-red-600"
+                [ Attr.class "mt-3 text-sm text-brand-red"
                 , Attr.attribute "role" "alert"
                 ]
                 [ text ("Virhe: " ++ err) ]

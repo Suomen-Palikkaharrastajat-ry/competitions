@@ -46,7 +46,7 @@ scoreMax =
     20
 
 
-{-| Return Just "text-red-600" when the competition ends within 7 days, Nothing otherwise.
+{-| Return Just "text-brand-red" when the competition ends within 7 days, Nothing otherwise.
 -}
 deadlineUrgency : String -> Time.Posix -> Maybe String
 deadlineUrgency endDate now =
@@ -61,7 +61,7 @@ deadlineUrgency endDate now =
                         7 * 24 * 60 * 60 * 1000
                 in
                 if deadlineMs > nowMs && deadlineMs - nowMs <= sevenDaysMs then
-                    Just "text-red-600"
+                    Just "text-brand-red"
 
                 else
                     Nothing

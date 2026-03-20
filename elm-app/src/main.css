@@ -3,6 +3,7 @@
 /* ============================================================
    DESIGN GUIDE: Suomen Palikkaharrastajat ry
    Source: https://logo.palikkaharrastajat.fi/design-guide/
+   Machine-readable spec: https://logo.palikkaharrastajat.fi/design-guide/index.jsonld
    ============================================================ */
 
 /* Outfit variable font (local, OFL-licensed) */
@@ -28,6 +29,12 @@
   --color-nougat-light: #F6D7B3;
   --color-nougat: #D09168;
   --color-nougat-dark: #AD6140;
+
+  /* Semantic color tokens (from JSON-LD spec) */
+  --color-text-muted: #6B7280;
+  --color-text-subtle: #9CA3AF;
+  --color-border-default: #E5E7EB;
+  --color-bg-subtle: #F9FAFB;
 
   /* Motion tokens */
   --transition-duration-fast: 150ms;
