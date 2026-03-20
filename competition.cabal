@@ -12,6 +12,8 @@ build-type:     Simple
 library
   exposed-modules:
       Config
+      GalleryFetcher
+      GalleryGen
       GalleryTypes
       I18n
       HtmlSanitizer
@@ -35,6 +37,7 @@ library
     , http-client
     , http-client-tls
     , blaze-html
+    , blaze-markup
     , tagsoup
     , aeson
     , http-types
@@ -44,6 +47,9 @@ executable competition
   main-is: Main.hs
   other-modules:
       Config
+      GalleryFetcher
+      GalleryGen
+      GalleryTypes
       I18n
       HtmlSanitizer
       PocketBase
@@ -66,6 +72,7 @@ executable competition
     , http-client
     , http-client-tls
     , blaze-html
+    , blaze-markup
     , tagsoup
     , aeson
     , http-types
@@ -76,6 +83,8 @@ test-suite competition-tests
   main-is: TestSuite.hs
   other-modules:
       PocketBaseSchemaSpec
+      GalleryFetcherSpec
+      GalleryGenSpec
   hs-source-dirs:
       tests
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
@@ -84,6 +93,7 @@ test-suite competition-tests
     , text
     , bytestring
     , time
+    , containers
     , tagsoup
     , aeson
     , tasty

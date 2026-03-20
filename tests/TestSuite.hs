@@ -13,6 +13,9 @@ import Config
 import HtmlSanitizer
 import I18n
 import PocketBase (urlEncodeFilter)
+import qualified GalleryFetcherSpec
+import qualified GalleryGenSpec
+import qualified PocketBaseSchemaSpec
 
 main :: IO ()
 main = defaultMain tests
@@ -25,6 +28,9 @@ tests =
         , i18nTests
         , htmlSanitizerTests
         , pocketBaseTests
+        , PocketBaseSchemaSpec.tests
+        , GalleryFetcherSpec.tests
+        , GalleryGenSpec.tests
         ]
 
 -- ---------------------------------------------------------------------------

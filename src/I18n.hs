@@ -31,6 +31,10 @@ data Messages = Messages
     , msgGeneratedOn   :: Text
     , msgPoweredBy     :: Text
     , msgOrgName       :: Text
+    , msgWinners       :: Text
+    , msgScore         :: Text
+    , msgEntries       :: Text
+    , msgBy            :: Text
     }
 
 messagesEn :: Messages
@@ -46,6 +50,10 @@ messagesEn =
         , msgGeneratedOn   = "Generated on"
         , msgPoweredBy     = "Powered by Suomen Palikkaharrastajat ry"
         , msgOrgName       = "Suomen Palikkaharrastajat ry"
+        , msgWinners       = "Winners"
+        , msgScore         = "Score"
+        , msgEntries       = "Entries"
+        , msgBy            = "by"
         }
 
 messagesFi :: Messages
@@ -61,6 +69,10 @@ messagesFi =
         , msgGeneratedOn   = "Koottu"
         , msgPoweredBy     = "Suomen Palikkaharrastajat ry:n tuottama"
         , msgOrgName       = "Suomen Palikkaharrastajat ry"
+        , msgWinners       = "Voittajat"
+        , msgScore         = "Pisteet"
+        , msgEntries       = "Osallistujat"
+        , msgBy            = ""
         }
 
 getMessages :: Locale -> Messages
