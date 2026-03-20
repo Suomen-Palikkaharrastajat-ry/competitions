@@ -1,0 +1,199 @@
+# AGENTS.md
+
+## Purpose
+
+This document defines how LLM coding agents must read, navigate, and safely modify the `competition` repository. It is the primary entry point for any agent-based task.
+
+---
+
+## 1. Source of Truth & Precedence
+
+Your understanding and actions must be guided by the following artifacts, in this strict order of precedence:
+
+1.  **Tests (`tests/` and `elm-app/tests/`)**: Define the verifiable, correct behavior of the application. **Tests are the ultimate source of truth.**
+2.  **ADRs (`agents/adrs/`)**: Define the architectural constraints and non-negotiable rules.
+3.  **User Stories (`agents/stories/`)**: Explain the "why" behind the features and define product intent.
+4.  **Glossary (`agents/GLOSSARY.md`)**: Provides the canonical vocabulary for this project.
+5.  **TODO files (`TODO-00-cleanup.md` through `TODO-06-devenv.md`)**: Define the implementation plan in sequential order. Read the relevant TODO before working on any feature.
+6.  **Inline Source Code Comments**: Provide context but are subordinate to the artifacts above.
+
+---
+
+## 2. Agent Self-Guidance Work Loop
+
+Before making any changes, you **MUST** follow this work loop:
+
+1.  **State Goal**: Clearly state the perceived goal of the task.
+2.  **Read the TODO**: Find and read the TODO file (`TODO-XX-*.md`) relevant to your task.
+3.  **Locate Artifacts**: Identify and read all relevant tests, user stories, and ADRs related to the goal.
+4.  **Identify Constraints**: List the specific architectural and behavioral constraints imposed by the artifacts.
+5.  **Propose Strategy**: Formulate a minimal change strategy that respects all constraints.
+6.  **Formalize Behavior (BDD)**: When adding or updating tests, express the desired behavior in a Given/When/Then format within the test's comments or the user story itself.
+7.  **Update/Add Tests**: Before writing implementation code, add or update tests that codify the goal. Ensure they fail as expected.
+8.  **Implement**: Write the code to make the new tests pass.
+9.  **Verify**: Run all tests and re-evaluate your changes against the user stories and ADRs to ensure compliance.
+
+---
+
+## 3. Repository Map (Agent-Oriented)
+
+```
+competitions/
+├── AGENTS.md                   ← You are here. Defines rules of engagement.
+├── TODO-00-cleanup.md          ← Step 0: Remove planet/feed code; rename project
+├── TODO-01-pocketbase-schema.md← Step 1: PocketBase collections (migrations)
+├── TODO-02-elm-auth.md         ← Step 2: OTP login in Elm app
+├── TODO-03-elm-submit.md       ← Step 3: Entry submission flow
+├── TODO-04-elm-review.md       ← Step 4: Reviewer tools
+├── TODO-05-haskell-gallery.md  ← Step 5: Haskell static gallery pipeline
+├── TODO-06-devenv.md           ← Step 6: Developer environment
+├── TODO-07-missing-features.md ← Step 7: Admin tools, accessibility, SMTP, scores, error boundaries
+├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
+├── competition.cabal           ← Haskell project (after TODO-00)
+├── Makefile                    ← Build targets
+├── .env / .env.example         ← POCKETBASE_URL + POCKETBASE_API_KEY
+│
+├── src/                        ← Haskell source
+│   ├── Main.hs                 ← Entry point (runs gallery pipeline)
+│   ├── Config.hs               ← TOML config parser
+│   ├── GalleryTypes.hs         ← Domain types: Competition, Entry, Review, RankedEntry
+│   ├── GalleryFetcher.hs       ← Fetch data from PocketBase REST API
+│   ├── GalleryGen.hs           ← Render blaze-html gallery page
+│   ├── GalleryElmData.hs       ← (optional) Generate Elm data module
+│   ├── PocketBase.hs           ← Generic PocketBase HTTP client (reusable)
+│   ├── HtmlSanitizer.hs        ← HTML sanitization (for entry descriptions)
+│   ├── Styles.hs               ← Inlined CSS with brand design tokens
+│   ├── Scripts.hs              ← Inlined JS (lightbox, etc.)
+│   └── I18n.hs                 ← Finnish/English labels and date formatting
+│
+├── tests/                      ← Haskell test suite
+│   ├── TestSuite.hs            ← Test suite entry point
+│   ├── ConfigSpec.hs           ← Config parsing tests
+│   ├── GalleryFetcherSpec.hs   ← Ranking algorithm + HTTP integration tests
+│   └── GalleryGenSpec.hs       ← HTML generation tests
+│
+├── elm-app/                    ← Elm web application (participant + reviewer UI)
+│   ├── src/
+│   │   ├── Main.elm            ← App entry point (The Elm Architecture)
+│   │   ├── Types.elm           ← Model, Msg, AuthState, Page, Competition, Entry, Review
+│   │   ├── View.elm            ← All page views and UI components
+│   │   ├── Ports.elm           ← JS interop (auth persistence)
+│   │   └── main.css            ← TailwindCSS v4 with @theme brand tokens
+│   ├── tests/                  ← Elm test suite (elm-test)
+│   │   ├── AuthTest.elm
+│   │   ├── SubmitFormTest.elm
+│   │   ├── ReviewTest.elm
+│   │   └── DecoderTest.elm
+│   ├── index.html              ← App shell (flags: pbUrl, restoredAuth)
+│   ├── elm.json
+│   └── package.json            ← Vite + TailwindCSS v4 + elm-test
+│
+├── pb_migrations/              ← PocketBase schema migrations (applied on start)
+│   ├── 001_create_competitions.js
+│   ├── 002_create_entries.js
+│   ├── 003_create_reviews.js
+│   └── 004_extend_users.js
+│
+├── pb_data/                    ← PocketBase runtime data (gitignored)
+│
+├── agents/
+│   ├── GLOSSARY.md             ← Canonical vocabulary
+│   ├── README.md               ← Quick repo orientation + first-run guide
+│   └── adrs/
+│       ├── ADR-0000-agent-guidance.md
+│       ├── ADR-0001-pocketbase.md
+│       └── ADR-0002-competition-architecture.md
+│
+└── devenv.nix                  ← Nix devenv: GHC, Elm, PocketBase, Node
+```
+
+---
+
+## 4. Change Rules
+
+- **Do not** modify application behavior without first adding or modifying a test.
+- **Do not** violate a constraint defined in an ADR. If a change requires this, propose a new ADR first.
+- All code changes must be accompanied by corresponding test updates.
+- All commit messages **MUST** follow Conventional Commits (see ADR-0000).
+- **Do not** hard-code raw hex color values, pixel values, or font names — always use brand design tokens (see §6).
+
+---
+
+## 5. Decision Escalation Rules
+
+You **MUST STOP** and escalate to the user if:
+
+- A requirement in a User Story conflicts with an existing test.
+- A proposed change would violate an ADR constraint.
+- The desired behavior is ambiguous.
+- You are uncertain how to proceed.
+
+**Escalation procedure:** Document the conflict clearly; if possible create a failing test that demonstrates the ambiguity; ask the user for clarification. **Do not guess.**
+
+---
+
+## 6. Style Guide Compliance
+
+This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
+
+- **Human-readable**: https://logo.palikkaharrastajat.fi/
+- **Machine-readable (JSON-LD)**: https://logo.palikkaharrastajat.fi/design-guide/index.jsonld
+  - Colors: https://logo.palikkaharrastajat.fi/design-guide/colors.jsonld
+  - Typography: https://logo.palikkaharrastajat.fi/design-guide/typography.jsonld
+  - Spacing: https://logo.palikkaharrastajat.fi/design-guide/spacing.jsonld
+  - Motion: https://logo.palikkaharrastajat.fi/design-guide/motion.jsonld
+  - Logos: https://logo.palikkaharrastajat.fi/design-guide/logos.jsonld
+  - Responsiveness: https://logo.palikkaharrastajat.fi/design-guide/responsiveness.jsonld
+
+**When making any UI change**, you MUST:
+
+1. **Check the JSON-LD spec first.** Any color, font, spacing, or animation value must come from a named design token — never hard-code raw hex values or pixel values directly in components.
+2. **Use brand colors correctly:**
+   - Primary brand color is `#05131D` (brand black).
+   - Brand accent is `#FAC80A` (yellow) — only for CTAs/highlights, always paired with brand-black text.
+   - Red `#C91A09` is for danger/error/reject states only.
+   - Tailwind token classes: `bg-brand`, `text-brand`, `border-brand`, `bg-brand-yellow`.
+3. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed).
+4. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
+5. **Use named spacing tokens** (4px base: space-1 through space-16).
+6. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration.fast` = 150ms; `duration.base` = 300ms; `easing.standard = cubic-bezier(0.4, 0, 0.2, 1)`.
+7. **Use `focus-visible:ring-2`** (not `focus:ring-2`) on all interactive elements.
+8. **Page layout**: `max-w-5xl mx-auto px-4`. Cards: `rounded-lg` (8px).
+
+---
+
+## 7. Build & Test Commands
+
+```bash
+# Haskell
+make test              # hlint + cabal test
+make gallery-run       # generate dist/index.html (requires POCKETBASE_URL)
+cabal repl             # interactive REPL
+
+# Elm
+cd elm-app && npm test           # elm-test
+cd elm-app && npm run dev        # Vite dev server at localhost:5173
+cd elm-app && npm run build      # production build
+
+# PocketBase
+make pb-dev            # start PocketBase in dev mode
+make pb-migrate        # apply pending migrations
+make pb-test-migrate   # smoke-test migrations against throwaway dir
+
+# Everything
+devenv up              # start PocketBase + Elm dev server simultaneously
+```
+
+---
+
+## 8. TODO Execution Order
+
+Work on TODOs in numerical order. Each TODO has its own acceptance criteria. Do not start a later TODO until all acceptance criteria of the previous TODO are met.
+
+```
+TODO-00 → TODO-01 → TODO-02 → TODO-03 → TODO-04 → TODO-05 → TODO-06 → TODO-07
+cleanup    schema     auth      submit    review    gallery   devenv    polish
+```
+
+> TODO-05 (gallery) and TODO-06 (devenv) can be worked on in parallel with TODO-03/04 if the PocketBase schema (TODO-01) is complete.
+> TODO-07 must come last — it depends on all prior TODOs being complete.
