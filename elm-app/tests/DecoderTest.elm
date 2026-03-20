@@ -3,11 +3,10 @@ module DecoderTest exposing (suite)
 {-| Tests for PocketBase response decoders.
 
 Given  a JSON payload from PocketBase
-When   decoded with the competition/entry decoders
+When   decoded with the competition/entry/auth decoders
 Then   all fields are correctly populated
 
-These decoders will be implemented in TODO-02/03/04.
-This file defines the expected shapes as compile-time documentation.
+These decoders are implemented in Main.elm and cover competitions, entries, and auth responses.
 -}
 
 import Expect
