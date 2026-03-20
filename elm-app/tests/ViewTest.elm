@@ -8,9 +8,12 @@ Then   the correct HTML elements are present
 -}
 
 import Expect
+import Html.Attributes
+import RemoteData
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
-import Test.Html.Selector exposing (containing, tag, text)
+import Test.Html.Selector exposing (attribute, containing, tag, text)
+import Time
 import Types exposing (..)
 import View
 
@@ -22,6 +25,39 @@ testUser =
     , token = "tok"
     , displayName = "Matti"
     , isReviewer = False
+    }
+
+
+emptyForm : SubmitForm
+emptyForm =
+    { entryId = Nothing
+    , title = ""
+    , description = ""
+    , selectedFiles = []
+    , existingImages = []
+    , imagesToRemove = []
+    , step = FillingForm
+    }
+
+
+loggedOutModel : Model
+loggedOutModel =
+    { auth = LoggedOut
+    , pbUrl = "http://localhost:8090"
+    , emailInput = ""
+    , otpInput = ""
+    , authError = Nothing
+    , displayNameInput = ""
+    , page = LoginPage
+    , lang = Fi
+    , now = Time.millisToPosix 0
+    , competitions = RemoteData.NotAsked
+    , myEntries = RemoteData.NotAsked
+    , submitForm = emptyForm
+    , selectedCompetition = Nothing
+    , reviewQueue = RemoteData.NotAsked
+    , activeReview = Nothing
+    , reviewFilter = AllEntries
     }
 
 
@@ -53,6 +89,22 @@ suite =
                         |> Query.fromHtml
                         |> Query.findAll [ tag "a", containing [ text "Admin UI" ] ]
                         |> Query.count (Expect.equal 0)
+            ]
+        , describe "viewHeader — nav aria-label"
+            [ test "nav has aria-label=Sivunavigaatio" <|
+                \_ ->
+                    View.viewHeader testUser "http://localhost:8090"
+                        |> Query.fromHtml
+                        |> Query.find [ tag "nav" ]
+                        |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Sivunavigaatio") ]
+            ]
+        , describe "viewError — role=alert"
+            [ test "authError present renders role=alert" <|
+                \_ ->
+                    View.view { loggedOutModel | authError = Just "virhe" }
+                        |> Query.fromHtml
+                        |> Query.find [ attribute (Html.Attributes.attribute "role" "alert") ]
+                        |> Query.has [ text "virhe" ]
             ]
         , describe "viewEntryRow — published review scores"
             [ test "entry with no published reviews shows no score" <|

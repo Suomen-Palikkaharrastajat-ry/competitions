@@ -151,7 +151,7 @@ viewHeader user pbUrl =
     header [ Attr.class "bg-white border-b border-border-default" ]
         [ div [ Attr.class "max-w-5xl mx-auto px-4 flex items-center justify-between h-14" ]
             [ span [ Attr.class "font-bold text-brand" ] [ text "Palikkakilpailu" ]
-            , nav [ Attr.class "flex items-center gap-4 text-sm" ]
+            , nav [ Attr.class "flex items-center gap-4 text-sm", Attr.attribute "aria-label" "Sivunavigaatio" ]
                 ([ a
                     [ Attr.href "#"
                     , Attr.class "text-brand hover:underline"

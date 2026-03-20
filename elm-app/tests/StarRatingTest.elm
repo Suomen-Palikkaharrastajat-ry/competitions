@@ -6,7 +6,8 @@ module StarRatingTest exposing (suite)
 import Expect
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
-import Test.Html.Selector exposing (class, tag)
+import Html.Attributes
+import Test.Html.Selector exposing (attribute, class, tag)
 import View exposing (starRating)
 
 
@@ -31,6 +32,20 @@ suite =
                     |> Query.fromHtml
                     |> Query.findAll [ class "text-brand-yellow" ]
                     |> Query.count (Expect.equal 5)
+        , test "first button has aria-label=Arvo 1 viidestä" <|
+            \_ ->
+                starRating 3 identity
+                    |> Query.fromHtml
+                    |> Query.findAll [ tag "button" ]
+                    |> Query.first
+                    |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Arvo 1 viidestä") ]
+        , test "fifth button has aria-label=Arvo 5 viidestä" <|
+            \_ ->
+                starRating 3 identity
+                    |> Query.fromHtml
+                    |> Query.findAll [ tag "button" ]
+                    |> Query.index 4
+                    |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Arvo 5 viidestä") ]
         , test "score 3: 3 yellow stars and 2 gray stars" <|
             \_ ->
                 starRating 3 identity
