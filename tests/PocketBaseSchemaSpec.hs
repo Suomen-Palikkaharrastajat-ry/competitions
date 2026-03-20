@@ -68,6 +68,20 @@ postWithToken url token body = do
     resp <- httpLBS req
     return (getResponseStatusCode resp)
 
+-- | POST with a bearer token; returns status code and response body.
+postWithTokenBody :: String -> T.Text -> A.Value -> IO (Int, A.Value)
+postWithTokenBody url token body = do
+    req0 <- parseRequest ("POST " <> url)
+    let req = setRequestBodyLBS (A.encode body)
+            $ addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token)
+            $ addRequestHeader hContentType "application/json" req0
+    resp <- httpLBS req
+    let code = getResponseStatusCode resp
+    let parsed = case A.eitherDecode (getResponseBody resp) of
+                    Right v -> v
+                    Left _  -> A.Null
+    return (code, parsed)
+
 -- | PATCH with a bearer token; returns HTTP status code.
 patchWithToken :: String -> T.Text -> A.Value -> IO Int
 patchWithToken url token body = do
@@ -436,8 +450,15 @@ tests =
                             , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
                             , "end_date"   A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
                             ]
-                    code <- postWithToken compUrl tok body
-                    -- Cleanup: fetch and delete the created competition if it succeeded
+                    (code, respBody) <- postWithTokenBody compUrl tok body
+                    -- Cleanup: delete the created competition record if successful
+                    case respBody of
+                        A.Object km ->
+                            case KM.lookup "id" km of
+                                Just (A.String compId) ->
+                                    deleteTestRecord cfg "competitions" compId
+                                _ -> return ()
+                        _ -> return ()
                     deleteTestRecord cfg "users" uid
                     assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
 
