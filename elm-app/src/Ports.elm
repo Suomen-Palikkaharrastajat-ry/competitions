@@ -1,14 +1,21 @@
-port module Ports exposing (storeToken, loadToken)
+port module Ports exposing (clearAuth, onAuthRestored, storeAuth)
 
-{-| Ports for JS interop — auth token persistence via localStorage
+{-| Ports for JS interop — auth persistence via localStorage.
 -}
 
+import Types exposing (AuthUser)
 
-{-| Send auth token to JavaScript to save in localStorage
+
+{-| Save auth user to localStorage.
 -}
-port storeToken : String -> Cmd msg
+port storeAuth : AuthUser -> Cmd msg
 
 
-{-| Receive auth token from JavaScript on app initialization
+{-| Clear auth from localStorage (on logout).
 -}
-port loadToken : (Maybe String -> msg) -> Sub msg
+port clearAuth : () -> Cmd msg
+
+
+{-| Receive restored auth from localStorage on app init (subscription variant).
+-}
+port onAuthRestored : (AuthUser -> msg) -> Sub msg

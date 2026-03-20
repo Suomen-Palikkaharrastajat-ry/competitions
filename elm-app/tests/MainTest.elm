@@ -1,24 +1,33 @@
 module MainTest exposing (suite)
 
-{-| Stub test suite — verifies the competition platform Elm app compiles
-and core types are present.
+{-| Verifies the competition platform Elm app compiles and core types are present.
 -}
 
 import Expect
-import Test exposing (Test, describe, test)
-import Types exposing (AuthState(..), Lang(..))
 import I18n
+import Test exposing (Test, describe, test)
+import Types exposing (AuthState(..), AuthUser, Lang(..))
+
+
+testUser : AuthUser
+testUser =
+    { id = "u1"
+    , email = "u@example.fi"
+    , token = "tok"
+    , displayName = "Matti"
+    , isReviewer = False
+    }
 
 
 suite : Test
 suite =
-    describe "Competition platform stub"
+    describe "Competition platform types"
         [ test "AuthState LoggedOut" <|
             \_ ->
                 Expect.equal LoggedOut LoggedOut
         , test "AuthState LoggedIn" <|
             \_ ->
-                Expect.equal (LoggedIn "token") (LoggedIn "token")
+                Expect.equal (LoggedIn testUser) (LoggedIn testUser)
         , test "Lang Fi" <|
             \_ ->
                 Expect.equal Fi Fi

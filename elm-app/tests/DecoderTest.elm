@@ -12,6 +12,7 @@ This file defines the expected shapes as compile-time documentation.
 
 import Expect
 import Json.Decode as Decode
+import Main exposing (authResponseDecoder, otpResponseDecoder)
 import Test exposing (Test, describe, test)
 
 
@@ -136,6 +137,79 @@ suite =
                     case result of
                         Ok entry ->
                             Expect.equal [ "photo.jpg" ] entry.images
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            ]
+        , describe "Auth decoders"
+            [ test "otpResponseDecoder decodes otpId" <|
+                \_ ->
+                    let
+                        json =
+                            """{"otpId":"abc123xyz"}"""
+
+                        result =
+                            Decode.decodeString otpResponseDecoder json
+                    in
+                    case result of
+                        Ok resp ->
+                            Expect.equal "abc123xyz" resp.otpId
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "authResponseDecoder decodes token and record" <|
+                \_ ->
+                    let
+                        json =
+                            """{"token":"eyJtoken","record":{"id":"u1","email":"u@example.fi","display_name":"Pekka","is_reviewer":false}}"""
+
+                        result =
+                            Decode.decodeString authResponseDecoder json
+                    in
+                    case result of
+                        Ok resp ->
+                            Expect.all
+                                [ \_ -> Expect.equal "eyJtoken" resp.token
+                                , \_ -> Expect.equal "u1" resp.record.id
+                                , \_ -> Expect.equal "u@example.fi" resp.record.email
+                                , \_ -> Expect.equal "Pekka" resp.record.displayName
+                                , \_ -> Expect.equal False resp.record.isReviewer
+                                ]
+                                ()
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "authResponseDecoder copies token into record" <|
+                \_ ->
+                    let
+                        json =
+                            """{"token":"eyJtoken","record":{"id":"u1","email":"u@example.fi"}}"""
+
+                        result =
+                            Decode.decodeString authResponseDecoder json
+                    in
+                    case result of
+                        Ok resp ->
+                            Expect.equal "eyJtoken" resp.record.token
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "authResponseDecoder handles missing optional fields" <|
+                \_ ->
+                    let
+                        json =
+                            """{"token":"tok","record":{"id":"u1","email":"u@example.fi"}}"""
+
+                        result =
+                            Decode.decodeString authResponseDecoder json
+                    in
+                    case result of
+                        Ok resp ->
+                            Expect.all
+                                [ \_ -> Expect.equal "" resp.record.displayName
+                                , \_ -> Expect.equal False resp.record.isReviewer
+                                ]
+                                ()
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
