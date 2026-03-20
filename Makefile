@@ -56,24 +56,14 @@ pb-migrate: ## Apply pending PocketBase migrations against pb_data/
 pb-seed: ## Apply dev seed data against local pb_data/ (never run in production)
 	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations_dev
 
-pb-configure: ## Configure PocketBase OTP auth + mailpit SMTP (requires PB_SUPERUSER_EMAIL + PB_SUPERUSER_PASSWORD + POCKETBASE_URL)
-	@test -n "$$POCKETBASE_URL"       || (echo "POCKETBASE_URL not set"; exit 1)
-	@test -n "$$PB_SUPERUSER_EMAIL"   || (echo "PB_SUPERUSER_EMAIL not set"; exit 1)
-	@test -n "$$PB_SUPERUSER_PASSWORD" || (echo "PB_SUPERUSER_PASSWORD not set"; exit 1)
-	@TOKEN=$$(curl -s -X POST "$$POCKETBASE_URL/api/admins/auth-with-password" \
-	  -H "Content-Type: application/json" \
-	  -d "{\"identity\":\"$$PB_SUPERUSER_EMAIL\",\"password\":\"$$PB_SUPERUSER_PASSWORD\"}" \
-	  | grep -o '"token":"[^"]*"' | cut -d'"' -f4) && \
-	curl -s -X PATCH "$$POCKETBASE_URL/api/collections/users" \
-	  -H "Authorization: $$TOKEN" \
-	  -H "Content-Type: application/json" \
-	  -d '{"passwordAuth":{"enabled":false},"otp":{"enabled":true,"duration":600,"length":6}}' \
-	  | grep -q '"id"' && \
-	curl -s -X PATCH "$$POCKETBASE_URL/api/settings" \
-	  -H "Authorization: $$TOKEN" \
+pb-configure: ## Configure PocketBase mailpit SMTP (requires POCKETBASE_URL + POCKETBASE_API_KEY)
+	@test -n "$$POCKETBASE_URL"    || (echo "POCKETBASE_URL not set"; exit 1)
+	@test -n "$$POCKETBASE_API_KEY" || (echo "POCKETBASE_API_KEY not set"; exit 1)
+	@curl -sf -X PATCH "$$POCKETBASE_URL/api/settings" \
+	  -H "Authorization: Bearer $$POCKETBASE_API_KEY" \
 	  -H "Content-Type: application/json" \
 	  -d '{"smtp":{"enabled":true,"host":"127.0.0.1","port":1025,"username":"","password":"","tls":false},"meta":{"senderName":"Palikkakilpailu","senderAddress":"noreply@palikkaharrastajat.fi"}}' \
-	  | grep -q '"smtp"' && echo "pb-configure: PASS" || echo "pb-configure: FAIL"
+	  | python3 -c "import sys,json; d=json.load(sys.stdin); print('pb-configure: PASS' if d.get('smtp') else 'pb-configure: FAIL')"
 
 pb-test-migrate: ## Smoke-test all migrations against a throwaway data dir (no state left behind)
 	@rm -f ./pb_migrations/types.d.ts && \

@@ -15,7 +15,7 @@ try {
 const app = Elm.Main.init({
   node: document.getElementById('app'),
   flags: {
-    pbUrl: import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090',
+    pbUrl: import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8080',
     restoredAuth: restoredAuth,
   },
 });

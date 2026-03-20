@@ -41,6 +41,7 @@ let
   shell = { pkgs, ... }: {
     # https://devenv.sh/packages/
     packages = [
+      pkgs.caddy
       pkgs.elm-land
       pkgs.elmPackages.elm
       pkgs.elmPackages.elm-format
@@ -73,8 +74,11 @@ let
     # Runs PocketBase as a devenv process (start with: devenv up).
     # Data dir: pb_data/   Admin UI: http://127.0.0.1:8090/_/
     # Migrations are applied automatically on every start from pb_migrations/.
-    processes.pocketbase.exec =
-      "pocketbase serve --dir=./pb_data --http=127.0.0.1:8090 --migrationsDir=./pb_migrations --dev";
+    processes.pocketbase.exec = ''
+      pocketbase migrate up --dir=./pb_data --migrationsDir=./pb_migrations &&
+      pocketbase migrate up --dir=./pb_data --migrationsDir=./pb_migrations_dev &&
+      pocketbase serve --dir=./pb_data --http=127.0.0.1:8090 --migrationsDir=./pb_migrations --dev
+    '';
 
     # ── Elm / Vite dev server ────────────────────────────────────────────────────
     # Runs the Elm app dev server at http://localhost:5173 (start with: devenv up).
@@ -88,17 +92,25 @@ let
     processes.mailpit.exec =
       "mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025";
 
+    # ── Caddy reverse proxy ──────────────────────────────────────────────────────
+    # Single entry point at http://127.0.0.1:8080
+    # /mailpit* → mailpit (8025), /_/* and /api/* → pocketbase (8090), rest → vite (5173)
+    processes.caddy.exec =
+      "caddy run --config ./Caddyfile --adapter caddyfile";
+
     enterShell = ''
       git --version
       echo ""
       echo "=== Palikkakilpailu dev environment ==="
-      echo "  devenv up           → start PocketBase (8090) + Elm dev server (5173) + Mailpit (8025)"
+      echo "  devenv up           → start all services (proxy: 8080, PocketBase: 8090, Vite: 5173, Mailpit: 8025)"
       echo "  make gallery-run    → generate static gallery (requires devenv up first)"
       echo "  make test           → run Haskell tests"
       echo "  cd elm-app && npm test → run Elm tests"
       echo ""
       echo "  Copy .env.example → .env and fill in POCKETBASE_API_KEY"
-      echo "  PocketBase admin UI: http://127.0.0.1:8090/_/"
+      echo "  App:              http://127.0.0.1:8080/"
+      echo "  PocketBase admin: http://127.0.0.1:8080/_/"
+      echo "  Mailpit UI:       http://127.0.0.1:8080/mailpit/"
       echo ""
     '';
 

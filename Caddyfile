@@ -1,0 +1,27 @@
+# Dev reverse proxy — all services accessible under a single port 8080
+# Start with: devenv up  (caddy process)
+#
+#   http://127.0.0.1:8080/mailpit/   → Mailpit web UI   (strip prefix)
+#   http://127.0.0.1:8080/_/         → PocketBase admin UI
+#   http://127.0.0.1:8080/api/       → PocketBase REST API
+#   http://127.0.0.1:8080/           → Elm / Vite dev server
+
+:8080 {
+    # Mailpit web UI — strip /mailpit prefix before forwarding
+    handle_path /mailpit* {
+        reverse_proxy 127.0.0.1:8025
+    }
+
+    # PocketBase admin UI and REST API — preserve path
+    handle /_* {
+        reverse_proxy 127.0.0.1:8090
+    }
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8090
+    }
+
+    # Elm / Vite dev server (includes WebSocket for HMR)
+    handle {
+        reverse_proxy 127.0.0.1:5173
+    }
+}
