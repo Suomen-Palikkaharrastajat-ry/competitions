@@ -55,7 +55,7 @@ find_server_url() {
   if [ -n "${PB_AUTH_URL:-}" ]; then
     candidates+=("$PB_AUTH_URL")
   fi
-  candidates+=("http://127.0.0.1:8090" "http://127.0.0.1:8080")
+  candidates+=("http://127.0.0.1:8080" "http://127.0.0.1:8090")
 
   local url
   for url in "${candidates[@]}"; do

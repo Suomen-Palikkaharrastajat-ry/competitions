@@ -35,7 +35,7 @@ MAILPIT_PID=$!
 
 PB_MIGRATIONS_DIR=./pb_migrations \
 PB_HOOKS_DIR=./pb_hooks \
-KEYCLOAK_ISSUER_URL=http://127.0.0.1:8081/realms/competitions \
+KEYCLOAK_ISSUER_URL=http://127.0.0.1:8080/auth/realms/competitions \
 "${PB_BIN[@]}" serve --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
 PB_PID=$!
 
