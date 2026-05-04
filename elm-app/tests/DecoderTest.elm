@@ -2,18 +2,20 @@ module DecoderTest exposing (suite)
 
 {-| Tests for PocketBase response decoders.
 
-Given  a JSON payload from PocketBase
-When   decoded with the competition/entry/auth decoders
-Then   all fields are correctly populated
+Given a JSON payload from PocketBase
+When decoded with the competition/entry/auth decoders
+Then all fields are correctly populated
 
 These decoders are implemented in Main.elm and cover competitions, entries, and auth responses.
+
 -}
 
 import Expect
 import Json.Decode as Decode
-import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, otpResponseDecoder)
+import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, myEntriesUrl, otpResponseDecoder)
 import Test exposing (Test, describe, test)
 import Types exposing (EntryStatus(..))
+
 
 
 -- ---------------------------------------------------------------------------
@@ -55,6 +57,7 @@ decodeEntry =
         (Decode.field "images" (Decode.list Decode.string))
 
 
+
 -- ---------------------------------------------------------------------------
 -- Tests
 -- ---------------------------------------------------------------------------
@@ -85,7 +88,6 @@ suite =
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
-
             , test "fails on missing required fields" <|
                 \_ ->
                     let
@@ -124,7 +126,6 @@ suite =
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
-
             , test "images field returns a list of filenames" <|
                 \_ ->
                     let
@@ -140,6 +141,15 @@ suite =
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
+
+            -- Given a logged-in participant's profile id
+            -- When the app builds the "Omat osallistumiset" PocketBase URL
+            -- Then it sorts newest first by the entry creation timestamp and expands published reviews.
+            , test "builds my entries URL with review back-relation expand" <|
+                \_ ->
+                    myEntriesUrl "http://127.0.0.1:8080" "profile123"
+                        |> Expect.equal
+                            "http://127.0.0.1:8080/api/collections/entries/records?filter=submitter%3D%22profile123%22&sort=-created&expand=reviews_via_entry"
             ]
         , describe "Auth decoders"
             [ test "otpResponseDecoder decodes otpId" <|

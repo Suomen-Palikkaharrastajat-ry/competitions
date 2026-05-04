@@ -8,6 +8,7 @@ module Main exposing
     , handleHttpError
     , httpErrorMessage
     , main
+    , myEntriesUrl
     , otpResponseDecoder
     , requestOtpUrl
     , update
@@ -865,17 +866,21 @@ fetchMyEntries pbUrl token userId =
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" token ]
-        , url =
-            pbUrl
-                ++ "/api/collections/entries/records"
-                ++ "?filter=submitter%3D%22"
-                ++ userId
-                ++ "%22&sort=-created&expand=reviews_via_entry"
+        , url = myEntriesUrl pbUrl userId
         , body = Http.emptyBody
         , expect = Http.expectJson MyEntriesLoaded (pbListDecoder entryDecoder)
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+myEntriesUrl : String -> String -> String
+myEntriesUrl pbUrl userId =
+    pbUrl
+        ++ "/api/collections/entries/records"
+        ++ "?filter=submitter%3D%22"
+        ++ userId
+        ++ "%22&sort=-created&expand=reviews_via_entry"
 
 
 createDraft : String -> AuthUser -> Competition -> SubmitForm -> Cmd Msg

@@ -1,6 +1,7 @@
 import './main.css'
 import { Elm } from './Main.elm'
 import PocketBase from 'pocketbase'
+import { keycloakAuthToElmAuthResponse } from './authInterop.mjs'
 
 // Restore auth from localStorage (null if not present or invalid JSON)
 let restoredAuth = null;
@@ -37,18 +38,7 @@ app.ports.startKeycloakLogin.subscribe(async function (pbUrl) {
     const authData = await pb.collection('keycloak_users').authWithOAuth2({
       provider: import.meta.env.VITE_KEYCLOAK_PROVIDER_NAME || 'oidc',
     });
-    const record = authData.record || {};
-    app.ports.keycloakLoginSucceeded.send({
-      token: authData.token,
-      record: {
-        id: record.id || '',
-        collectionName: record.collectionName || 'keycloak_users',
-        profile_id: record.profile_id || '',
-        email: record.email || '',
-        display_name: record.display_name || '',
-        is_reviewer: !!record.is_reviewer,
-      },
-    });
+    app.ports.keycloakLoginSucceeded.send(keycloakAuthToElmAuthResponse(authData));
   } catch (err) {
     app.ports.keycloakLoginFailed.send('Keycloak-kirjautuminen epäonnistui');
   }
