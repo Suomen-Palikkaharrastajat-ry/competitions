@@ -67,6 +67,7 @@ elm-build: elm-app/dist/.build-stamp ## Build the Elm app
 
 .PHONY: elm-test
 elm-test: elm-tailwind-gen ## Run Elm unit tests
+	node --test elm-app/tests/*.test.mjs
 	cd elm-app && elm-test
 
 .PHONY: elm-check
@@ -138,6 +139,10 @@ check: ## Check formatting and run hlint (no changes)
 test: check ## Run Haskell and Elm tests
 	cabal test
 	$(MAKE) elm-test
+
+.PHONY: dev-proxy-test
+dev-proxy-test: ## Smoke-test local reverse proxy configuration
+	@./scripts/test-dev-proxy-config.sh
 
 .PHONY: format
 format: ## Auto-format Haskell and Elm source files

@@ -24,7 +24,7 @@ let
       dotenv.disableHint = true;
 
       env.NODE_PATH = "${npmTools}/lib/node_modules";
-      env.KEYCLOAK_ISSUER_URL = "http://127.0.0.1:8081/realms/competitions";
+      env.KEYCLOAK_ISSUER_URL = "http://127.0.0.1:8080/auth/realms/competitions";
       env.KEYCLOAK_CLIENT_ID = "competitions";
       env.KEYCLOAK_CLIENT_SECRET = "competitions-dev-secret";
       env.KEYCLOAK_PROVIDER_NAME = "oidc";
@@ -65,6 +65,11 @@ let
       dotenv.enable = true;
 
       env.NODE_PATH = "${npmTools}/lib/node_modules";
+      env.KEYCLOAK_ISSUER_URL = "http://127.0.0.1:8080/auth/realms/competitions";
+      env.KEYCLOAK_CLIENT_ID = "competitions";
+      env.KEYCLOAK_CLIENT_SECRET = "competitions-dev-secret";
+      env.KEYCLOAK_PROVIDER_NAME = "oidc";
+      env.VITE_KEYCLOAK_PROVIDER_NAME = "oidc";
 
       packages = with pkgs; [
         caddy
@@ -97,25 +102,24 @@ let
       '';
 
       # ── Keycloak local OIDC fixture ─────────────────────────────────────────────
-      processes.keycloak.exec = ''
-        export KC_BOOTSTRAP_ADMIN_USERNAME=admin
-        export KC_BOOTSTRAP_ADMIN_PASSWORD=admin
-        export KEYCLOAK_ADMIN=admin
-        export KEYCLOAK_ADMIN_PASSWORD=admin
-        mkdir -p "$DEVENV_ROOT/.devenv/state/keycloak"
-        keycloak import \
-          --file "$DEVENV_ROOT/keycloak/competitions-realm.json" \
-          --override true \
-          --db=dev-file \
-          --db-url="jdbc:h2:file:$DEVENV_ROOT/.devenv/state/keycloak/keycloakdb" || true
-        keycloak start-dev \
-          --http-host=127.0.0.1 \
-          --http-port=8081 \
-          --db=dev-file \
-          --db-url="jdbc:h2:file:$DEVENV_ROOT/.devenv/state/keycloak/keycloakdb" \
-          --features=scripts \
-          --hostname-strict=false
-      '';
+      services.keycloak.enable = true;
+      services.keycloak.initialAdminPassword = "admin";
+      services.keycloak.database.type = "dev-mem";
+      services.keycloak.realms.competitions = {
+        path = "./keycloak/competitions-realm.json";
+        import = true;
+        export = false;
+      };
+      services.keycloak.settings = {
+        http-enabled = true;
+        http-host = "127.0.0.1";
+        http-port = 8081;
+        http-relative-path = "/auth";
+        hostname = "http://127.0.0.1:8080/auth";
+        hostname-strict = false;
+        proxy-headers = "xforwarded";
+        features = "scripts";
+      };
 
       # ── Elm / Vite dev server ────────────────────────────────────────────────────
       processes.elm-dev.exec =
@@ -123,7 +127,7 @@ let
 
       # ── Mailpit (local SMTP + web UI) ────────────────────────────────────────────
       processes.mailpit.exec =
-        "mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025";
+        "mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025 --webroot /mailpit";
 
       # ── Caddy reverse proxy ──────────────────────────────────────────────────────
       processes.caddy.exec =
@@ -147,8 +151,8 @@ let
         echo "  devenv up               — start all services"
         echo "    App:              http://127.0.0.1:8080/"
         echo "    PocketBase admin: http://127.0.0.1:8080/_/"
+        echo "    Keycloak:         http://127.0.0.1:8080/auth/"
         echo "    Mailpit UI:       http://127.0.0.1:8080/mailpit/"
-        echo "    Keycloak:         http://127.0.0.1:8081/"
         echo ""
         echo "  Copy .env.example → .env and fill in POCKETBASE_API_KEY"
         echo ""

@@ -25,9 +25,7 @@ devenv up
 | `http://127.0.0.1:8080/_/` | PocketBase admin UI |
 | `http://127.0.0.1:8080/api/` | PocketBase REST API |
 | `http://127.0.0.1:8080/mailpit/` | Mailpit email UI |
-| `http://127.0.0.1:8081/realms/competitions/` | Keycloak realm |
-| `http://127.0.0.1:8090/` | PocketBase direct |
-| `http://127.0.0.1:5173/` | Vite direct |
+| `http://127.0.0.1:8080/auth/realms/competitions/` | Keycloak realm |
 
 Copy `.env.example` to `.env` when running commands that need `POCKETBASE_URL` or `POCKETBASE_API_KEY`.
 
@@ -117,6 +115,7 @@ make gallery-run      # generate static gallery output from PocketBase
 make pb-test-migrate  # smoke-test schema migrations
 make pb-test-fixture  # smoke-test schema + local fixture migrations
 make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+make dev-proxy-test  # smoke-test local reverse proxy config
 make pb-seed          # apply local-only fixture migrations to pb_data/
 ```
 

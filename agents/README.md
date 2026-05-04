@@ -16,8 +16,8 @@ A LEGO MOC competition platform for Suomen Palikkaharrastajat ry. Participants s
 2.  Install devenv: https://devenv.sh/getting-started/
 3.  devenv shell       (or: make develop for devcontainer setup)
 4.  cp .env.example .env
-5.  devenv up          ← starts PocketBase (port 8090) + Elm dev server (port 5173)
-6.  Open http://127.0.0.1:8090/_/ → create superuser account when prompted
+5.  devenv up          ← starts the local stack behind Caddy on port 8080
+6.  Open http://127.0.0.1:8080/_/ → create superuser account when prompted
 7.  Settings → API Keys → New API key → paste into .env as POCKETBASE_API_KEY
 8.  cp elm-app/.env.example elm-app/.env
 9.  make test                        ← run Haskell tests
@@ -25,17 +25,18 @@ A LEGO MOC competition platform for Suomen Palikkaharrastajat ry. Participants s
 11. make pb-seed                     ← (optional) load dev seed competition
 ```
 
-`devenv up` also starts **Mailpit**, a local SMTP server. Run `make pb-configure` once to point PocketBase at it. OTP emails then appear at `http://127.0.0.1:8025` instead of requiring real SMTP.
+`devenv up` also starts **Mailpit**, a local SMTP server. Run `make pb-configure` once to point PocketBase at it. OTP emails then appear at `http://127.0.0.1:8080/mailpit/` instead of requiring real SMTP.
 
 ## 3. Common Commands
 
 ```bash
-devenv up                    # start PocketBase (8090) + Elm dev server (5173) + Mailpit (8025)
+devenv up                    # start the local stack behind Caddy on port 8080
 make test                    # hlint + cabal test (Haskell)
 cd elm-app && npm test       # elm-test (Elm)
 make pb-test-migrate         # smoke-test migrations against a throwaway pb_data dir
 make pb-seed                 # apply dev seed data (pb_migrations_dev/) — local only
 make pb-configure            # enable OTP + configure mailpit SMTP via PocketBase API
+make dev-proxy-test          # smoke-test local reverse proxy config
 make gallery-run             # generate dist/index.html (requires devenv up first)
 ```
 
@@ -53,7 +54,7 @@ make gallery-run             # generate dist/index.html (requires devenv up firs
 2. Configure production SMTP server credentials (replace mailpit settings)
 3. Test with Settings → Mail → Send test email
 
-In local dev, `devenv up` starts Mailpit (`127.0.0.1:1025`) and `make pb-configure` points PocketBase at it. OTP emails appear in the Mailpit web UI at `http://127.0.0.1:8025`.
+In local dev, `devenv up` starts Mailpit and `make pb-configure` points PocketBase at it. OTP emails appear in the Mailpit web UI at `http://127.0.0.1:8080/mailpit/`.
 
 ### PocketBase Auth Configuration
 Run `make pb-configure` once after first deployment to enable OTP and disable password auth.

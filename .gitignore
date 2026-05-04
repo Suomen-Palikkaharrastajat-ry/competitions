@@ -26,6 +26,7 @@ elm-app/public/*
 !elm-app/public/logo/
 !elm-app/public/favicon/
 elm-app/src/Data.elm
+dist/
 
 # --- PocketBase ---
 pb_data/

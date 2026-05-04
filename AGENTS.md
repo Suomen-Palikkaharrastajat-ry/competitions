@@ -242,7 +242,7 @@ devenv up              # start PocketBase + Elm dev server + Mailpit + Caddy + K
 | `http://127.0.0.1:8080/_/` | PocketBase admin UI |
 | `http://127.0.0.1:8080/api/` | PocketBase REST API |
 | `http://127.0.0.1:8080/mailpit/` | Mailpit email UI |
-| `http://127.0.0.1:8081/realms/competitions/` | Keycloak realm |
+| `http://127.0.0.1:8080/auth/realms/competitions/` | Keycloak realm |
 
 The `devenv` PocketBase process uses the repository-built `competition-pocketbase` binary, applies `pb_migrations/` first and then `pb_migrations_dev/` before serving. That gives local development an open competition, a finished gallery competition, demo local users, Keycloak shadow users, shared profiles, entries in draft/submitted/approved/rejected states, fixture images, reviews, and Mailpit SMTP settings.
 
