@@ -20,6 +20,8 @@ import Types exposing (..)
 testUser : AuthUser
 testUser =
     { id = "reviewer1"
+    , authCollection = "local_users"
+    , profileId = "profile1"
     , email = "reviewer@example.fi"
     , token = "eyJtoken"
     , displayName = "Reviewer"

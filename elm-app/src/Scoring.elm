@@ -8,6 +8,7 @@ module Scoring exposing (deadlineUrgency, entryAverage, isDeadlinePassed, review
     entry_average = sum(review_totals) / count  (0.0 when no published reviews)
 
 Also contains deadline date helpers used by View and Main.
+
 -}
 
 import Time

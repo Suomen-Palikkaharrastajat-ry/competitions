@@ -20,11 +20,11 @@ suite =
                     |> Query.fromHtml
                     |> Query.findAll [ tag "button" ]
                     |> Query.count (Expect.equal 5)
-        , test "score 0: all stars have text-gray-300" <|
+        , test "score 0: all stars have text-text-subtle" <|
             \_ ->
                 starRating 0 identity
                     |> Query.fromHtml
-                    |> Query.findAll [ class "text-gray-300" ]
+                    |> Query.findAll [ class "text-text-subtle" ]
                     |> Query.count (Expect.equal 5)
         , test "score 5: all stars have text-brand-yellow" <|
             \_ ->
@@ -58,7 +58,7 @@ suite =
                                         |> Query.count (Expect.equal 3)
                                 , \_ ->
                                     html
-                                        |> Query.findAll [ class "text-gray-300" ]
+                                        |> Query.findAll [ class "text-text-subtle" ]
                                         |> Query.count (Expect.equal 2)
                                 ]
                                 ()

@@ -21,6 +21,8 @@ import View
 testUser : AuthUser
 testUser =
     { id = "u1"
+    , authCollection = "local_users"
+    , profileId = "profile1"
     , email = "u@example.fi"
     , token = "tok"
     , displayName = "Matti"

@@ -31,6 +31,11 @@ import Network.HTTP.Types (hAuthorization, hContentType)
 import GalleryTypes
 import PocketBase
 
+data TestIdentity = TestIdentity
+    { testAuthId    :: T.Text
+    , testProfileId :: T.Text
+    }
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
@@ -100,30 +105,52 @@ getWithToken url token = do
     resp <- httpLBS req
     return (getResponseStatusCode resp)
 
--- | Create a test user via admin API; returns the new user id.
-createTestUser :: PbConfig -> T.Text -> IO T.Text
+-- | PATCH a record via admin API.
+patchAdminRecord :: PbConfig -> T.Text -> T.Text -> A.Value -> IO ()
+patchAdminRecord cfg col recId body = do
+    let url = T.unpack $ pbBaseUrl cfg
+                <> "/api/collections/" <> col
+                <> "/records/" <> recId
+    req0 <- parseRequest ("PATCH " <> url)
+    let req = setRequestBodyLBS (A.encode body)
+            $ addRequestHeader hContentType "application/json"
+            $ foldr (uncurry addRequestHeader) req0 (authHeaders cfg)
+    resp <- httpLBS req
+    let code = getResponseStatusCode resp
+    assertBool ("PATCH " <> T.unpack col <> " failed with " <> show code) (code >= 200 && code < 300)
+
+-- | Create a local auth user plus a profile via admin API.
+createTestUser :: PbConfig -> T.Text -> IO TestIdentity
 createTestUser cfg email = do
     let body = A.object [ "email" A..= email, "emailVisibility" A..= True ]
-    result <- createRecord cfg "users" body
+    result <- createRecord cfg "local_users" body
     case result of
         Left err  -> fail $ "createTestUser failed: " <> err
-        Right uid -> return uid
+        Right uid -> do
+            profile <- createProfile cfg email uid False
+            patchAdminRecord cfg "local_users" uid
+                (A.object [ "profile_id" A..= profile ])
+            return (TestIdentity uid profile)
 
--- | Create a verified non-reviewer test user via admin API; returns the new user id.
-createVerifiedNonReviewerUser :: PbConfig -> T.Text -> IO T.Text
+-- | Create a verified non-reviewer local user plus a profile via admin API.
+createVerifiedNonReviewerUser :: PbConfig -> T.Text -> IO TestIdentity
 createVerifiedNonReviewerUser cfg email = do
     let body = A.object
             [ "email"           A..= email
             , "emailVisibility" A..= True
             , "verified"        A..= True
             ]
-    result <- createRecord cfg "users" body
+    result <- createRecord cfg "local_users" body
     case result of
         Left err  -> fail $ "createVerifiedNonReviewerUser failed: " <> err
-        Right uid -> return uid
+        Right uid -> do
+            profile <- createProfile cfg email uid False
+            patchAdminRecord cfg "local_users" uid
+                (A.object [ "profile_id" A..= profile ])
+            return (TestIdentity uid profile)
 
--- | Create a reviewer test user via admin API; returns the new user id.
-createReviewerUser :: PbConfig -> T.Text -> IO T.Text
+-- | Create a reviewer local user plus a profile via admin API.
+createReviewerUser :: PbConfig -> T.Text -> IO TestIdentity
 createReviewerUser cfg email = do
     let body = A.object
             [ "email"           A..= email
@@ -131,17 +158,37 @@ createReviewerUser cfg email = do
             , "verified"        A..= True
             , "is_reviewer"     A..= True
             ]
-    result <- createRecord cfg "users" body
+    result <- createRecord cfg "local_users" body
     case result of
         Left err  -> fail $ "createReviewerUser failed: " <> err
-        Right uid -> return uid
+        Right uid -> do
+            profile <- createProfile cfg email uid True
+            patchAdminRecord cfg "local_users" uid
+                (A.object [ "profile_id" A..= profile ])
+            return (TestIdentity uid profile)
 
--- | Obtain a user auth token via PocketBase admin impersonation.
-impersonateUser :: PbConfig -> T.Text -> IO T.Text
-impersonateUser cfg userId = do
+-- | Create the profile record used by domain relations.
+createProfile :: PbConfig -> T.Text -> T.Text -> Bool -> IO T.Text
+createProfile cfg email localUserId isReviewer = do
+    let body = A.object
+            [ "email"            A..= email
+            , "normalized_email" A..= T.toLower email
+            , "display_name"     A..= email
+            , "is_reviewer"      A..= isReviewer
+            , "auth_source"      A..= ("local" :: T.Text)
+            , "local_user"       A..= localUserId
+            ]
+    result <- createRecord cfg "profiles" body
+    case result of
+        Left err  -> fail $ "createProfile failed: " <> err
+        Right pid -> return pid
+
+-- | Obtain a local user auth token via PocketBase admin impersonation.
+impersonateUser :: PbConfig -> TestIdentity -> IO T.Text
+impersonateUser cfg ident = do
     let url = T.unpack $ pbBaseUrl cfg
-                <> "/api/collections/users/impersonate/"
-                <> userId
+                <> "/api/collections/local_users/impersonate/"
+                <> testAuthId ident
     req0 <- parseRequest ("POST " <> url)
     let req = setRequestBodyLBS (A.encode (A.object []))
             $ foldr (uncurry addRequestHeader) req0 (authHeaders cfg)
@@ -181,13 +228,13 @@ createTestCompetition cfg = do
         Left err  -> fail $ "createTestCompetition failed: " <> err
         Right cid -> return cid
 
--- | Create a submitted entry owned by userId via admin API; returns entry id.
+-- | Create a submitted entry owned by a profile via admin API; returns entry id.
 createTestEntry :: PbConfig -> T.Text -> T.Text -> IO T.Text
-createTestEntry cfg userId cid = do
+createTestEntry cfg profileId cid = do
     let body = A.object
             [ "title"       A..= ("AC Test MOC"  :: T.Text)
             , "competition" A..= cid
-            , "submitter"   A..= userId
+            , "submitter"   A..= profileId
             , "status"      A..= ("submitted"    :: T.Text)
             ]
     result <- createRecord cfg "entries" body
@@ -271,7 +318,7 @@ tests =
                     u1 <- createTestUser cfg "actest-owner@test.invalid"
                     u2 <- createTestUser cfg "actest-other@test.invalid"
                     cid <- createTestCompetition cfg
-                    eid <- createTestEntry cfg u1 cid
+                    eid <- createTestEntry cfg (testProfileId u1) cid
                     tok2 <- impersonateUser cfg u2
                     -- Act: participant2 tries to PATCH participant1's entry
                     let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
@@ -280,8 +327,10 @@ tests =
                     -- Cleanup (best-effort)
                     deleteTestRecord cfg "entries"      eid
                     deleteTestRecord cfg "competitions" cid
-                    deleteTestRecord cfg "users"        u1
-                    deleteTestRecord cfg "users"        u2
+                    deleteTestRecord cfg "profiles"     (testProfileId u1)
+                    deleteTestRecord cfg "profiles"     (testProfileId u2)
+                    deleteTestRecord cfg "local_users"  (testAuthId u1)
+                    deleteTestRecord cfg "local_users"  (testAuthId u2)
                     -- Assert
                     assertBool ("expected 403 or 404, got " <> show code)
                                (code == 403 || code == 404)
@@ -299,28 +348,30 @@ tests =
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
                     -- Setup
-                    uid <- createTestUser cfg "actest-owner2@test.invalid"
+                    ident <- createTestUser cfg "actest-owner2@test.invalid"
                     cid <- createTestCompetition cfg
                     -- Create a draft entry owned by uid via admin
                     let body = A.object
                             [ "title"       A..= ("My Draft" :: T.Text)
                             , "competition" A..= cid
-                            , "submitter"   A..= uid
+                            , "submitter"   A..= testProfileId ident
                             , "status"      A..= ("draft" :: T.Text)
                             ]
                     entryResult <- createRecord cfg "entries" body
                     case entryResult of
                         Left err -> do
                             deleteTestRecord cfg "competitions" cid
-                            deleteTestRecord cfg "users" uid
+                            deleteTestRecord cfg "profiles" (testProfileId ident)
+                            deleteTestRecord cfg "local_users" (testAuthId ident)
                             assertFailure $ "createRecord failed: " <> err
                         Right eid -> do
-                            tok <- impersonateUser cfg uid
+                            tok <- impersonateUser cfg ident
                             let getUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
                             code <- getWithToken getUrl tok
                             deleteTestRecord cfg "entries"      eid
                             deleteTestRecord cfg "competitions" cid
-                            deleteTestRecord cfg "users"        uid
+                            deleteTestRecord cfg "profiles"     (testProfileId ident)
+                            deleteTestRecord cfg "local_users"  (testAuthId ident)
                             code @?= 200
 
         -- -----------------------------------------------------------------------
@@ -415,8 +466,8 @@ tests =
                 (_, Nothing) -> assertBool skipMsg True
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
-                    uid <- createVerifiedNonReviewerUser cfg "comp-create-nonrev@test.invalid"
-                    tok <- impersonateUser cfg uid
+                    ident <- createVerifiedNonReviewerUser cfg "comp-create-nonrev@test.invalid"
+                    tok <- impersonateUser cfg ident
                     let compUrl = url <> "/api/collections/competitions/records"
                     let body = A.object
                             [ "title"      A..= ("NonReviewer Comp" :: T.Text)
@@ -426,7 +477,8 @@ tests =
                             , "end_date"   A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
                             ]
                     code <- postWithToken compUrl tok body
-                    deleteTestRecord cfg "users" uid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
                     code @?= 403
 
         -- Given a reviewer user
@@ -440,8 +492,8 @@ tests =
                 (_, Nothing) -> assertBool skipMsg True
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
-                    uid <- createReviewerUser cfg "comp-create-reviewer@test.invalid"
-                    tok <- impersonateUser cfg uid
+                    ident <- createReviewerUser cfg "comp-create-reviewer@test.invalid"
+                    tok <- impersonateUser cfg ident
                     let compUrl = url <> "/api/collections/competitions/records"
                     let body = A.object
                             [ "title"      A..= ("Reviewer Comp" :: T.Text)
@@ -455,11 +507,12 @@ tests =
                     case respBody of
                         A.Object km ->
                             case KM.lookup "id" km of
-                                Just (A.String compId) ->
-                                    deleteTestRecord cfg "competitions" compId
+                                Just (A.String createdCompId) ->
+                                    deleteTestRecord cfg "competitions" createdCompId
                                 _ -> return ()
                         _ -> return ()
-                    deleteTestRecord cfg "users" uid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
                     assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
 
         -- -----------------------------------------------------------------------
@@ -477,12 +530,13 @@ tests =
                 (_, Nothing) -> assertBool skipMsg True
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
-                    uid <- createTestUser cfg "self-promote@test.invalid"
-                    tok <- impersonateUser cfg uid
-                    let userUrl = url <> "/api/collections/users/records/" <> T.unpack uid
-                    code <- patchWithToken userUrl tok
+                    ident <- createTestUser cfg "self-promote@test.invalid"
+                    tok <- impersonateUser cfg ident
+                    let profileUrl = url <> "/api/collections/profiles/records/" <> T.unpack (testProfileId ident)
+                    code <- patchWithToken profileUrl tok
                                 (A.object [("is_reviewer", A.toJSON True)])
-                    deleteTestRecord cfg "users" uid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
                     code @?= 403
 
         -- -----------------------------------------------------------------------
@@ -523,19 +577,20 @@ tests =
                 (_, Nothing) -> assertBool skipMsg True
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
-                    uid <- createVerifiedNonReviewerUser cfg "entry-create@test.invalid"
+                    ident <- createVerifiedNonReviewerUser cfg "entry-create@test.invalid"
                     cid <- createTestCompetition cfg
-                    tok <- impersonateUser cfg uid
+                    tok <- impersonateUser cfg ident
                     let entryUrl = url <> "/api/collections/entries/records"
                     let body = A.object
                             [ "title"       A..= ("Participant Entry" :: T.Text)
                             , "competition" A..= cid
-                            , "submitter"   A..= uid
+                            , "submitter"   A..= testProfileId ident
                             , "status"      A..= ("draft" :: T.Text)
                             ]
                     code <- postWithToken entryUrl tok body
                     deleteTestRecord cfg "competitions" cid
-                    deleteTestRecord cfg "users" uid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
                     assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
 
         -- Given a participant and their own draft entry
@@ -549,28 +604,30 @@ tests =
                 (_, Nothing) -> assertBool skipMsg True
                 (Just url, Just key) -> do
                     let cfg = PbConfig (T.pack url) (T.pack key)
-                    uid <- createVerifiedNonReviewerUser cfg "entry-update-own@test.invalid"
+                    ident <- createVerifiedNonReviewerUser cfg "entry-update-own@test.invalid"
                     cid <- createTestCompetition cfg
                     let body = A.object
                             [ "title"       A..= ("My Draft" :: T.Text)
                             , "competition" A..= cid
-                            , "submitter"   A..= uid
+                            , "submitter"   A..= testProfileId ident
                             , "status"      A..= ("draft" :: T.Text)
                             ]
                     entryResult <- createRecord cfg "entries" body
                     case entryResult of
                         Left err -> do
                             deleteTestRecord cfg "competitions" cid
-                            deleteTestRecord cfg "users" uid
+                            deleteTestRecord cfg "profiles" (testProfileId ident)
+                            deleteTestRecord cfg "local_users" (testAuthId ident)
                             assertFailure $ "setup failed: " <> err
                         Right eid -> do
-                            tok <- impersonateUser cfg uid
+                            tok <- impersonateUser cfg ident
                             let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
                             code <- patchWithToken patchUrl tok
                                         (A.object [("title", A.toJSON ("Updated Title" :: T.Text))])
                             deleteTestRecord cfg "entries"      eid
                             deleteTestRecord cfg "competitions" cid
-                            deleteTestRecord cfg "users"        uid
+                            deleteTestRecord cfg "profiles"     (testProfileId ident)
+                            deleteTestRecord cfg "local_users"  (testAuthId ident)
                             assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
 
         -- Given an unauthenticated GET on reviews (published only)

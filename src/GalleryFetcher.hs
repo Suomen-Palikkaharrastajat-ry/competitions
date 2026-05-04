@@ -9,6 +9,7 @@ module GalleryFetcher
     , sortCompetitions
     , groupByCompetition
     , parseDisplayNames
+    , shouldFetchDisplayNames
     ) where
 
 import Data.Aeson (FromJSON, Value, parseJSON, withObject, (.:), (.:?))
@@ -67,7 +68,7 @@ groupByCompetition entries =
 -- IO: fetch everything from PocketBase
 -- ---------------------------------------------------------------------------
 
--- | Build a user id → display_name map from raw PocketBase user records.
+-- | Build a profile id → display_name map from raw PocketBase profile records.
 -- Records without a non-empty display_name are silently skipped.
 parseDisplayNames :: [Value] -> Map.Map Text Text
 parseDisplayNames = Map.fromList . mapMaybe extract
@@ -78,6 +79,12 @@ parseDisplayNames = Map.fromList . mapMaybe extract
         name <- mName
         if T.null name then Nothing else Just (uid, name)
 
+-- | Display names live on the profiles collection and require a superuser token.
+-- Without a token the public gallery can still render approved entries.
+shouldFetchDisplayNames :: PbConfig -> Bool
+shouldFetchDisplayNames cfg =
+    not $ T.null $ T.strip $ pbApiToken cfg
+
 -- | Fetch all gallery data from PocketBase.
 -- Only approved entries and published reviews are included.
 fetchGalleryData :: PbConfig -> IO GalleryData
@@ -85,12 +92,14 @@ fetchGalleryData cfg = do
     compsRaw   <- fetchAll cfg "competitions"
     entriesRaw <- fetchAll cfg "entries"
     reviewsRaw <- fetchAll cfg "reviews"
-    usersRaw   <- fetchAll cfg "users"
+    profilesRaw <- if shouldFetchDisplayNames cfg
+                    then fetchAll cfg "profiles"
+                    else pure []
 
     let comps   = parseAll compsRaw   :: [Competition]
         entries      = parseAll entriesRaw :: [Entry]
         reviews      = parseAll reviewsRaw :: [Review]
-        displayNames = parseDisplayNames usersRaw
+        displayNames = parseDisplayNames profilesRaw
 
         approvedEntries  = filter ((== Approved) . entryStatus) entries
         publishedReviews = filter reviewIsPublished reviews

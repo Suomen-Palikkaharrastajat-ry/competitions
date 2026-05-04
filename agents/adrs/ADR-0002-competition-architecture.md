@@ -16,20 +16,21 @@ The platform is split into three distinct components with clear boundaries:
 ### Component 1: PocketBase Backend
 
 **Responsibilities:**
-- Persistent storage for all domain data (competitions, entries, reviews, users)
+- Persistent storage for all domain data (competitions, entries, reviews, profiles)
 - File storage for entry images and competition cover images
-- Authentication (OTP via email — no passwords)
+- Authentication (Keycloak OIDC or local OTP; no passwords)
 - Access control (collection-level rules)
 - REST API consumed by both the Elm app and the Haskell pipeline
 
 **Why PocketBase** (see ADR-0001 for full rationale): single binary, zero external dependencies, SQLite-backed, built-in file storage, MIT licensed, OTP auth in ≥ 0.22.
 
-**Auth strategy:** OTP only. Email/password authentication is **disabled** at the collection level. This simplifies security (no password storage, no reset flows) and is appropriate for a small club platform where all users have valid email addresses.
+**Auth strategy:** See ADR-0003. Email/password authentication is **disabled** for participant/reviewer auth collections. Keycloak OIDC wins over local OTP for matching emails.
 
 ### Component 2: Elm Single-Page Application (participant + reviewer UI)
 
 **Responsibilities:**
-- Email/OTP login
+- Keycloak OIDC login
+- Local email/OTP login
 - Browsing open competitions
 - Submitting and editing draft entries (file upload, title, description)
 - Viewing own submissions and their status
@@ -66,8 +67,8 @@ The platform is split into three distinct components with clear boundaries:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     PocketBase (backend)                    │
-│  Collections: competitions, entries, reviews, users         │
-│  Auth: OTP email                                            │
+│  Collections: competitions, entries, reviews, profiles      │
+│  Auth: keycloak_users OIDC, local_users OTP                 │
 │  Files: entry images, cover images                          │
 │  Admin UI: /_/                                              │
 └──────────────────────┬──────────────────────┬──────────────┘
@@ -98,7 +99,7 @@ The platform is split into three distinct components with clear boundaries:
 
 5. **PocketBase access rules are the security boundary.** The Elm app relies on PocketBase's `listRule`/`viewRule`/`createRule`/`updateRule`/`deleteRule` for authorization. The Haskell pipeline bypasses these rules (superuser key) and must not expose unpublished data.
 
-6. **No password authentication.** The `users` collection must have `allowEmailAuth: false`. Only OTP is permitted. Never introduce email+password auth without a new ADR.
+6. **No password authentication.** Participant/reviewer auth collections must keep password auth disabled. `keycloak_users` uses OIDC; `local_users` uses OTP. Never introduce email+password auth without a new ADR.
 
 7. **Images are served directly from PocketBase.** Do not proxy, re-upload, or cache images outside PocketBase in the Elm app. In the static gallery, images are linked via PocketBase file URLs (CDN in production).
 
@@ -126,7 +127,7 @@ The gallery can be regenerated after each competition concludes by running `make
 - Clear separation of concerns: each component has a single job
 - No shared code between Elm and Haskell (PocketBase API is the interface)
 - Static gallery can be hosted cheaply and survives PocketBase downtime
-- OTP-only auth removes password management complexity
+- Keycloak-first auth lets organization-managed identities take precedence while preserving local OTP fallback
 - PocketBase admin UI provides a no-code management interface for competitions
 
 ### Negative

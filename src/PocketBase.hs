@@ -41,6 +41,7 @@ import Network.HTTP.Simple
     )
 import Network.HTTP.Types (Header, hAuthorization, hContentType)
 import System.Environment (lookupEnv)
+import qualified Data.ByteString.Lazy.Char8 as LBS8
 
 
 -- ---------------------------------------------------------------------------
@@ -66,9 +67,11 @@ loadPbConfig = do
 
 authHeaders :: PbConfig -> [Header]
 authHeaders cfg =
-    [ (hAuthorization, "Bearer " <> TE.encodeUtf8 (pbApiToken cfg))
-    , (hContentType,   "application/json")
-    ]
+    let token = T.strip (pbApiToken cfg)
+        baseHeaders = [(hContentType, "application/json")]
+    in if T.null token
+        then baseHeaders
+        else (hAuthorization, "Bearer " <> TE.encodeUtf8 token) : baseHeaders
 
 -- ---------------------------------------------------------------------------
 -- PbList — envelope returned by PocketBase list endpoints
@@ -107,8 +110,28 @@ fetchPage cfg col pageNum = do
     let req = foldr (uncurry addRequestHeader) req0 (authHeaders cfg)
     resp <- httpLBS req
     let body = getResponseBody resp
-    case eitherDecode body of
-        Left err  -> fail $ "fetchPage decode error: " <> err
+        code = getResponseStatusCode resp
+        bodyPreview = take 500 (LBS8.unpack body)
+    if code < 200 || code >= 300
+        then fail $
+            "fetchPage HTTP "
+            <> show code
+            <> " for collection "
+            <> T.unpack col
+            <> " at "
+            <> url
+            <> ": "
+            <> bodyPreview
+        else case eitherDecode body of
+        Left err  -> fail $
+            "fetchPage decode error for collection "
+            <> T.unpack col
+            <> " at "
+            <> url
+            <> ": "
+            <> err
+            <> "; body: "
+            <> bodyPreview
         Right lst -> return lst
 
 -- | Fetch ALL records by paginating until exhausted.

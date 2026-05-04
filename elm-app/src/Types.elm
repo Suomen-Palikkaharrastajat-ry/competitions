@@ -40,6 +40,8 @@ type Lang
 -}
 type alias AuthUser =
     { id : String
+    , authCollection : String
+    , profileId : String
     , email : String
     , token : String
     , displayName : String
@@ -233,7 +235,10 @@ type Msg
     | LogOut
     | DisplayNameChanged String
     | SaveDisplayName
-    | DisplayNameSaved (Result Http.Error AuthUser)
+    | DisplayNameSaved (Result Http.Error String)
+    | StartKeycloakLogin
+    | KeycloakLoginCompleted AuthResponse
+    | KeycloakLoginFailed String
       -- Navigation
     | NavigateTo Page
       -- Competitions

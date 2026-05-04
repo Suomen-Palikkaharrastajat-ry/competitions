@@ -1,21 +1,24 @@
-.gitignore — minimal, organized
-
-# Environment
+# --- Environment / local ---
 .env
 .devcontainer.json
 .devenv*
 devenv.local.nix
 devenv.local.yaml
+.direnv
 
-# Build artifacts (Haskell)
+# --- Dependencies ---
+node_modules
+node_modules/
+elm-app/node_modules/
+elm-app/packages
+
+# --- Haskell build artifacts ---
 dist-newstyle/
 .stack-work/
-planet
-src/Main
 
-# Elm / frontend build artifacts
-elm-app/node_modules/
+# --- Elm / frontend build artifacts ---
 elm-app/elm-stuff/
+elm-app/.elm-tailwind/
 elm-app/.vite/
 elm-app/dist/
 elm-app/public/*
@@ -24,22 +27,22 @@ elm-app/public/*
 !elm-app/public/favicon/
 elm-app/src/Data.elm
 
-# Top-level generated output
-public/
-
-# Editor / tooling
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# PocketBase data directory (local instance state — not committed)
+# --- PocketBase ---
 pb_data/
-
-# PocketBase auto-generates types.d.ts and *.db in the migrations dir — exclude them.
 pb_migrations/types.d.ts
 pb_migrations/*.db
 
-# Misc / local
+# --- Generated output ---
+public/
+
+# --- Editor & OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Misc / local ---
 .claude/
 TODO*

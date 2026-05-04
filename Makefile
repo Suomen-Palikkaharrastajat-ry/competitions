@@ -1,18 +1,31 @@
-.PHONY: help all dist gallery-run gallery-bin clean test repl check cabal-check watch pb-dev pb-migrate pb-seed pb-test-migrate pb-configure develop
+HLINT ?= hlint
+FOURMOLU ?= fourmolu
+COMPETITION_NIX ?= competition-nix
+POCKETBASE ?= env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase
 
-default: help
+.PHONY: help
+help: ## Show available targets
+	@grep -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-all: dist ## Build the entire project
+# ── Vendor / submodules ──────────────────────────────────────────────────────
 
-dist: ## Build Haskell pipeline and Elm app
-	cabal build
-	cd elm-app && npm run build
+.PHONY: vendor
+vendor: ## Init and update all git submodules to their pinned commits
+	@# In CI environments (GitHub Actions) SSH access is unavailable;
+	@# rewrite git@github.com: to https://github.com/ so submodules clone via HTTPS.
+	@[ -z "$$CI" ] || git config --global url."https://github.com/".insteadOf "git@github.com:"
+	@if [ -d .git ]; then git submodule update --init; elif [ ! -d vendor/master-builder ]; then mkdir -p vendor && git clone https://github.com/Suomen-Palikkaharrastajat-ry/master-builder.git vendor/master-builder; fi
+	ln -sfn ../vendor/master-builder/packages elm-app/packages
 
-gallery-run: ## Run the gallery pipeline (requires POCKETBASE_URL)
-	cabal run competition
+# ── Development environment ──────────────────────────────────────────────────
 
-gallery-bin: ## Run the compiled gallery binary directly
-	./competition
+.PHONY: shell
+shell: ## Enter devenv shell
+	devenv shell
+
+.PHONY: .env
+.env: ## Generate local .env with a working PocketBase superuser API key
+	POCKETBASE='$(POCKETBASE)' bash scripts/generate-env.sh
 
 .PHONY: develop
 develop: devenv.local.nix devenv.local.yaml ## Bootstrap opinionated development environment
@@ -24,38 +37,131 @@ devenv.local.nix:
 devenv.local.yaml:
 	cp devenv.local.yaml.example devenv.local.yaml
 
-clean: ## Clean build artifacts and output
-	cabal clean
-	rm -rf dist-newstyle competition .hpc *.html
+# ── Elm frontend ──────────────────────────────────────────────────────────────
 
-test: check ## Run all tests (hlint + cabal test + elm test)
-	cabal test
-	cd elm-app && npm test
+.PHONY: elm-dev
+elm-dev: ## Start Elm + Vite dev server (hot reload)
+	cd elm-app && vite
 
+ELM_APP_SOURCES := $(shell find elm-app/src -name '*.elm')
+ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm' -o -name '*.css' 2>/dev/null)
+
+.PHONY: elm-tailwind-gen
+elm-tailwind-gen: elm-app/.elm-tailwind/.stamp ## Generate typed Tailwind Elm modules into elm-app/.elm-tailwind/
+
+elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/src/main.css $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES)
+	cd elm-app && elm-tailwind-classes gen
+	mkdir -p elm-app/.elm-tailwind
+	touch $@
+
+elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
+	cd elm-app && vite build
+	touch $@
+
+elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
+	cd elm-app && vite build
+	touch $@
+
+.PHONY: elm-build
+elm-build: elm-app/dist/.build-stamp ## Build the Elm app
+
+.PHONY: elm-test
+elm-test: elm-tailwind-gen ## Run Elm unit tests
+	cd elm-app && elm-test
+
+.PHONY: elm-check
+elm-check: ## Check Elm formatting (no changes)
+	cd elm-app && elm-format --validate src/
+
+.PHONY: elm-format
+elm-format: ## Auto-format Elm source files
+	cd elm-app && elm-format --yes src/
+
+# ── Haskell gallery pipeline ──────────────────────────────────────────────────
+
+HS_SOURCES := $(shell find src -name '*.hs') competition.cabal $(wildcard cabal.project*)
+
+competition: $(HS_SOURCES)
+	cabal build
+	cp $$(cabal list-bin competition) $@
+
+.PHONY: gallery-build
+gallery-build: competition ## Build Haskell gallery pipeline
+
+elm-app/dist/.gallery-stamp: competition
+	./competition
+	touch $@
+
+.PHONY: gallery-run
+gallery-run: elm-app/dist/.gallery-stamp ## Run the gallery pipeline (requires POCKETBASE_URL)
+
+elm-app/dist/.gallery-stamp-ci:
+	POCKETBASE_URL=https://data.palikkaharrastajat.fi $(COMPETITION_NIX)
+	touch $@
+
+.PHONY: repl
 repl: ## Start the Haskell REPL
 	cabal repl
 
-check: ## Run hlint static analysis
-	hlint src tests
-
+.PHONY: cabal-check
 cabal-check: ## Check the package for common errors
 	cabal check
 
-watch: ## Watch for changes and rebuild
-	find src competition.cabal competition.toml -name "*.hs" -o -name "*.cabal" -o -name "*.toml" | entr -s 'make gallery-run' &
-	cd elm-app && npm run dev
+# ── Combined targets ──────────────────────────────────────────────────────────
 
+.PHONY: dist-ci
+dist-ci: elm-app/dist/.gallery-stamp-ci elm-app/dist/.build-stamp-ci ## CI build: gallery pipeline + Elm app via Nix-provided binary
+	rm -rf build
+	mkdir -p build
+	cp -R elm-app/dist/. build/
+
+.PHONY: dist
+dist: elm-app/dist/.build-stamp ## Full local build: gallery pipeline + Elm app
+	rm -rf build
+	mkdir -p build
+	cp -R elm-app/dist/. build/
+
+.PHONY: watch
+watch: ## Watch for changes in Haskell and Elm files and rebuild
+	make gallery-run
+	find src competition.cabal competition.toml -name "*.hs" -o -name "*.cabal" -o -name "*.toml" | entr -s 'make gallery-run' &
+	cd elm-app && elm-tailwind-classes gen && vite
+
+# ── Test & quality ────────────────────────────────────────────────────────────
+
+.PHONY: check
+check: ## Check formatting and run hlint (no changes)
+	$(HLINT) src tests
+	$(MAKE) elm-check
+
+.PHONY: test
+test: check ## Run Haskell and Elm tests
+	cabal test
+	$(MAKE) elm-test
+
+.PHONY: format
+format: ## Auto-format Haskell and Elm source files
+	find src tests -name '*.hs' | xargs $(FOURMOLU) --mode inplace
+	$(MAKE) elm-format
+	treefmt
+
+# ── PocketBase ────────────────────────────────────────────────────────────────
+
+.PHONY: pb-dev
 pb-dev: ## Start a local PocketBase server (data in pb_data/, hot-reload admin UI)
 	rm -f ./pb_migrations/types.d.ts
-	pocketbase serve --dir ./pb_data --migrationsDir ./pb_migrations --dev
+	PB_MIGRATIONS_DIR=./pb_migrations PB_HOOKS_DIR=./pb_hooks $(POCKETBASE) serve --dir ./pb_data --dev
 
+.PHONY: pb-migrate
 pb-migrate: ## Apply pending PocketBase migrations against pb_data/
 	rm -f ./pb_migrations/types.d.ts
-	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations
+	PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir ./pb_data
 
+.PHONY: pb-seed
 pb-seed: ## Apply dev seed data against local pb_data/ (never run in production)
-	pocketbase migrate up --dir ./pb_data --migrationsDir ./pb_migrations_dev
+	PB_MIGRATIONS_DIR=./pb_migrations_dev $(POCKETBASE) migrate up --dir ./pb_data
 
+.PHONY: pb-configure
 pb-configure: ## Configure PocketBase mailpit SMTP (requires POCKETBASE_URL + POCKETBASE_API_KEY)
 	@test -n "$$POCKETBASE_URL"    || (echo "POCKETBASE_URL not set"; exit 1)
 	@test -n "$$POCKETBASE_API_KEY" || (echo "POCKETBASE_API_KEY not set"; exit 1)
@@ -65,12 +171,61 @@ pb-configure: ## Configure PocketBase mailpit SMTP (requires POCKETBASE_URL + PO
 	  -d '{"smtp":{"enabled":true,"host":"127.0.0.1","port":1025,"username":"","password":"","tls":false},"meta":{"senderName":"Palikkakilpailu","senderAddress":"noreply@palikkaharrastajat.fi"}}' \
 	  | python3 -c "import sys,json; d=json.load(sys.stdin); print('pb-configure: PASS' if d.get('smtp') else 'pb-configure: FAIL')"
 
+.PHONY: pb-superuser
+pb-superuser: ## Create/update local devenv PocketBase superuser (requires PB_SUPERUSER_EMAIL + PB_SUPERUSER_PASSWORD)
+	@test -n "$$PB_SUPERUSER_EMAIL" || (echo "PB_SUPERUSER_EMAIL not set"; exit 1)
+	@test -n "$$PB_SUPERUSER_PASSWORD" || (echo "PB_SUPERUSER_PASSWORD not set"; exit 1)
+	$(POCKETBASE) superuser upsert "$$PB_SUPERUSER_EMAIL" "$$PB_SUPERUSER_PASSWORD" --dir ./.devenv/state/pocketbase/data
+
+.PHONY: pb-test-migrate
 pb-test-migrate: ## Smoke-test all migrations against a throwaway data dir (no state left behind)
 	@rm -f ./pb_migrations/types.d.ts && \
 	  PBTEST=$$(mktemp -d) && \
-	  pocketbase migrate up --dir $$PBTEST --migrationsDir ./pb_migrations 2>&1 | grep -v DEBUG && \
+	  PBLOG=$$(mktemp) && \
+	  if PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	    grep -v DEBUG $$PBLOG || true; \
+	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
+	  else \
+	    grep -v DEBUG $$PBLOG || true; \
+	    rm -rf $$PBTEST $$PBLOG; \
+	    exit 1; \
+	  fi && \
 	  rm -rf $$PBTEST && rm -f ./pb_migrations/types.d.ts && \
+	  rm -f $$PBLOG && \
 	  echo "pb-test-migrate: PASS"
 
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: pb-test-fixture
+pb-test-fixture: ## Smoke-test schema + dev fixture migrations against a throwaway data dir
+	@rm -f ./pb_migrations/types.d.ts ./pb_migrations_dev/types.d.ts && \
+	  PBTEST=$$(mktemp -d) && \
+	  PBLOG=$$(mktemp) && \
+	  if PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	    grep -v DEBUG $$PBLOG || true; \
+	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
+	  else \
+	    grep -v DEBUG $$PBLOG || true; \
+	    rm -rf $$PBTEST $$PBLOG; \
+	    exit 1; \
+	  fi && \
+	  if PB_MIGRATIONS_DIR=./pb_migrations_dev $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	    grep -v DEBUG $$PBLOG || true; \
+	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
+	  else \
+	    grep -v DEBUG $$PBLOG || true; \
+	    rm -rf $$PBTEST $$PBLOG; \
+	    exit 1; \
+	  fi && \
+	  rm -rf $$PBTEST && rm -f ./pb_migrations/types.d.ts ./pb_migrations_dev/types.d.ts && \
+	  rm -f $$PBLOG && \
+	  echo "pb-test-fixture: PASS"
+
+.PHONY: pb-test-auth-policy
+pb-test-auth-policy: ## Smoke-test Keycloak-first OTP policy hooks
+	@POCKETBASE='$(POCKETBASE)' ./scripts/test-auth-policy.sh
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
+.PHONY: clean
+clean: ## Clean build artifacts and output
+	cabal clean
+	rm -rf build competition .hpc *.html elm-app/.elm-tailwind elm-app/dist

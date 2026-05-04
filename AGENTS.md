@@ -2,7 +2,13 @@
 
 ## Purpose
 
-This document defines how LLM coding agents must read, navigate, and safely modify the `competition` repository. It is the primary entry point for any agent-based task.
+This document defines how LLM coding agents must read, navigate, and safely modify the `competitions` repository. It is the primary entry point for any agent-based task.
+
+This repository is a LEGO crafting competition platform for Suomen Palikkaharrastajat ry:
+
+- **Custom PocketBase 0.37.5** is the backend for competitions, entries, reviews, shared profiles, Keycloak/OIDC auth, local OTP auth, and uploaded images.
+- **Elm 0.19.1** is the interactive SPA for participants and reviewers.
+- **Haskell** builds the static public gallery from approved PocketBase data.
 
 ---
 
@@ -40,6 +46,7 @@ Before making any changes, you **MUST** follow this work loop:
 ```
 competitions/
 ├── AGENTS.md                   ← You are here. Defines rules of engagement.
+├── README.md                   ← Human-facing project overview and first-run guide
 ├── TODO-00-cleanup.md          ← Step 0: Remove planet/feed code; rename project
 ├── TODO-01-pocketbase-schema.md← Step 1: PocketBase collections (migrations)
 ├── TODO-02-elm-auth.md         ← Step 2: OTP login in Elm app
@@ -52,6 +59,9 @@ competitions/
 ├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
 ├── competition.cabal           ← Haskell project (after TODO-00)
 ├── Makefile                    ← Build targets
+├── Caddyfile                   ← Local reverse proxy: app, PocketBase, Mailpit on port 8080
+├── overlays.nix                ← PocketBase 0.37.5 package pin
+├── go.mod / go.sum             ← Custom PocketBase wrapper dependencies
 ├── .env / .env.example         ← POCKETBASE_URL + POCKETBASE_API_KEY
 │
 ├── src/                        ← Haskell source
@@ -85,19 +95,34 @@ competitions/
 │   │   ├── SubmitFormTest.elm
 │   │   ├── ReviewTest.elm
 │   │   └── DecoderTest.elm
-│   ├── index.html              ← App shell (flags: pbUrl, restoredAuth)
+│   ├── index.html              ← App shell
+│   ├── src/main.js             ← Vite entrypoint (flags: pbUrl, restoredAuth)
 │   ├── elm.json
-│   └── package.json            ← Vite + TailwindCSS v4 + elm-test
+│   ├── src/main.js             ← Vite entrypoint + PocketBase JS OAuth helper
+│   └── packages → ../vendor/master-builder/packages
 │
-├── pb_migrations/              ← PocketBase schema migrations (applied on start)
+├── cmd/competition-pocketbase/ ← Go wrapper that registers PB JS migrations/hooks
+├── pb_hooks/                   ← PocketBase JSVM hooks for Keycloak-first auth
+│
+├── pb_migrations/              ← PocketBase schema migrations (all environments)
 │   ├── 001_create_competitions.js
 │   ├── 002_create_entries.js
 │   ├── 003_create_reviews.js
 │   ├── 004_extend_users.js
 │   ├── 005_restrict_competitions_write.js
-│   └── 006_restrict_users_update.js
+│   ├── 006_restrict_users_update.js
+│   └── 007_dual_auth_profiles.js
+├── pb_migrations_dev/          ← Local-only fixture/settings migrations (never production)
+│   ├── 001_seed_competition.js
+│   ├── 002_configure_mailpit_smtp.js
+│   ├── 003_seed_demo_fixture.js
+│   ├── 004_seed_local_participants.js
+│   └── 005_seed_keycloak_shadow_users.js
+├── keycloak/
+│   └── competitions-realm.json ← Local Keycloak realm/client/users fixture
 │
 ├── pb_data/                    ← PocketBase runtime data (gitignored)
+├── .devenv/state/pocketbase/   ← devenv PocketBase runtime data (gitignored)
 │
 ├── agents/
 │   ├── GLOSSARY.md             ← Canonical vocabulary
@@ -105,9 +130,10 @@ competitions/
 │   └── adrs/
 │       ├── ADR-0000-agent-guidance.md
 │       ├── ADR-0001-pocketbase.md
-│       └── ADR-0002-competition-architecture.md
+│       ├── ADR-0002-competition-architecture.md
+│       └── ADR-0003-dual-auth-keycloak.md
 │
-└── devenv.nix                  ← Nix devenv: GHC, Elm, PocketBase, Node
+└── devenv.nix                  ← Nix devenv: GHC, Elm/Vite tools, Go/PocketBase, Caddy, Mailpit, Keycloak
 ```
 
 ---
@@ -119,6 +145,8 @@ competitions/
 - All code changes must be accompanied by corresponding test updates.
 - All commit messages **MUST** follow Conventional Commits (see ADR-0000).
 - **Do not** hard-code raw hex color values, pixel values, or font names — always use brand design tokens (see §6).
+- **Do not** put production schema or data changes in `pb_migrations_dev/`; it is local fixture data only.
+- **Do not** deploy or run `pb_migrations_dev/` in production. Production uses `pb_migrations/` only.
 
 ---
 
@@ -139,8 +167,9 @@ You **MUST STOP** and escalate to the user if:
 
 This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
 
-- **Human-readable**: https://logo.palikkaharrastajat.fi/
-- **Machine-readable (JSON-LD)**: https://logo.palikkaharrastajat.fi/design-guide/index.jsonld
+- **Agent CSS reference:** Fetch `https://logo.palikkaharrastajat.fi/brand.css` for the latest canonical `@theme`, `@utility type-*`, `@font-face`, reduced-motion rule, and shared component classes. Tailwind v4 requires `@theme` in the locally-processed file — copy the content into `elm-app/src/main.css`.
+- **Human-readable:** https://logo.palikkaharrastajat.fi/
+- **Machine-readable (JSON-LD):** https://logo.palikkaharrastajat.fi/design-guide/index.jsonld
   - Colors: https://logo.palikkaharrastajat.fi/design-guide/colors.jsonld
   - Typography: https://logo.palikkaharrastajat.fi/design-guide/typography.jsonld
   - Spacing: https://logo.palikkaharrastajat.fi/design-guide/spacing.jsonld
@@ -150,18 +179,33 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
 
 **When making any UI change**, you MUST:
 
-1. **Check the JSON-LD spec first.** Any color, font, spacing, or animation value must come from a named design token — never hard-code raw hex values or pixel values directly in components.
+1. **Check the live design guide first** (`https://logo.palikkaharrastajat.fi/`). Any color, font, spacing, or animation value must come from a named design token — never hard-code raw hex values or pixel values.
 2. **Use brand colors correctly:**
    - Primary brand color is `#05131D` (brand black).
    - Brand accent is `#FAC80A` (yellow) — only for CTAs/highlights, always paired with brand-black text.
    - Red `#C91A09` is for danger/error/reject states only.
-   - Tailwind token classes: `bg-brand`, `text-brand`, `border-brand`, `bg-brand-yellow`.
-3. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed).
-4. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
-5. **Use named spacing tokens** (4px base: space-1 through space-16).
-6. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration.fast` = 150ms; `duration.base` = 300ms; `easing.standard = cubic-bezier(0.4, 0, 0.2, 1)`.
-7. **Use `focus-visible:ring-2`** (not `focus:ring-2`) on all interactive elements.
-8. **Page layout**: `max-w-5xl mx-auto px-4`. Cards: `rounded-lg` (8px).
+   - Use semantic Tailwind classes: `bg-bg-dark`, `text-text-on-dark`, `bg-bg-accent`, `border-border-default`, etc.
+3. **Use named `type-*` utility classes** for all text (defined in `elm-app/src/main.css`). Never use raw Tailwind size/weight combinations.
+
+   | Class | Size | Weight | Notes |
+   |---|---|---|---|
+   | `type-display` | 3rem | 700 | Hero headlines only |
+   | `type-h1` | 1.875rem | 700 | One per page |
+   | `type-h2` | 1.5rem | 700 | Section headings |
+   | `type-h3` | 1.25rem | 600 | Sub-section headings |
+   | `type-h4` | 1.125rem | 600 | Card / widget headings |
+   | `type-body` | 1rem | 400 | Default body copy |
+   | `type-body-small` | 0.875rem | 500 | UI controls, labels |
+   | `type-caption` | 0.875rem | 400 | Metadata, footnotes |
+   | `type-mono` | 0.875rem | 400 | Code snippets (monospace) |
+   | `type-overline` | 0.75rem | 600 uppercase | Category labels |
+
+4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Self-hosted from `elm-app/public/fonts/`.
+5. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
+6. **Use named spacing tokens** (4px base: `space-1` through `space-16`); never use arbitrary px values.
+7. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration-fast` = 150ms; `duration-base` = 300ms; `ease-standard = cubic-bezier(0.4, 0, 0.2, 1)`.
+8. **Use `focus-visible:ring-2`** (not `focus:ring-2`) on all interactive elements.
+9. **Page layout**: `max-w-5xl mx-auto px-4`. Cards: `rounded-lg` (8px radius).
 
 ---
 
@@ -174,18 +218,35 @@ make gallery-run       # generate dist/index.html (requires POCKETBASE_URL)
 cabal repl             # interactive REPL
 
 # Elm
-cd elm-app && npm test           # elm-test
-cd elm-app && npm run dev        # Vite dev server at localhost:5173
-cd elm-app && npm run build      # production build
+make elm-test          # elm-test via Nix-provided tooling
+make elm-dev           # Vite dev server at localhost:5173
+make elm-build         # production Elm/Vite build
 
 # PocketBase
 make pb-dev            # start PocketBase in dev mode
 make pb-migrate        # apply pending migrations
 make pb-test-migrate   # smoke-test migrations against throwaway dir
+make pb-test-fixture   # smoke-test schema + local fixture migrations
+make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+make pb-seed           # apply local-only fixture migrations to pb_data/
 
 # Everything
-devenv up              # start PocketBase + Elm dev server simultaneously
+devenv up              # start PocketBase + Elm dev server + Mailpit + Caddy + Keycloak
 ```
+
+`devenv up` exposes the local stack through Caddy:
+
+| URL | Service |
+|---|---|
+| `http://127.0.0.1:8080/` | Elm SPA |
+| `http://127.0.0.1:8080/_/` | PocketBase admin UI |
+| `http://127.0.0.1:8080/api/` | PocketBase REST API |
+| `http://127.0.0.1:8080/mailpit/` | Mailpit email UI |
+| `http://127.0.0.1:8081/realms/competitions/` | Keycloak realm |
+
+The `devenv` PocketBase process uses the repository-built `competition-pocketbase` binary, applies `pb_migrations/` first and then `pb_migrations_dev/` before serving. That gives local development an open competition, a finished gallery competition, demo local users, Keycloak shadow users, shared profiles, entries in draft/submitted/approved/rejected states, fixture images, reviews, and Mailpit SMTP settings.
+
+Domain ownership must go through `profiles`. `entries.submitter` and `reviews.reviewer` relate to profiles, while `local_users` and `keycloak_users` are only authentication records. `pb_migrations_dev/` is local-only fixture data and must never be used for production.
 
 ---
 

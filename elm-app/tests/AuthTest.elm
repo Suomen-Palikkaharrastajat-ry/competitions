@@ -13,7 +13,7 @@ Then   Ok or Err is returned according to the validation rules
 
 import Expect
 import Http
-import Main exposing (update, validateEmail, validateOtpCode)
+import Main exposing (requestOtpUrl, update, validateEmail, validateOtpCode)
 import RemoteData
 import Test exposing (Test, describe, test)
 import Time
@@ -56,6 +56,8 @@ baseModel =
 testUser : AuthUser
 testUser =
     { id = "user1"
+    , authCollection = "local_users"
+    , profileId = "profile1"
     , email = "user@example.fi"
     , token = "eyJtoken"
     , displayName = "Pekka"
@@ -188,6 +190,13 @@ suite =
                             update RequestOtp model
                     in
                     updated.auth |> Expect.equal LoggedOut
+            , test "uses PocketBase request-otp endpoint for the first OTP step" <|
+                \_ ->
+                    -- Given the app needs to request a fresh OTP email
+                    -- When building the request URL
+                    -- Then it uses the local_users OTP request endpoint, not the Keycloak auth collection
+                    requestOtpUrl "http://localhost:8090"
+                        |> Expect.equal "http://localhost:8090/api/collections/local_users/request-otp"
             ]
         , describe "OtpRequested"
             [ test "Ok transitions auth to AwaitingOtp" <|
@@ -390,11 +399,8 @@ suite =
                                 , page = SetDisplayNamePage
                             }
 
-                        updatedUser =
-                            { testUser | displayName = "Pekka" }
-
                         ( updated, _ ) =
-                            update (DisplayNameSaved (Ok updatedUser)) model
+                            update (DisplayNameSaved (Ok "Pekka")) model
                     in
                     updated.page |> Expect.equal DashboardPage
             , test "Ok updates the displayName in auth" <|
@@ -406,11 +412,8 @@ suite =
                                 , page = SetDisplayNamePage
                             }
 
-                        updatedUser =
-                            { testUser | displayName = "Pekka" }
-
                         ( updated, _ ) =
-                            update (DisplayNameSaved (Ok updatedUser)) model
+                            update (DisplayNameSaved (Ok "Pekka")) model
                     in
                     case updated.auth of
                         LoggedIn user ->

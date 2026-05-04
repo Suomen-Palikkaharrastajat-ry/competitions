@@ -9,6 +9,7 @@ module Main exposing
     , httpErrorMessage
     , main
     , otpResponseDecoder
+    , requestOtpUrl
     , update
     , validateEmail
     , validateForm
@@ -130,6 +131,9 @@ update msg model =
             , Cmd.none
             )
 
+        OtpRequested (Err (Http.BadStatus 409)) ->
+            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+
         OtpRequested (Err _) ->
             ( { model | authError = Just "Sähköpostin lähetys epäonnistui" }, Cmd.none )
 
@@ -180,8 +184,48 @@ update msg model =
         OtpSubmitted (Err (Http.BadStatus 400)) ->
             ( { model | authError = Just "Väärä koodi tai vanhentunut linkki" }, Cmd.none )
 
+        OtpSubmitted (Err (Http.BadStatus 409)) ->
+            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+
         OtpSubmitted (Err _) ->
             ( { model | authError = Just "Kirjautuminen epäonnistui" }, Cmd.none )
+
+        StartKeycloakLogin ->
+            ( { model | authError = Nothing }, Ports.startKeycloakLogin model.pbUrl )
+
+        KeycloakLoginCompleted resp ->
+            let
+                rec =
+                    resp.record
+
+                user =
+                    { rec | token = resp.token }
+
+                page =
+                    if String.isEmpty user.displayName then
+                        SetDisplayNamePage
+
+                    else
+                        DashboardPage
+            in
+            ( { model
+                | auth = LoggedIn user
+                , page = page
+                , authError = Nothing
+                , competitions = RemoteData.Loading
+              }
+            , Cmd.batch
+                [ Ports.storeAuth user
+                , if page == DashboardPage then
+                    fetchCompetitions model.pbUrl user.token
+
+                  else
+                    Cmd.none
+                ]
+            )
+
+        KeycloakLoginFailed message ->
+            ( { model | authError = Just message }, Cmd.none )
 
         LogOut ->
             ( { model
@@ -202,22 +246,31 @@ update msg model =
         SaveDisplayName ->
             case model.auth of
                 LoggedIn user ->
-                    ( model, saveDisplayName model.pbUrl user.id user.token model.displayNameInput )
+                    ( model, saveDisplayName model.pbUrl user.profileId user.token model.displayNameInput )
 
                 _ ->
                     ( model, Cmd.none )
 
-        DisplayNameSaved (Ok updatedUser) ->
-            ( { model
-                | auth = LoggedIn updatedUser
-                , page = DashboardPage
-                , competitions = RemoteData.Loading
-              }
-            , Cmd.batch
-                [ Ports.storeAuth updatedUser
-                , fetchCompetitions model.pbUrl updatedUser.token
-                ]
-            )
+        DisplayNameSaved (Ok displayName) ->
+            case model.auth of
+                LoggedIn user ->
+                    let
+                        updatedUser =
+                            { user | displayName = displayName }
+                    in
+                    ( { model
+                        | auth = LoggedIn updatedUser
+                        , page = DashboardPage
+                        , competitions = RemoteData.Loading
+                      }
+                    , Cmd.batch
+                        [ Ports.storeAuth updatedUser
+                        , fetchCompetitions model.pbUrl updatedUser.token
+                        ]
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         DisplayNameSaved (Err err) ->
             case err of
@@ -237,7 +290,7 @@ update msg model =
 
                 ( MyEntriesPage, LoggedIn user ) ->
                     ( { model | page = page, myEntries = RemoteData.Loading }
-                    , fetchMyEntries model.pbUrl user.token user.id
+                    , fetchMyEntries model.pbUrl user.token user.profileId
                     )
 
                 ( ReviewQueuePage, LoggedIn user ) ->
@@ -443,7 +496,7 @@ update msg model =
                         Nothing ->
                             case model.auth of
                                 LoggedIn user ->
-                                    emptyReview reviewableEntry.entry.id user.id
+                                    emptyReview reviewableEntry.entry.id user.profileId
 
                                 _ ->
                                     emptyReview reviewableEntry.entry.id ""
@@ -594,7 +647,11 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Time.every 60000 Tick
+    Sub.batch
+        [ Time.every 60000 Tick
+        , Ports.keycloakLoginSucceeded KeycloakLoginCompleted
+        , Ports.keycloakLoginFailed KeycloakLoginFailed
+        ]
 
 
 
@@ -683,7 +740,10 @@ updateDraftScore f model =
             ( model, Cmd.none )
 
 
+
 -- | Map an Http.Error to a Finnish user-facing message.
+
+
 httpErrorMessage : Http.Error -> String
 httpErrorMessage err =
     case err of
@@ -703,7 +763,10 @@ httpErrorMessage err =
             "Odottamaton virhe; yritä uudelleen"
 
 
+
 -- | Handle a 401 response by logging out; otherwise leave model unchanged.
+
+
 handleHttpError : Http.Error -> Model -> ( Model, Cmd Msg )
 handleHttpError err model =
     case err of
@@ -729,8 +792,6 @@ canSubmitMore competition entries =
 
 
 
-
-
 -- ---------------------------------------------------------------------------
 -- HTTP commands
 -- ---------------------------------------------------------------------------
@@ -739,7 +800,7 @@ canSubmitMore competition entries =
 requestOtp : String -> String -> Cmd Msg
 requestOtp pbUrl email =
     Http.post
-        { url = pbUrl ++ "/api/collections/users/auth-with-otp"
+        { url = requestOtpUrl pbUrl
         , body =
             Http.jsonBody
                 (Encode.object [ ( "email", Encode.string email ) ])
@@ -747,10 +808,15 @@ requestOtp pbUrl email =
         }
 
 
+requestOtpUrl : String -> String
+requestOtpUrl pbUrl =
+    pbUrl ++ "/api/collections/local_users/request-otp"
+
+
 submitOtp : String -> String -> String -> Cmd Msg
 submitOtp pbUrl otpId code =
     Http.post
-        { url = pbUrl ++ "/api/collections/users/auth-with-otp"
+        { url = pbUrl ++ "/api/collections/local_users/auth-with-otp"
         , body =
             Http.jsonBody
                 (Encode.object
@@ -767,11 +833,11 @@ saveDisplayName pbUrl userId token displayName =
     Http.request
         { method = "PATCH"
         , headers = [ Http.header "Authorization" token ]
-        , url = pbUrl ++ "/api/collections/users/records/" ++ userId
+        , url = pbUrl ++ "/api/collections/profiles/records/" ++ userId
         , body =
             Http.jsonBody
                 (Encode.object [ ( "display_name", Encode.string displayName ) ])
-        , expect = Http.expectJson DisplayNameSaved authUserDecoder
+        , expect = Http.expectJson DisplayNameSaved (Decode.field "display_name" Decode.string)
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -821,7 +887,7 @@ createDraft pbUrl user comp form =
         , body =
             Http.multipartBody
                 ([ Http.stringPart "competition" comp.id
-                 , Http.stringPart "submitter" user.id
+                 , Http.stringPart "submitter" user.profileId
                  , Http.stringPart "title" form.title
                  , Http.stringPart "description" form.description
                  , Http.stringPart "status" "draft"
@@ -892,8 +958,14 @@ otpResponseDecoder =
 
 authUserDecoder : Decode.Decoder AuthUser
 authUserDecoder =
-    Decode.map5 AuthUser
+    Decode.map7 AuthUser
         (Decode.field "id" Decode.string)
+        (Decode.maybe (Decode.field "collectionName" Decode.string)
+            |> Decode.map (Maybe.withDefault "local_users")
+        )
+        (Decode.maybe (Decode.field "profile_id" Decode.string)
+            |> Decode.map (Maybe.withDefault "")
+        )
         (Decode.field "email" Decode.string)
         (Decode.succeed "")
         (Decode.maybe (Decode.field "display_name" Decode.string)
@@ -910,14 +982,20 @@ authResponseDecoder =
         |> Decode.andThen
             (\token ->
                 Decode.field "record"
-                    (Decode.map4
-                        (\id email displayName isReviewer ->
+                    (Decode.map6
+                        (\id authCollection profileId email displayName isReviewer ->
                             { token = token
                             , record =
-                                AuthUser id email token displayName isReviewer
+                                AuthUser id authCollection profileId email token displayName isReviewer
                             }
                         )
                         (Decode.field "id" Decode.string)
+                        (Decode.maybe (Decode.field "collectionName" Decode.string)
+                            |> Decode.map (Maybe.withDefault "local_users")
+                        )
+                        (Decode.maybe (Decode.field "profile_id" Decode.string)
+                            |> Decode.map (Maybe.withDefault "")
+                        )
                         (Decode.field "email" Decode.string)
                         (Decode.maybe (Decode.field "display_name" Decode.string)
                             |> Decode.map (Maybe.withDefault "")
@@ -976,8 +1054,11 @@ entryStatusDecoder =
             )
 
 
+
 -- | Decode published reviews from the expand.reviews_via_entry field.
 -- Returns [] when the field is absent (entries fetched without expand).
+
+
 publishedReviewsDecoder : Decode.Decoder (List ReviewSummary)
 publishedReviewsDecoder =
     let
@@ -1125,5 +1206,3 @@ reviewableEntryDecoder =
 pbListDecoder : Decode.Decoder a -> Decode.Decoder (List a)
 pbListDecoder itemDecoder =
     Decode.field "items" (Decode.list itemDecoder)
-
-

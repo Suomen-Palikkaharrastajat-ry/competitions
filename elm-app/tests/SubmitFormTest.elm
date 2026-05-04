@@ -57,6 +57,8 @@ testEntry =
 testUser : AuthUser
 testUser =
     { id = "user1"
+    , authCollection = "local_users"
+    , profileId = "profile1"
     , email = "user@example.fi"
     , token = "eyJtoken"
     , displayName = "Pekka"

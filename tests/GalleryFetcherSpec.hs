@@ -17,6 +17,7 @@ import qualified Data.Aeson as A
 
 import GalleryFetcher
 import GalleryTypes
+import PocketBase (PbConfig (..))
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -94,4 +95,16 @@ tests =
                     , "display_name" A..= ("" :: T.Text)
                     ]
             Map.lookup "user3" (parseDisplayNames [userJson]) @?= Nothing
+
+        -- Given a PocketBase config without a superuser token
+        -- When gallery data is fetched
+        -- Then auth-collection display names are skipped instead of breaking public gallery generation
+        , testCase "shouldFetchDisplayNames is false without API token" $
+            shouldFetchDisplayNames (PbConfig "http://localhost:8090" "") @?= False
+
+        , testCase "shouldFetchDisplayNames ignores whitespace-only API token" $
+            shouldFetchDisplayNames (PbConfig "http://localhost:8090" "  ") @?= False
+
+        , testCase "shouldFetchDisplayNames is true with API token" $
+            shouldFetchDisplayNames (PbConfig "http://localhost:8090" "token") @?= True
         ]

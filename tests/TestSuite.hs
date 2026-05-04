@@ -6,13 +6,14 @@ import Test.Tasty.HUnit
 
 import qualified Data.Text as T
 import Data.Time.Format (TimeLocale (..), defaultTimeLocale)
+import Network.HTTP.Types (hAuthorization, hContentType)
 import Text.HTML.TagSoup (Tag (..))
 import Text.HTML.TagSoup.Tree (TagTree (..))
 
 import Config
 import HtmlSanitizer
 import I18n
-import PocketBase (urlEncodeFilter)
+import PocketBase (PbConfig (..), authHeaders, urlEncodeFilter)
 import qualified GalleryFetcherSpec
 import qualified GalleryGenSpec
 import qualified PocketBaseSchemaSpec
@@ -149,4 +150,15 @@ pocketBaseTests =
         , testCase "urlEncodeFilter keeps safe chars unchanged" $ do
             let result = urlEncodeFilter (T.pack "-_.~")
             result @?= T.pack "-_.~"
+        , testCase "authHeaders omits Authorization for empty API token" $
+            authHeaders (PbConfig "http://localhost:8090" "")
+                @?= [(hContentType, "application/json")]
+        , testCase "authHeaders omits Authorization for whitespace API token" $
+            authHeaders (PbConfig "http://localhost:8090" "  ")
+                @?= [(hContentType, "application/json")]
+        , testCase "authHeaders includes bearer token when API token is present" $
+            authHeaders (PbConfig "http://localhost:8090" " token ")
+                @?= [ (hAuthorization, "Bearer token")
+                    , (hContentType, "application/json")
+                    ]
         ]

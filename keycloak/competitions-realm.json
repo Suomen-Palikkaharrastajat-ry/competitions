@@ -1,0 +1,64 @@
+{
+  "realm": "competitions",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "clients": [
+    {
+      "clientId": "competitions",
+      "name": "Competitions Elm SPA",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "competitions-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:8080/api/oauth2-redirect",
+        "http://127.0.0.1:8090/api/oauth2-redirect"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8090"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "keycloak-participant@example.test",
+      "email": "keycloak-participant@example.test",
+      "firstName": "Keycloak",
+      "lastName": "Participant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "participant",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "keycloak-reviewer@example.test",
+      "email": "keycloak-reviewer@example.test",
+      "firstName": "Keycloak",
+      "lastName": "Reviewer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "reviewer",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

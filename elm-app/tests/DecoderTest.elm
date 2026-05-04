@@ -161,7 +161,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"token":"eyJtoken","record":{"id":"u1","email":"u@example.fi","display_name":"Pekka","is_reviewer":false}}"""
+                            """{"token":"eyJtoken","record":{"id":"u1","collectionName":"local_users","profile_id":"p1","email":"u@example.fi","display_name":"Pekka","is_reviewer":false}}"""
 
                         result =
                             Decode.decodeString authResponseDecoder json
@@ -171,6 +171,8 @@ suite =
                             Expect.all
                                 [ \_ -> Expect.equal "eyJtoken" resp.token
                                 , \_ -> Expect.equal "u1" resp.record.id
+                                , \_ -> Expect.equal "local_users" resp.record.authCollection
+                                , \_ -> Expect.equal "p1" resp.record.profileId
                                 , \_ -> Expect.equal "u@example.fi" resp.record.email
                                 , \_ -> Expect.equal "Pekka" resp.record.displayName
                                 , \_ -> Expect.equal False resp.record.isReviewer

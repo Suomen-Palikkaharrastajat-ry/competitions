@@ -28,7 +28,7 @@ main = do
     let pbUrl = case (configPbUrl config, pbCfgFromEnv) of
                     (Just u, _)       -> u
                     (Nothing, Just c) -> pbBaseUrl c
-                    (Nothing, Nothing) -> T.pack "http://localhost:8090"
+                    (Nothing, Nothing) -> T.pack "https://data.palikkaharrastajat.fi"
         pbToken = case pbCfgFromEnv of
                       Just c  -> pbApiToken c
                       Nothing -> T.pack ""
