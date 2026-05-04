@@ -79,9 +79,9 @@ migrate(
         "displayName": "Keycloak",
         "clientId": $os.getenv("KEYCLOAK_CLIENT_ID") || "competitions",
         "clientSecret": $os.getenv("KEYCLOAK_CLIENT_SECRET") || "competitions-dev-secret",
-        "authURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8081/realms/competitions") + "/protocol/openid-connect/auth",
-        "tokenURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8081/realms/competitions") + "/protocol/openid-connect/token",
-        "userInfoURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8081/realms/competitions") + "/protocol/openid-connect/userinfo",
+        "authURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8080/auth/realms/competitions") + "/protocol/openid-connect/auth",
+        "tokenURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8080/auth/realms/competitions") + "/protocol/openid-connect/token",
+        "userInfoURL": ($os.getenv("KEYCLOAK_ISSUER_URL") || "http://127.0.0.1:8080/auth/realms/competitions") + "/protocol/openid-connect/userinfo",
         "pkce": true
       }
     ];
