@@ -1,4 +1,4 @@
-name: Scheduled gallery update
+name: Scheduled update
 
 on:
   schedule:
@@ -10,59 +10,52 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: pages-scheduled
+  cancel-in-progress: false
+
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
-      - name: Restore competition CLI
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: palikkaharrastajat
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          extraPullNames: devenv
+
+      - name: Install devenv
+        run: nix profile install "github:cachix/devenv/v2.0.6"
+
+      - name: Restore Elm cache
         uses: actions/cache/restore@v4
-        id: cache-competition-cli
-        with:
-          path: competition
-          key: competition-bin-v1
-
-      - name: Make competition binary executable
-        run: chmod +x competition
-
-      - name: Cache node_modules
-        id: cache-node-modules
-        uses: actions/cache@v4
-        with:
-          path: elm-app/node_modules
-          key: ${{ runner.os }}-npm-${{ hashFiles('elm-app/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      - name: Cache elm-stuff
-        id: cache-elm-stuff
-        uses: actions/cache@v4
         with:
           path: |
             ~/.elm
             elm-app/elm-stuff
-          key: ${{ runner.os }}-elm-${{ hashFiles('elm-app/elm.json') }}
-          restore-keys: |
-            ${{ runner.os }}-elm-
+          key: elm-${{ runner.os }}-${{ hashFiles('elm-app/elm.json') }}
+          restore-keys: elm-${{ runner.os }}-
 
-      - name: Run gallery pipeline
-        run: ./competition
+      - name: Build
+        run: devenv shell --profile ci -- make dist-ci
+        env:
+          POCKETBASE_URL: https://data.palikkaharrastajat.fi
+          POCKETBASE_API_KEY: ${{ secrets.POCKETBASE_API_KEY }}
 
-      - name: Build Elm App
-        run: |
-          cd elm-app
-          npm install
-          npm run build
+      - uses: actions/configure-pages@v5
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./elm-app/dist
+          path: ./build
 
       - name: Deploy to GitHub Pages
         id: deployment
