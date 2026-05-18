@@ -40,6 +40,8 @@ testCompetition =
     , endDate = "2026-12-31 00:00:00.000Z"
     , coverImage = Nothing
     , maxEntriesPerUser = Just 3
+    , minImagesPerEntry = Nothing
+    , maxImagesPerEntry = Nothing
     }
 
 
@@ -47,6 +49,7 @@ testEntry : Entry
 testEntry =
     { id = "entry1"
     , competitionId = "comp1"
+    , competition = Just testCompetition
     , title = "My MOC"
     , description = Nothing
     , images = [ "photo.jpg" ]
@@ -98,7 +101,7 @@ suite =
                         form =
                             { emptyForm | existingImages = [ "photo.jpg" ] }
                     in
-                    case validateForm form of
+                    case validateForm testCompetition form of
                         Err _ ->
                             Expect.pass
 
@@ -110,7 +113,7 @@ suite =
                         form =
                             { emptyForm | title = "My MOC" }
                     in
-                    case validateForm form of
+                    case validateForm testCompetition form of
                         Err msg ->
                             Expect.equal "Lisää vähintään yksi kuva" msg
 
@@ -125,12 +128,75 @@ suite =
                                 , existingImages = [ "photo.jpg" ]
                             }
                     in
-                    case validateForm form of
+                    case validateForm testCompetition form of
                         Ok _ ->
                             Expect.pass
 
                         Err msg ->
                             Expect.fail ("Should have returned Ok but got: " ++ msg)
+            , test "custom minimum image count is enforced on submit validation" <|
+                \_ ->
+                    let
+                        competition =
+                            { testCompetition | minImagesPerEntry = Just 2 }
+
+                        form =
+                            { emptyForm
+                                | title = "My MOC"
+                                , existingImages = [ "photo.jpg" ]
+                            }
+                    in
+                    case validateForm competition form of
+                        Err msg ->
+                            Expect.equal "Lisää vähintään 2 kuvaa" msg
+
+                        Ok _ ->
+                            Expect.fail "Should have returned Err for too few images"
+            , test "custom maximum image count is enforced" <|
+                \_ ->
+                    let
+                        competition =
+                            { testCompetition | maxImagesPerEntry = Just 2 }
+
+                        form =
+                            { emptyForm
+                                | title = "My MOC"
+                                , existingImages = [ "a.jpg", "b.jpg", "c.jpg" ]
+                            }
+                    in
+                    case validateForm competition form of
+                        Err msg ->
+                            Expect.equal "Enintään 2 kuvaa sallittu" msg
+
+                        Ok _ ->
+                            Expect.fail "Should have returned Err for too many images"
+            , test "default maximum image count is enforced" <|
+                \_ ->
+                    let
+                        form =
+                            { emptyForm
+                                | title = "My MOC"
+                                , existingImages =
+                                    [ "1.jpg"
+                                    , "2.jpg"
+                                    , "3.jpg"
+                                    , "4.jpg"
+                                    , "5.jpg"
+                                    , "6.jpg"
+                                    , "7.jpg"
+                                    , "8.jpg"
+                                    , "9.jpg"
+                                    , "10.jpg"
+                                    , "11.jpg"
+                                    ]
+                            }
+                    in
+                    case validateForm testCompetition form of
+                        Err msg ->
+                            Expect.equal "Enintään 10 kuvaa sallittu" msg
+
+                        Ok _ ->
+                            Expect.fail "Should have returned Err for too many images"
             ]
         , describe "EntryTitleChanged"
             [ test "updates submitForm.title" <|
@@ -195,6 +261,54 @@ suite =
                             update SaveDraft model
                     in
                     updated.submitForm.step |> Expect.equal Uploading
+            , test "does not validate against competition image minimum" <|
+                \_ ->
+                    let
+                        competition =
+                            { testCompetition | minImagesPerEntry = Just 2 }
+
+                        model =
+                            { baseModel
+                                | selectedCompetition = Just competition
+                                , submitForm = { emptyForm | title = "My MOC" }
+                            }
+
+                        ( updated, _ ) =
+                            update SaveDraft model
+                    in
+                    updated.submitForm.step |> Expect.equal Uploading
+            ]
+        , describe "EditDraft"
+            [ test "hydrates form and selected competition from expanded draft" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update
+                                (EditDraft testEntry.id)
+                                { baseModel
+                                    | myEntries = RemoteData.Success [ testEntry ]
+                                    , selectedCompetition = Nothing
+                                }
+                    in
+                    Expect.all
+                        [ \m -> m.submitForm.entryId |> Expect.equal (Just testEntry.id)
+                        , \m -> m.submitForm.title |> Expect.equal testEntry.title
+                        , \m -> m.submitForm.existingImages |> Expect.equal testEntry.images
+                        , \m -> m.selectedCompetition |> Expect.equal (Just testCompetition)
+                        ]
+                        updated
+            , test "reports an error when expanded competition is unavailable" <|
+                \_ ->
+                    let
+                        entryWithoutCompetition =
+                            { testEntry | competition = Nothing }
+
+                        ( updated, _ ) =
+                            update
+                                (EditDraft testEntry.id)
+                                { baseModel | myEntries = RemoteData.Success [ entryWithoutCompetition ] }
+                    in
+                    updated.authError |> Expect.equal (Just "Kilpailun tietoja ei voitu ladata")
             ]
         , describe "DraftSaved"
             [ test "Ok returns step to FillingForm" <|

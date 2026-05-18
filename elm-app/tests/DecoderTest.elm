@@ -144,12 +144,12 @@ suite =
 
             -- Given a logged-in participant's profile id
             -- When the app builds the "Omat osallistumiset" PocketBase URL
-            -- Then it sorts newest first by the entry creation timestamp and expands published reviews.
-            , test "builds my entries URL with review back-relation expand" <|
+            -- Then it sorts newest first by the entry creation timestamp and expands competition plus published reviews.
+            , test "builds my entries URL with competition and review expands" <|
                 \_ ->
                     myEntriesUrl "http://127.0.0.1:8080" "profile123"
                         |> Expect.equal
-                            "http://127.0.0.1:8080/api/collections/entries/records?filter=submitter%3D%22profile123%22&sort=-created&expand=reviews_via_entry"
+                            "http://127.0.0.1:8080/api/collections/entries/records?filter=submitter%3D%22profile123%22&sort=-created&expand=competition%2Creviews_via_entry"
             ]
         , describe "Auth decoders"
             [ test "otpResponseDecoder decodes otpId" <|
@@ -231,7 +231,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","theme":"Kaupunki","description":"Kuvaile kaupunkia","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","max_entries_per_user":3}"""
+                            """{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","theme":"Kaupunki","description":"Kuvaile kaupunkia","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","max_entries_per_user":3,"min_images_per_entry":2,"max_images_per_entry":8}"""
 
                         result =
                             Decode.decodeString competitionDecoder json
@@ -244,6 +244,8 @@ suite =
                                 , \_ -> Expect.equal "kaupunki-2026" comp.slug
                                 , \_ -> Expect.equal (Just "Kaupunki") comp.theme
                                 , \_ -> Expect.equal (Just 3) comp.maxEntriesPerUser
+                                , \_ -> Expect.equal (Just 2) comp.minImagesPerEntry
+                                , \_ -> Expect.equal (Just 8) comp.maxImagesPerEntry
                                 ]
                                 ()
 
@@ -261,6 +263,25 @@ suite =
                     case result of
                         Ok comp ->
                             comp.coverImage |> Expect.equal Nothing
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "missing image limit fields decode as Nothing" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
+
+                        result =
+                            Decode.decodeString competitionDecoder json
+                    in
+                    case result of
+                        Ok comp ->
+                            Expect.all
+                                [ \_ -> Expect.equal Nothing comp.minImagesPerEntry
+                                , \_ -> Expect.equal Nothing comp.maxImagesPerEntry
+                                ]
+                                ()
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
@@ -308,6 +329,46 @@ suite =
                     case result of
                         Ok entry ->
                             List.length entry.images |> Expect.equal 2
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "decodes missing expanded competition as Nothing" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"e1","competition":"c1","title":"MOC","images":["a.jpg"],"status":"draft"}"""
+
+                        result =
+                            Decode.decodeString entryDecoder json
+                    in
+                    case result of
+                        Ok entry ->
+                            entry.competition |> Expect.equal Nothing
+
+                        Err err ->
+                            Expect.fail (Decode.errorToString err)
+            , test "decodes expanded competition for draft editing" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"e1","competition":"c1","title":"MOC","images":["a.jpg"],"status":"draft","expand":{"competition":{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","min_images_per_entry":2,"max_images_per_entry":8}}}"""
+
+                        result =
+                            Decode.decodeString entryDecoder json
+                    in
+                    case result of
+                        Ok entry ->
+                            case entry.competition of
+                                Just comp ->
+                                    Expect.all
+                                        [ \_ -> Expect.equal "c1" comp.id
+                                        , \_ -> Expect.equal (Just 2) comp.minImagesPerEntry
+                                        , \_ -> Expect.equal (Just 8) comp.maxImagesPerEntry
+                                        ]
+                                        ()
+
+                                Nothing ->
+                                    Expect.fail "Expected expanded competition"
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)

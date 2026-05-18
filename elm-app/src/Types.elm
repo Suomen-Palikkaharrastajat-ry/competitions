@@ -82,6 +82,8 @@ type alias Competition =
     , endDate : String
     , coverImage : Maybe String
     , maxEntriesPerUser : Maybe Int
+    , minImagesPerEntry : Maybe Int
+    , maxImagesPerEntry : Maybe Int
     }
 
 
@@ -107,6 +109,7 @@ type alias ReviewSummary =
 type alias Entry =
     { id : String
     , competitionId : String
+    , competition : Maybe Competition
     , title : String
     , description : Maybe String
     , images : List String

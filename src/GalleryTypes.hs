@@ -76,6 +76,8 @@ data Competition = Competition
     , compStatus :: CompetitionStatus
     , compStartDate :: Text
     , compEndDate :: Text
+    , compMinImagesPerEntry :: Maybe Int
+    , compMaxImagesPerEntry :: Maybe Int
     }
     deriving (Show, Eq, Generic)
 
@@ -90,6 +92,8 @@ instance FromJSON Competition where
             <*> o .: "status"
             <*> o .: "start_date"
             <*> o .: "end_date"
+            <*> o .:? "min_images_per_entry"
+            <*> o .:? "max_images_per_entry"
 
 data Entry = Entry
     { entryId :: Text

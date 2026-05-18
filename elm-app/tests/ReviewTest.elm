@@ -40,6 +40,8 @@ testCompetition =
     , endDate = "2026-12-31 00:00:00.000Z"
     , coverImage = Nothing
     , maxEntriesPerUser = Just 3
+    , minImagesPerEntry = Nothing
+    , maxImagesPerEntry = Nothing
     }
 
 
@@ -47,6 +49,7 @@ testEntry : Entry
 testEntry =
     { id = "entry1"
     , competitionId = "comp1"
+    , competition = Just testCompetition
     , title = "My MOC"
     , description = Nothing
     , images = [ "photo.jpg" ]

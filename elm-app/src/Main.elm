@@ -7,6 +7,8 @@ module Main exposing
     , filteredReviewQueue
     , handleHttpError
     , httpErrorMessage
+    , imageMax
+    , imageMin
     , main
     , myEntriesUrl
     , otpResponseDecoder
@@ -343,8 +345,16 @@ update msg model =
                 form =
                     model.submitForm
 
+                maxImages =
+                    model.selectedCompetition
+                        |> Maybe.map imageMax
+                        |> Maybe.withDefault 10
+
+                remainingSlots =
+                    max 0 (maxImages - List.length form.existingImages - List.length form.selectedFiles)
+
                 newFiles =
-                    form.selectedFiles ++ (first :: rest)
+                    form.selectedFiles ++ List.take remainingSlots (first :: rest)
             in
             ( { model | submitForm = { form | selectedFiles = newFiles } }, Cmd.none )
 
@@ -421,14 +431,17 @@ update msg model =
                     )
 
         SubmitEntry ->
-            case ( model.auth, model.submitForm.entryId ) of
-                ( LoggedIn user, Just entryId ) ->
-                    case validateForm model.submitForm of
+            case ( model.auth, model.submitForm.entryId, model.selectedCompetition ) of
+                ( LoggedIn user, Just entryId, Just competition ) ->
+                    case validateForm competition model.submitForm of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
                         Ok _ ->
                             ( model, submitEntryCmd model.pbUrl user.token entryId )
+
+                ( LoggedIn _, Just _, Nothing ) ->
+                    ( { model | authError = Just "Kilpailua ei ole valittu" }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -467,7 +480,40 @@ update msg model =
                     ( { model | myEntries = RemoteData.Failure err }, Cmd.none )
 
         EditDraft entryId ->
-            ( { model | page = SubmitEntryPage (Just entryId) }, Cmd.none )
+            case model.myEntries of
+                RemoteData.Success entries ->
+                    case List.filter (\entry -> entry.id == entryId) entries |> List.head of
+                        Just entry ->
+                            case entry.competition of
+                                Just competition ->
+                                    ( { model
+                                        | page = SubmitEntryPage (Just entryId)
+                                        , selectedCompetition = Just competition
+                                        , authError = Nothing
+                                        , submitForm =
+                                            { emptyForm
+                                                | entryId = Just entry.id
+                                                , title = entry.title
+                                                , description = Maybe.withDefault "" entry.description
+                                                , existingImages = entry.images
+                                            }
+                                      }
+                                    , Cmd.none
+                                    )
+
+                                Nothing ->
+                                    ( { model
+                                        | selectedCompetition = Nothing
+                                        , authError = Just "Kilpailun tietoja ei voitu ladata"
+                                      }
+                                    , Cmd.none
+                                    )
+
+                        Nothing ->
+                            ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
+
+                _ ->
+                    ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
 
         CancelEdit ->
             ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
@@ -684,19 +730,52 @@ validateOtpCode code =
         Err "Koodi koostuu kuudesta numerosta"
 
 
-validateForm : SubmitForm -> Result String SubmitForm
-validateForm form =
+imageMin : Competition -> Int
+imageMin competition =
+    competition.minImagesPerEntry
+        |> Maybe.withDefault 1
+        |> max 0
+
+
+imageMax : Competition -> Int
+imageMax competition =
+    let
+        configured =
+            competition.maxImagesPerEntry
+                |> Maybe.withDefault 10
+                |> min 10
+                |> max 0
+    in
+    max configured (imageMin competition)
+
+
+validateForm : Competition -> SubmitForm -> Result String SubmitForm
+validateForm competition form =
+    let
+        count =
+            List.length form.selectedFiles + List.length form.existingImages
+
+        minImages =
+            imageMin competition
+
+        maxImages =
+            imageMax competition
+    in
     if String.isEmpty form.title then
         Err "Nimi on pakollinen"
 
     else if String.length form.title > 200 then
         Err "Nimi on liian pitkä (max 200 merkkiä)"
 
-    else if List.isEmpty form.selectedFiles && List.isEmpty form.existingImages then
-        Err "Lisää vähintään yksi kuva"
+    else if count < minImages then
+        if minImages <= 1 then
+            Err "Lisää vähintään yksi kuva"
 
-    else if List.length form.selectedFiles + List.length form.existingImages > 10 then
-        Err "Enintään 10 kuvaa sallittu"
+        else
+            Err ("Lisää vähintään " ++ String.fromInt minImages ++ " kuvaa")
+
+    else if count > maxImages then
+        Err ("Enintään " ++ String.fromInt maxImages ++ " kuvaa sallittu")
 
     else
         Ok form
@@ -853,7 +932,7 @@ fetchCompetitions pbUrl token =
             pbUrl
                 ++ "/api/collections/competitions/records"
                 ++ "?filter=status%3D%22open%22&sort=end_date"
-                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cend_date%2Ccover_image%2Cmax_entries_per_user"
+                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cend_date%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
         , body = Http.emptyBody
         , expect = Http.expectJson CompetitionsLoaded (pbListDecoder competitionDecoder)
         , timeout = Nothing
@@ -880,7 +959,7 @@ myEntriesUrl pbUrl userId =
         ++ "/api/collections/entries/records"
         ++ "?filter=submitter%3D%22"
         ++ userId
-        ++ "%22&sort=-created&expand=reviews_via_entry"
+        ++ "%22&sort=-created&expand=competition%2Creviews_via_entry"
 
 
 createDraft : String -> AuthUser -> Competition -> SubmitForm -> Cmd Msg
@@ -1014,7 +1093,11 @@ authResponseDecoder =
 
 competitionDecoder : Decode.Decoder Competition
 competitionDecoder =
-    Decode.map8 Competition
+    Decode.map8
+        (\id title slug theme description endDate coverImage maxEntriesPerUser ->
+            \minImagesPerEntry maxImagesPerEntry ->
+                Competition id title slug theme description endDate coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
+        )
         (Decode.field "id" Decode.string)
         (Decode.field "title" Decode.string)
         (Decode.field "slug" Decode.string)
@@ -1034,6 +1117,12 @@ competitionDecoder =
                 )
         )
         (Decode.maybe (Decode.field "max_entries_per_user" Decode.int))
+        |> Decode.andThen
+            (\build ->
+                Decode.map2 build
+                    (Decode.maybe (Decode.field "min_images_per_entry" Decode.int))
+                    (Decode.maybe (Decode.field "max_images_per_entry" Decode.int))
+            )
 
 
 entryStatusDecoder : Decode.Decoder EntryStatus
@@ -1092,9 +1181,10 @@ publishedReviewsDecoder =
 
 entryDecoder : Decode.Decoder Entry
 entryDecoder =
-    Decode.map7 Entry
+    Decode.map8 Entry
         (Decode.field "id" Decode.string)
         (Decode.field "competition" Decode.string)
+        (Decode.maybe (Decode.at [ "expand", "competition" ] competitionDecoder))
         (Decode.field "title" Decode.string)
         (Decode.maybe (Decode.field "description" Decode.string))
         (Decode.field "images" (Decode.list Decode.string))

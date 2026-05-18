@@ -50,6 +50,8 @@ testComp =
         , compStatus = Finished
         , compStartDate = "2026-01-01"
         , compEndDate = "2026-12-31"
+        , compMinImagesPerEntry = Just 1
+        , compMaxImagesPerEntry = Just 10
         }
 
 testEntry :: Entry
@@ -145,6 +147,18 @@ tests =
             let html = render testConfig galleryWithRankings
             assertBool "has data-lightbox attribute" $
                 "data-lightbox" `T.isInfixOf` html
+        , testCase "renderGallery renders every entry image with lightbox" $ do
+            let entry = testEntry{entryImages = ["cover.jpg", "detail-a.jpg", "detail-b.jpg"]}
+                ranked = testRanked{rankedEntry = entry}
+                gd = galleryWithRankings{gdRankedByComp = Map.singleton "comp1" [ranked]}
+                html = render testConfig gd
+            assertBool "contains cover" $ "cover.jpg" `T.isInfixOf` html
+            assertBool "contains detail a" $ "detail-a.jpg" `T.isInfixOf` html
+            assertBool "contains detail b" $ "detail-b.jpg" `T.isInfixOf` html
+            assertBool "renders thumbnails" $ "entry-thumb" `T.isInfixOf` html
+            assertBool "renders image links" $ "<a href=" `T.isInfixOf` html
+            assertBool "links expose lightbox" $ "data-lightbox" `T.isInfixOf` html
+            assertBool "links are labelled" $ "aria-label=\"Avaa kuva: Space Station MOC\"" `T.isInfixOf` html
         , testCase "renderGallery is self-contained (no external scripts)" $ do
             let html = render testConfig galleryWithRankings
             assertBool "no external script src" $

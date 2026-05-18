@@ -16,9 +16,16 @@ import Test.Tasty.HUnit
 
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import Network.HTTP.Client (RequestBody (RequestBodyBS))
+import Network.HTTP.Client.MultipartFormData (
+    formDataBody,
+    partBS,
+    partFileRequestBody,
+ )
 import Network.HTTP.Simple (
     addRequestHeader,
     getResponseBody,
@@ -91,6 +98,97 @@ postWithTokenBody url token body = do
             Right v -> v
             Left _ -> A.Null
     return (code, parsed)
+
+-- | POST multipart form data with a bearer token; returns status code and response body.
+postMultipartWithTokenBody :: String -> T.Text -> [(T.Text, BS8.ByteString)] -> Int -> IO (Int, A.Value)
+postMultipartWithTokenBody url token fields imageCount = do
+    req0 <- parseRequest ("POST " <> url)
+    let reqAuth = addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token) req0
+        fieldParts = map (uncurry partBS) fields
+        imageParts =
+            replicate
+                imageCount
+                (partFileRequestBody "images" "test-image.png" (RequestBodyBS tinyPng))
+    req <- formDataBody (fieldParts ++ imageParts) reqAuth
+    resp <- httpLBS req
+    let code = getResponseStatusCode resp
+    let parsed = case A.eitherDecode (getResponseBody resp) of
+            Right v -> v
+            Left _ -> A.Null
+    return (code, parsed)
+
+-- | A minimal 1x1 PNG used by multipart image-count tests.
+tinyPng :: BS.ByteString
+tinyPng =
+    BS.pack
+        [ 137
+        , 80
+        , 78
+        , 71
+        , 13
+        , 10
+        , 26
+        , 10
+        , 0
+        , 0
+        , 0
+        , 13
+        , 73
+        , 72
+        , 68
+        , 82
+        , 0
+        , 0
+        , 0
+        , 1
+        , 0
+        , 0
+        , 0
+        , 1
+        , 8
+        , 6
+        , 0
+        , 0
+        , 0
+        , 31
+        , 21
+        , 196
+        , 137
+        , 0
+        , 0
+        , 0
+        , 10
+        , 73
+        , 68
+        , 65
+        , 84
+        , 120
+        , 156
+        , 99
+        , 248
+        , 15
+        , 0
+        , 1
+        , 1
+        , 1
+        , 0
+        , 24
+        , 221
+        , 141
+        , 24
+        , 0
+        , 0
+        , 0
+        , 0
+        , 73
+        , 69
+        , 78
+        , 68
+        , 174
+        , 66
+        , 96
+        , 130
+        ]
 
 -- | PATCH with a bearer token; returns HTTP status code.
 patchWithToken :: String -> T.Text -> A.Value -> IO Int
@@ -259,20 +357,48 @@ createTestCompetition cfg = do
         Left err -> fail $ "createTestCompetition failed: " <> err
         Right cid -> return cid
 
+-- | Create an open competition with explicit entry image limits.
+createTestCompetitionWithImageLimits :: PbConfig -> Int -> Int -> IO T.Text
+createTestCompetitionWithImageLimits cfg minImages maxImages = do
+    let suffix = T.pack (show minImages <> "-" <> show maxImages)
+        body =
+            A.object
+                [ "title" A..= ("AC Image Limit Competition" :: T.Text)
+                , "slug" A..= ("ac-image-limit-" <> suffix)
+                , "status" A..= ("open" :: T.Text)
+                , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
+                , "end_date" A..= ("2099-12-31 00:00:00.000Z" :: T.Text)
+                , "min_images_per_entry" A..= minImages
+                , "max_images_per_entry" A..= maxImages
+                ]
+    result <- createRecord cfg "competitions" body
+    case result of
+        Left err -> fail $ "createTestCompetitionWithImageLimits failed: " <> err
+        Right cid -> return cid
+
 -- | Create a submitted entry owned by a profile via admin API; returns entry id.
 createTestEntry :: PbConfig -> T.Text -> T.Text -> IO T.Text
-createTestEntry cfg profileId cid = do
-    let body =
-            A.object
-                [ "title" A..= ("AC Test MOC" :: T.Text)
-                , "competition" A..= cid
-                , "submitter" A..= profileId
-                , "status" A..= ("submitted" :: T.Text)
-                ]
-    result <- createRecord cfg "entries" body
-    case result of
-        Left err -> fail $ "createTestEntry failed: " <> err
-        Right eid -> return eid
+createTestEntry cfg profileId cid =
+    createTestEntryWithImages cfg profileId cid "submitted" 1
+
+-- | Create an entry with a configurable image count via multipart API.
+createTestEntryWithImages :: PbConfig -> T.Text -> T.Text -> T.Text -> Int -> IO T.Text
+createTestEntryWithImages cfg profileId cid status imageCount = do
+    let url = T.unpack $ pbBaseUrl cfg <> "/api/collections/entries/records"
+        fields =
+            [ ("title", "AC Test MOC")
+            , ("competition", TE.encodeUtf8 cid)
+            , ("submitter", TE.encodeUtf8 profileId)
+            , ("status", TE.encodeUtf8 status)
+            ]
+    (code, respBody) <- postMultipartWithTokenBody url (pbApiToken cfg) fields imageCount
+    case (code, respBody) of
+        (c, A.Object km)
+            | c >= 200 && c < 300 ->
+                case KM.lookup "id" km of
+                    Just (A.String eid) -> return eid
+                    _ -> fail "createTestEntryWithImages: no id in response"
+        _ -> fail $ "createTestEntryWithImages failed with HTTP " <> show code
 
 -- | Create a published review for an entry via admin API; returns review id.
 createPublishedReview :: PbConfig -> T.Text -> T.Text -> IO T.Text
@@ -468,6 +594,8 @@ tests =
                         , "status" A..= ("open" :: T.Text)
                         , "start_date" A..= ("2026-01-01 00:00:00.000Z" :: T.Text)
                         , "end_date" A..= ("2026-06-01 00:00:00.000Z" :: T.Text)
+                        , "min_images_per_entry" A..= (2 :: Int)
+                        , "max_images_per_entry" A..= (8 :: Int)
                         ]
             case A.fromJSON json of
                 A.Error err -> assertFailure $ "Decode failed: " <> err
@@ -476,6 +604,8 @@ tests =
                     compTitle comp @?= "Test Competition"
                     compSlug comp @?= "test-2026"
                     compStatus comp @?= Open
+                    compMinImagesPerEntry comp @?= Just 2
+                    compMaxImagesPerEntry comp @?= Just 8
         , testCase "GalleryTypes: Entry JSON decoding" $ do
             let json =
                     A.object
@@ -711,6 +841,158 @@ tests =
                             deleteTestRecord cfg "profiles" (testProfileId ident)
                             deleteTestRecord cfg "local_users" (testAuthId ident)
                             assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
+        , -- Given a competition requiring at least two images
+          -- When a participant saves a draft with no images
+          -- Then HTTP 200 is returned because drafts may be incomplete
+          testCase "participant can save image-incomplete draft -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    ident <- createVerifiedNonReviewerUser cfg "entry-draft-image-min@test.invalid"
+                    cid <- createTestCompetitionWithImageLimits cfg 2 10
+                    tok <- impersonateUser cfg ident
+                    let entryUrl = url <> "/api/collections/entries/records"
+                    let body =
+                            A.object
+                                [ "title" A..= ("Incomplete Draft" :: T.Text)
+                                , "competition" A..= cid
+                                , "submitter" A..= testProfileId ident
+                                , "status" A..= ("draft" :: T.Text)
+                                ]
+                    (code, respBody) <- postWithTokenBody entryUrl tok body
+                    case respBody of
+                        A.Object km ->
+                            case KM.lookup "id" km of
+                                Just (A.String eid) ->
+                                    deleteTestRecord cfg "entries" eid
+                                _ -> return ()
+                        _ -> return ()
+                    deleteTestRecord cfg "competitions" cid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
+                    assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
+        , -- Given a competition requiring at least two images
+          -- When a participant submits a draft with no images
+          -- Then HTTP 400 is returned by the server-side image limit hook
+          testCase "participant cannot submit below competition image minimum -> 400" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    ident <- createVerifiedNonReviewerUser cfg "entry-submit-image-min@test.invalid"
+                    cid <- createTestCompetitionWithImageLimits cfg 2 10
+                    let body =
+                            A.object
+                                [ "title" A..= ("Incomplete Submit" :: T.Text)
+                                , "competition" A..= cid
+                                , "submitter" A..= testProfileId ident
+                                , "status" A..= ("draft" :: T.Text)
+                                ]
+                    entryResult <- createRecord cfg "entries" body
+                    case entryResult of
+                        Left err -> do
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "profiles" (testProfileId ident)
+                            deleteTestRecord cfg "local_users" (testAuthId ident)
+                            assertFailure $ "setup failed: " <> err
+                        Right eid -> do
+                            tok <- impersonateUser cfg ident
+                            let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
+                            code <-
+                                patchWithToken
+                                    patchUrl
+                                    tok
+                                    (A.object [("status", A.toJSON ("submitted" :: T.Text))])
+                            deleteTestRecord cfg "entries" eid
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "profiles" (testProfileId ident)
+                            deleteTestRecord cfg "local_users" (testAuthId ident)
+                            code @?= 400
+        , -- Given a competition allowing only one image per submitted entry
+          -- When a participant submits an entry with two uploaded images
+          -- Then HTTP 400 is returned by the server-side image limit hook
+          testCase "participant cannot submit above competition image maximum -> 400" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    ident <- createVerifiedNonReviewerUser cfg "entry-submit-image-max@test.invalid"
+                    cid <- createTestCompetitionWithImageLimits cfg 0 1
+                    tok <- impersonateUser cfg ident
+                    let entryUrl = url <> "/api/collections/entries/records"
+                        fields =
+                            [ ("title", "Too Many Images")
+                            , ("competition", TE.encodeUtf8 cid)
+                            , ("submitter", TE.encodeUtf8 (testProfileId ident))
+                            , ("status", "submitted")
+                            ]
+                    (code, respBody) <- postMultipartWithTokenBody entryUrl tok fields 2
+                    case respBody of
+                        A.Object km ->
+                            case KM.lookup "id" km of
+                                Just (A.String eid) ->
+                                    deleteTestRecord cfg "entries" eid
+                                _ -> return ()
+                        _ -> return ()
+                    deleteTestRecord cfg "competitions" cid
+                    deleteTestRecord cfg "profiles" (testProfileId ident)
+                    deleteTestRecord cfg "local_users" (testAuthId ident)
+                    code @?= 400
+        , -- Given a competition requiring at least two images
+          -- When a reviewer approves an image-incomplete draft
+          -- Then HTTP 400 is returned by the server-side image limit hook
+          testCase "reviewer cannot approve below competition image minimum -> 400" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    participant <- createVerifiedNonReviewerUser cfg "entry-approve-image-min@test.invalid"
+                    reviewer <- createReviewerUser cfg "entry-approve-reviewer@test.invalid"
+                    cid <- createTestCompetitionWithImageLimits cfg 2 10
+                    let body =
+                            A.object
+                                [ "title" A..= ("Incomplete Approval" :: T.Text)
+                                , "competition" A..= cid
+                                , "submitter" A..= testProfileId participant
+                                , "status" A..= ("draft" :: T.Text)
+                                ]
+                    entryResult <- createRecord cfg "entries" body
+                    case entryResult of
+                        Left err -> do
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "profiles" (testProfileId participant)
+                            deleteTestRecord cfg "profiles" (testProfileId reviewer)
+                            deleteTestRecord cfg "local_users" (testAuthId participant)
+                            deleteTestRecord cfg "local_users" (testAuthId reviewer)
+                            assertFailure $ "setup failed: " <> err
+                        Right eid -> do
+                            tok <- impersonateUser cfg reviewer
+                            let patchUrl = url <> "/api/collections/entries/records/" <> T.unpack eid
+                            code <-
+                                patchWithToken
+                                    patchUrl
+                                    tok
+                                    (A.object [("status", A.toJSON ("approved" :: T.Text))])
+                            deleteTestRecord cfg "entries" eid
+                            deleteTestRecord cfg "competitions" cid
+                            deleteTestRecord cfg "profiles" (testProfileId participant)
+                            deleteTestRecord cfg "profiles" (testProfileId reviewer)
+                            deleteTestRecord cfg "local_users" (testAuthId participant)
+                            deleteTestRecord cfg "local_users" (testAuthId reviewer)
+                            code @?= 400
         , -- Given an unauthenticated GET on reviews (published only)
           -- Then HTTP 200 is returned
           testCase "anon can list published reviews -> 200" $ do

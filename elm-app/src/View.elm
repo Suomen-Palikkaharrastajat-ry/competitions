@@ -408,10 +408,32 @@ viewSubmitForm model =
         form =
             model.submitForm
 
-        competitionTitle =
+        competition =
             model.selectedCompetition
+
+        competitionTitle =
+            competition
                 |> Maybe.map .title
                 |> Maybe.withDefault "Kilpailu"
+
+        minImages =
+            competition
+                |> Maybe.andThen .minImagesPerEntry
+                |> Maybe.withDefault 1
+                |> max 0
+
+        maxImages =
+            competition
+                |> Maybe.andThen .maxImagesPerEntry
+                |> Maybe.withDefault 10
+                |> min 10
+                |> max minImages
+
+        currentImageCount =
+            List.length form.existingImages + List.length form.selectedFiles
+
+        imageLimitText =
+            String.fromInt minImages ++ "-" ++ String.fromInt maxImages
     in
     case form.step of
         SubmitSuccess ->
@@ -454,7 +476,7 @@ viewSubmitForm model =
                         ]
                         []
                     , label [ Attr.class "block mb-1 type-body-small text-brand", Attr.for "entry-images" ]
-                        [ text "Kuvat * (max 10, jpg/png/webp, max 10 MB/kuva)" ]
+                        [ text ("Kuvat * (" ++ imageLimitText ++ ", jpg/png/webp, max 10 MB/kuva)") ]
                     , div [ Attr.class "border-2 border-dashed border-border-default rounded-lg p-6 mb-4" ]
                         [ input
                             [ Attr.id "entry-images"
@@ -462,9 +484,12 @@ viewSubmitForm model =
                             , Attr.multiple True
                             , Attr.accept "image/jpeg,image/png,image/webp"
                             , Attr.class "mb-2"
+                            , Attr.disabled (currentImageCount >= maxImages)
                             , filesOnChange FilesSelected
                             ]
                             []
+                        , p [ Attr.class "type-caption text-text-muted" ]
+                            [ text (String.fromInt currentImageCount ++ " / " ++ String.fromInt maxImages ++ " kuvaa") ]
                         , if not (List.isEmpty form.existingImages) then
                             div [ Attr.class "flex flex-wrap gap-2 mt-2" ]
                                 (List.map (viewImageChip True) form.existingImages)
@@ -584,7 +609,7 @@ viewReviewQueue _ model =
                     ]
         , case model.activeReview of
             Just rf ->
-                viewReviewFormPanel rf
+                viewReviewFormPanel model.pbUrl rf
 
             Nothing ->
                 text ""
@@ -656,8 +681,8 @@ viewReviewQueueRow re =
         ]
 
 
-viewReviewFormPanel : ReviewForm -> Html Msg
-viewReviewFormPanel rf =
+viewReviewFormPanel : String -> ReviewForm -> Html Msg
+viewReviewFormPanel pbUrl rf =
     let
         r =
             rf.draftReview
@@ -685,6 +710,13 @@ viewReviewFormPanel rf =
                     ]
                     [ text "×" ]
                 ]
+            , viewReviewImages pbUrl rf.reviewableEntry.entry
+            , case rf.reviewableEntry.entry.description of
+                Just desc ->
+                    p [ Attr.class "type-body text-brand mb-6" ] [ text desc ]
+
+                Nothing ->
+                    text ""
             , div [ Attr.class "mb-6" ]
                 [ viewScoreRow "Teema-vastaavuus" r.scoreTheme ScoreThemeChanged
                 , viewScoreRow "Omaperäisyys" r.scoreOriginality ScoreOriginalityChanged
@@ -732,6 +764,26 @@ viewReviewFormPanel rf =
                 ]
             ]
         ]
+
+
+viewReviewImages : String -> Entry -> Html Msg
+viewReviewImages pbUrl entry =
+    if List.isEmpty entry.images then
+        text ""
+
+    else
+        div [ Attr.class "flex gap-3 overflow-x-auto mb-6" ]
+            (entry.images
+                |> List.map
+                    (\filename ->
+                        img
+                            [ Attr.src (pbUrl ++ "/api/files/entries/" ++ entry.id ++ "/" ++ filename ++ "?thumb=400x300")
+                            , Attr.alt (entry.title ++ ": " ++ filename)
+                            , Attr.class "h-32 w-44 object-cover rounded-lg border border-border-default"
+                            ]
+                            []
+                    )
+            )
 
 
 viewScoreRow : String -> Int -> (Int -> Msg) -> Html Msg

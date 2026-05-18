@@ -64,10 +64,26 @@ loggedOutModel =
     }
 
 
+testCompetition : Competition
+testCompetition =
+    { id = "comp1"
+    , title = "Kaupunki 2026"
+    , slug = "kaupunki-2026"
+    , theme = Nothing
+    , description = Nothing
+    , endDate = "2026-12-31 00:00:00.000Z"
+    , coverImage = Nothing
+    , maxEntriesPerUser = Just 3
+    , minImagesPerEntry = Nothing
+    , maxImagesPerEntry = Nothing
+    }
+
+
 testEntry : Entry
 testEntry =
     { id = "entry1"
     , competitionId = "comp1"
+    , competition = Just testCompetition
     , title = "My MOC"
     , description = Nothing
     , images = [ "photo.jpg" ]
@@ -132,5 +148,47 @@ suite =
                         |> Query.fromHtml
                         |> Query.findAll [ containing [ text "Pisteet: 17.0 / 20" ] ]
                         |> Query.count (Expect.equal 1)
+            ]
+        , describe "review form images"
+            [ test "active review panel shows all entry images" <|
+                \_ ->
+                    let
+                        entry =
+                            { testEntry | images = [ "a.jpg", "b.jpg", "c.jpg" ] }
+
+                        reviewableEntry =
+                            { entry = entry
+                            , competition = testCompetition
+                            , submitterName = "Pekka"
+                            , myReview = Nothing
+                            }
+
+                        model =
+                            { loggedOutModel
+                                | auth = LoggedIn { testUser | isReviewer = True }
+                                , page = ReviewQueuePage
+                                , activeReview =
+                                    Just
+                                        { reviewableEntry = reviewableEntry
+                                        , draftReview =
+                                            { id = Nothing
+                                            , entryId = "entry1"
+                                            , reviewerId = "profile1"
+                                            , scoreTheme = 3
+                                            , scoreOriginality = 3
+                                            , scoreTechnique = 3
+                                            , scorePresentation = 3
+                                            , comment = ""
+                                            , isPublished = False
+                                            }
+                                        , saving = False
+                                        , saveError = Nothing
+                                        }
+                            }
+                    in
+                    View.view model
+                        |> Query.fromHtml
+                        |> Query.findAll [ tag "img" ]
+                        |> Query.count (Expect.equal 3)
             ]
         ]

@@ -3,7 +3,7 @@
 -- | Generates the static public gallery HTML from competition data.
 module GalleryGen (renderGallery) where
 
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -156,18 +156,10 @@ renderEntryCard config msgs gd re = do
     let entry = rankedEntry re
         score = rankedTotalScore re
         hasScore = not (null (rankedReviews re))
-        imgUrl = coverImageUrl (gdPbUrl gd) entry
+        imgUrls = entryImageUrls (gdPbUrl gd) entry
         submitter = submitterName config msgs gd entry
     H.article ! HA.class_ "entry-card" $ do
-        case imgUrl of
-            Just url ->
-                H.div ! HA.class_ "entry-img-wrap" $
-                    H.img
-                        ! HA.src (H.toValue url)
-                        ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
-                        ! HA.class_ "entry-img"
-                        ! H.dataAttribute "lightbox" (H.toValue url)
-            Nothing -> return ()
+        renderEntryImages config gd entry imgUrls
         H.div ! HA.class_ "entry-body" $ do
             H.h3 ! HA.class_ "entry-title" $ H.toHtml (entryTitle entry)
             case entryDescription entry of
@@ -188,12 +180,55 @@ renderEntryCard config msgs gd re = do
 
 coverImageUrl :: Text -> Entry -> Maybe Text
 coverImageUrl pbUrl entry =
-    case entryImages entry of
+    case entryImageUrls pbUrl entry of
         [] -> Nothing
+        url : _ -> Just url
+
+entryImageUrls :: Text -> Entry -> [Text]
+entryImageUrls pbUrl entry =
+    case entryImages entry of
+        [] -> []
         imgs ->
-            let idx = min (entryCoverIndex entry) (length imgs - 1)
-                fname = imgs !! idx
-             in Just $ resolveFileUrl pbUrl (entryId entry) fname
+            let maxIdx = length imgs - 1
+                coverIdx = max 0 (min (entryCoverIndex entry) maxIdx)
+                (beforeCover, coverAndAfter) = splitAt coverIdx imgs
+                ordered =
+                    case coverAndAfter of
+                        [] -> imgs
+                        cover : afterCover -> cover : beforeCover ++ afterCover
+             in map (resolveFileUrl pbUrl (entryId entry)) ordered
+
+renderEntryImages :: Config -> GalleryData -> Entry -> [Text] -> H.Html
+renderEntryImages config gd entry imgUrls =
+    case imgUrls of
+        [] ->
+            return ()
+        primary : rest -> do
+            H.div ! HA.class_ "entry-img-wrap"
+                $ H.a
+                    ! HA.href (H.toValue primary)
+                    ! HA.class_ "entry-img-link"
+                    ! H.customAttribute "aria-label" (H.toValue ("Avaa kuva: " <> entryTitle entry))
+                    ! H.dataAttribute "lightbox" (H.toValue primary)
+                $ H.img
+                    ! HA.src (H.toValue primary)
+                    ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
+                    ! HA.class_ "entry-img"
+            unless (null rest) $
+                H.div ! HA.class_ "entry-thumb-row" $
+                    mapM_ (renderEntryThumb config gd entry) rest
+
+renderEntryThumb :: Config -> GalleryData -> Entry -> Text -> H.Html
+renderEntryThumb config gd entry url =
+    H.a
+        ! HA.href (H.toValue url)
+        ! HA.class_ "entry-thumb-link"
+        ! H.customAttribute "aria-label" (H.toValue ("Avaa kuva: " <> entryTitle entry))
+        ! H.dataAttribute "lightbox" (H.toValue url)
+        $ H.img
+            ! HA.src (H.toValue url)
+            ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
+            ! HA.class_ "entry-thumb"
 
 -- | Build the img alt text, appending " by {name}" when not anonymized.
 altText :: Config -> GalleryData -> Entry -> Text -> Text

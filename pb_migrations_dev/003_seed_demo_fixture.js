@@ -92,7 +92,9 @@ function createCompetition(app, slug, data) {
     start_date: data.start_date,
     end_date: data.end_date,
     judging_end_date: data.judging_end_date,
-    max_entries_per_user: data.max_entries_per_user
+    max_entries_per_user: data.max_entries_per_user,
+    min_images_per_entry: data.min_images_per_entry,
+    max_images_per_entry: data.max_images_per_entry
   });
 }
 
@@ -172,7 +174,9 @@ migrate(
       start_date: "2026-01-01 00:00:00.000Z",
       end_date: "2026-12-31 23:59:59.000Z",
       judging_end_date: "2027-01-15 23:59:59.000Z",
-      max_entries_per_user: 3
+      max_entries_per_user: 3,
+      min_images_per_entry: 1,
+      max_images_per_entry: 10
     });
 
     const finishedCompetition = createCompetition(app, "talvikaupunki-2025", {
@@ -184,7 +188,9 @@ migrate(
       start_date: "2025-01-01 00:00:00.000Z",
       end_date: "2025-02-28 23:59:59.000Z",
       judging_end_date: "2025-03-15 23:59:59.000Z",
-      max_entries_per_user: 2
+      max_entries_per_user: 2,
+      min_images_per_entry: 1,
+      max_images_per_entry: 10
     });
 
     const draftEntry = createEntry(app, "Demo Draft Rover", {
