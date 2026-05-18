@@ -2,9 +2,10 @@ module ReviewTest exposing (suite)
 
 {-| Tests for the reviewer tools: queue loading, filtering, scoring, save/approve/reject.
 
-Given  a model with a review queue
-When   review-related messages are processed
-Then   state transitions are correct
+Given a model with a review queue
+When review-related messages are processed
+Then state transitions are correct
+
 -}
 
 import Expect

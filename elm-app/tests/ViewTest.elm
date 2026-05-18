@@ -2,9 +2,10 @@ module ViewTest exposing (suite)
 
 {-| Tests for view rendering: admin UI link, published review scores.
 
-Given  a model / user state
-When   the view is rendered
-Then   the correct HTML elements are present
+Given a model / user state
+When the view is rendered
+Then the correct HTML elements are present
+
 -}
 
 import Expect

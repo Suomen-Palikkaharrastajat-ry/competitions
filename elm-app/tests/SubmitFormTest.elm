@@ -2,16 +2,17 @@ module SubmitFormTest exposing (suite)
 
 {-| Tests for entry submission form state and validation.
 
-Given  a model with a submit form
-When   form-related messages are processed via update / validateForm is called
-Then   state transitions and validation errors are correct
+Given a model with a submit form
+When form-related messages are processed via update / validateForm is called
+Then state transitions and validation errors are correct
+
 -}
 
 import Expect
 import Http
 import Main exposing (canSubmitMore, update, validateForm)
-import Scoring exposing (deadlineUrgency, isDeadlinePassed)
 import RemoteData
+import Scoring exposing (deadlineUrgency, isDeadlinePassed)
 import Test exposing (Test, describe, test)
 import Time
 import Types exposing (..)

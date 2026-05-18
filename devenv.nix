@@ -35,6 +35,9 @@ let
         competitionCommand
         npmTools
         pkgs.cabal-install
+        pkgs.caddy
+        pkgs.elmPackages.elm-review
+        pkgs.go
         pkgs.nodejs_22
         hpkgs.hlint
         hpkgs.fourmolu

@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module I18n
-    ( Locale (..)
-    , Messages (..)
-    , messagesEn
-    , messagesFi
-    , getMessages
-    , getTimeLocale
-    , defaultLocale
-    , parseLocale
-    , fiTimeLocale
-    ) where
+module I18n (
+    Locale (..),
+    Messages (..),
+    messagesEn,
+    messagesFi,
+    getMessages,
+    getTimeLocale,
+    defaultLocale,
+    parseLocale,
+    fiTimeLocale,
+) where
 
 import Data.Text (Text)
 import Data.Time.Format (TimeLocale (..), defaultTimeLocale)
@@ -22,57 +22,57 @@ data Locale = En | Fi
 -- | UI message keys for competition platform labels
 data Messages = Messages
     { msgSkipToContent :: Text
-    , msgCompetition   :: Text
-    , msgParticipants  :: Text
-    , msgReview        :: Text
-    , msgLogIn         :: Text
-    , msgLogOut        :: Text
-    , msgSubmit        :: Text
-    , msgGeneratedOn   :: Text
-    , msgPoweredBy     :: Text
-    , msgOrgName       :: Text
-    , msgWinners       :: Text
-    , msgScore         :: Text
-    , msgEntries       :: Text
-    , msgBy            :: Text
+    , msgCompetition :: Text
+    , msgParticipants :: Text
+    , msgReview :: Text
+    , msgLogIn :: Text
+    , msgLogOut :: Text
+    , msgSubmit :: Text
+    , msgGeneratedOn :: Text
+    , msgPoweredBy :: Text
+    , msgOrgName :: Text
+    , msgWinners :: Text
+    , msgScore :: Text
+    , msgEntries :: Text
+    , msgBy :: Text
     }
 
 messagesEn :: Messages
 messagesEn =
     Messages
         { msgSkipToContent = "Skip to main content"
-        , msgCompetition   = "Competition"
-        , msgParticipants  = "Participants"
-        , msgReview        = "Review"
-        , msgLogIn         = "Log in"
-        , msgLogOut        = "Log out"
-        , msgSubmit        = "Submit"
-        , msgGeneratedOn   = "Generated on"
-        , msgPoweredBy     = "Powered by Suomen Palikkaharrastajat ry"
-        , msgOrgName       = "Suomen Palikkaharrastajat ry"
-        , msgWinners       = "Winners"
-        , msgScore         = "Score"
-        , msgEntries       = "Entries"
-        , msgBy            = "by"
+        , msgCompetition = "Competition"
+        , msgParticipants = "Participants"
+        , msgReview = "Review"
+        , msgLogIn = "Log in"
+        , msgLogOut = "Log out"
+        , msgSubmit = "Submit"
+        , msgGeneratedOn = "Generated on"
+        , msgPoweredBy = "Powered by Suomen Palikkaharrastajat ry"
+        , msgOrgName = "Suomen Palikkaharrastajat ry"
+        , msgWinners = "Winners"
+        , msgScore = "Score"
+        , msgEntries = "Entries"
+        , msgBy = "by"
         }
 
 messagesFi :: Messages
 messagesFi =
     Messages
         { msgSkipToContent = "Siirry pääsisältöön"
-        , msgCompetition   = "Kilpailu"
-        , msgParticipants  = "Osallistujat"
-        , msgReview        = "Arvostelu"
-        , msgLogIn         = "Kirjaudu sisään"
-        , msgLogOut        = "Kirjaudu ulos"
-        , msgSubmit        = "Lähetä"
-        , msgGeneratedOn   = "Koottu"
-        , msgPoweredBy     = "Suomen Palikkaharrastajat ry:n tuottama"
-        , msgOrgName       = "Suomen Palikkaharrastajat ry"
-        , msgWinners       = "Voittajat"
-        , msgScore         = "Pisteet"
-        , msgEntries       = "Osallistujat"
-        , msgBy            = ""
+        , msgCompetition = "Kilpailu"
+        , msgParticipants = "Osallistujat"
+        , msgReview = "Arvostelu"
+        , msgLogIn = "Kirjaudu sisään"
+        , msgLogOut = "Kirjaudu ulos"
+        , msgSubmit = "Lähetä"
+        , msgGeneratedOn = "Koottu"
+        , msgPoweredBy = "Suomen Palikkaharrastajat ry:n tuottama"
+        , msgOrgName = "Suomen Palikkaharrastajat ry"
+        , msgWinners = "Voittajat"
+        , msgScore = "Pisteet"
+        , msgEntries = "Osallistujat"
+        , msgBy = ""
         }
 
 getMessages :: Locale -> Messages
@@ -89,7 +89,7 @@ defaultLocale = Fi
 parseLocale :: Text -> Locale
 parseLocale "en" = En
 parseLocale "fi" = Fi
-parseLocale _    = defaultLocale
+parseLocale _ = defaultLocale
 
 fiTimeLocale :: TimeLocale
 fiTimeLocale =
@@ -97,29 +97,29 @@ fiTimeLocale =
         { wDays =
             [ ("sunnuntai", "su")
             , ("maanantai", "ma")
-            , ("tiistai",   "ti")
+            , ("tiistai", "ti")
             , ("keskiviikko", "ke")
-            , ("torstai",   "to")
+            , ("torstai", "to")
             , ("perjantai", "pe")
-            , ("lauantai",  "la")
+            , ("lauantai", "la")
             ]
         , months =
-            [ ("tammikuu",  "tammi")
-            , ("helmikuu",  "helmi")
+            [ ("tammikuu", "tammi")
+            , ("helmikuu", "helmi")
             , ("maaliskuu", "maalis")
-            , ("huhtikuu",  "huhti")
-            , ("toukokuu",  "touko")
-            , ("kesäkuu",   "kesä")
-            , ("heinäkuu",  "heinä")
-            , ("elokuu",    "elo")
-            , ("syyskuu",   "syys")
-            , ("lokakuu",   "loka")
+            , ("huhtikuu", "huhti")
+            , ("toukokuu", "touko")
+            , ("kesäkuu", "kesä")
+            , ("heinäkuu", "heinä")
+            , ("elokuu", "elo")
+            , ("syyskuu", "syys")
+            , ("lokakuu", "loka")
             , ("marraskuu", "marras")
-            , ("joulukuu",  "joulu")
+            , ("joulukuu", "joulu")
             ]
-        , amPm       = ("ap.", "ip.")
+        , amPm = ("ap.", "ip.")
         , dateTimeFmt = "%d.%m.%Y %H.%M.%S"
-        , dateFmt     = "%d.%m.%Y"
-        , timeFmt     = "%H.%M.%S"
-        , time12Fmt   = "%H.%M.%S"
+        , dateFmt = "%d.%m.%Y"
+        , timeFmt = "%H.%M.%S"
+        , time12Fmt = "%H.%M.%S"
         }

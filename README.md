@@ -109,8 +109,13 @@ Seeded data:
 ## Common Commands
 
 ```bash
-make test             # run Haskell checks/tests and Elm tests
-make elm-test         # run Elm tests only
+devenv shell          # enter the pinned toolchain before running local gates
+make check            # run HLint, Fourmolu check, elm-format, and elm-review
+make test             # run checks plus Haskell, Node interop, and Elm tests
+make quality          # stricter non-browser CI gate with migration smoke tests
+make hs-coverage      # run Haskell tests with Cabal/HPC coverage enabled
+make elm-quality      # run Elm formatting, elm-review, Node tests, elm-test
+make elm-test         # run Elm and Node interop tests only
 make gallery-run      # generate static gallery output from PocketBase
 make pb-test-migrate  # smoke-test schema migrations
 make pb-test-fixture  # smoke-test schema + local fixture migrations

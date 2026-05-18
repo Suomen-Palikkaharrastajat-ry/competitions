@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Main (main, tests) where
 
 import Test.Tasty
@@ -11,11 +12,11 @@ import Text.HTML.TagSoup (Tag (..))
 import Text.HTML.TagSoup.Tree (TagTree (..))
 
 import Config
+import qualified GalleryFetcherSpec
+import qualified GalleryGenSpec
 import HtmlSanitizer
 import I18n
 import PocketBase (PbConfig (..), authHeaders, urlEncodeFilter)
-import qualified GalleryFetcherSpec
-import qualified GalleryGenSpec
 import qualified PocketBaseSchemaSpec
 
 main :: IO ()

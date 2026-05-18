@@ -9,10 +9,10 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+import Text.Blaze.Html.Renderer.Text (renderHtml)
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as HA
-import Text.Blaze.Html.Renderer.Text (renderHtml)
 
 import Config
 import GalleryFetcher
@@ -44,37 +44,45 @@ galleryHtml config msgs gd = do
     H.html ! HA.lang (langAttr (configLocale config)) $ do
         H.head $ do
             H.meta ! HA.charset "utf-8"
-            H.meta ! HA.name "viewport"
-                   ! HA.content "width=device-width, initial-scale=1"
+            H.meta
+                ! HA.name "viewport"
+                ! HA.content "width=device-width, initial-scale=1"
             H.title $ H.toHtml (configTitle config)
-            H.link ! HA.rel "preconnect"
-                   ! HA.href "https://fonts.googleapis.com"
-            H.link ! HA.rel "preconnect"
-                   ! HA.href "https://fonts.gstatic.com"
-                   ! H.dataAttribute "crossorigin" ""
-            H.link ! HA.rel "stylesheet"
-                   ! HA.href "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+            H.link
+                ! HA.rel "preconnect"
+                ! HA.href "https://fonts.googleapis.com"
+            H.link
+                ! HA.rel "preconnect"
+                ! HA.href "https://fonts.gstatic.com"
+                ! H.dataAttribute "crossorigin" ""
+            H.link
+                ! HA.rel "stylesheet"
+                ! HA.href "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
             H.style $ H.toHtml css
         H.body $ do
-            H.a ! HA.href "#main-content"
+            H.a
+                ! HA.href "#main-content"
                 ! HA.class_ "skip-link"
                 $ H.toHtml (msgSkipToContent msgs)
             H.header ! HA.class_ "site-header" $
                 H.div ! HA.class_ "header-inner" $
-                    H.h1 $ H.toHtml (configTitle config)
+                    H.h1 $
+                        H.toHtml (configTitle config)
             H.main ! HA.id "main-content" $
-                mapM_ (renderCompetitionSection config msgs gd)
+                mapM_
+                    (renderCompetitionSection config msgs gd)
                     (gdCompetitions gd)
             H.footer ! HA.class_ "site-footer" $
                 H.p $ do
                     H.toHtml (msgGeneratedOn msgs <> " ")
                     H.toHtml (msgPoweredBy msgs)
-            H.div ! HA.id "lightbox"
-                  ! H.customAttribute "role" "dialog"
-                  ! H.customAttribute "aria-modal" "true"
-                  ! H.customAttribute "aria-label" "Image viewer"
-                  ! HA.tabindex "-1" $
-                H.img ! HA.alt ""
+            H.div
+                ! HA.id "lightbox"
+                ! H.customAttribute "role" "dialog"
+                ! H.customAttribute "aria-modal" "true"
+                ! H.customAttribute "aria-label" "Image viewer"
+                ! HA.tabindex "-1"
+                $ H.img ! HA.alt ""
             H.script $ H.toHtml js
 
 -- ---------------------------------------------------------------------------
@@ -83,18 +91,20 @@ galleryHtml config msgs gd = do
 
 renderCompetitionSection :: Config -> Messages -> GalleryData -> Competition -> H.Html
 renderCompetitionSection config msgs gd comp = do
-    let ranked  = fromMaybe [] $ Map.lookup (compId comp) (gdRankedByComp gd)
+    let ranked = fromMaybe [] $ Map.lookup (compId comp) (gdRankedByComp gd)
         hasScores = not (all (null . rankedReviews) ranked)
-    H.section ! HA.class_ "competition-section"
-              ! HA.id (H.toValue (compSlug comp)) $ do
-        H.h2 ! HA.class_ "competition-title" $ H.toHtml (compTitle comp)
-        case compDescription comp of
-            Just desc -> H.p ! HA.class_ "competition-desc" $ H.toHtml desc
-            Nothing   -> return ()
-        when hasScores $
-            renderPodium config msgs gd (take 3 ranked)
-        H.div ! HA.class_ "entry-grid" $
-            mapM_ (renderEntryCard config msgs gd) ranked
+    H.section
+        ! HA.class_ "competition-section"
+        ! HA.id (H.toValue (compSlug comp))
+        $ do
+            H.h2 ! HA.class_ "competition-title" $ H.toHtml (compTitle comp)
+            case compDescription comp of
+                Just desc -> H.p ! HA.class_ "competition-desc" $ H.toHtml desc
+                Nothing -> return ()
+            when hasScores $
+                renderPodium config msgs gd (take 3 ranked)
+            H.div ! HA.class_ "entry-grid" $
+                mapM_ (renderEntryCard config msgs gd) ranked
 
 -- ---------------------------------------------------------------------------
 -- Winner podium (top 3)
@@ -109,30 +119,33 @@ renderPodium config msgs gd top3 =
 
 renderPodiumItem :: Config -> Messages -> GalleryData -> RankedEntry -> H.Html
 renderPodiumItem config msgs gd re = do
-    let entry    = rankedEntry re
-        score    = rankedTotalScore re
-        rank     = rankedRank re
-        imgUrl   = coverImageUrl (gdPbUrl gd) entry
+    let entry = rankedEntry re
+        score = rankedTotalScore re
+        rank = rankedRank re
+        imgUrl = coverImageUrl (gdPbUrl gd) entry
         submitter = submitterName config msgs gd entry
     H.li ! HA.class_ (H.toValue ("podium-item rank-" <> show rank)) $ do
-        H.span ! HA.class_ "podium-rank"
-               $ H.toHtml (show rank <> ".")
+        H.span ! HA.class_ "podium-rank" $
+            H.toHtml (show rank <> ".")
         case imgUrl of
-            Just url -> H.img ! HA.src (H.toValue url)
-                              ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
-                              ! HA.class_ "podium-img"
-                              ! H.dataAttribute "lightbox" (H.toValue url)
-            Nothing  -> return ()
+            Just url ->
+                H.img
+                    ! HA.src (H.toValue url)
+                    ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
+                    ! HA.class_ "podium-img"
+                    ! H.dataAttribute "lightbox" (H.toValue url)
+            Nothing -> return ()
         H.div ! HA.class_ "podium-info" $ do
-            H.span ! HA.class_ "podium-entry-title"
-                   $ H.toHtml (entryTitle entry)
+            H.span ! HA.class_ "podium-entry-title" $
+                H.toHtml (entryTitle entry)
             H.span ! HA.class_ "podium-score" $ do
                 H.toHtml (msgScore msgs <> ": ")
                 H.toHtml (show score)
             case submitter of
-                Just name -> H.span ! HA.class_ "podium-submitter"
-                                    $ H.toHtml name
-                Nothing   -> return ()
+                Just name ->
+                    H.span ! HA.class_ "podium-submitter" $
+                        H.toHtml name
+                Nothing -> return ()
 
 -- ---------------------------------------------------------------------------
 -- Entry card
@@ -140,29 +153,30 @@ renderPodiumItem config msgs gd re = do
 
 renderEntryCard :: Config -> Messages -> GalleryData -> RankedEntry -> H.Html
 renderEntryCard config msgs gd re = do
-    let entry     = rankedEntry re
-        score     = rankedTotalScore re
-        hasScore  = not (null (rankedReviews re))
-        imgUrl    = coverImageUrl (gdPbUrl gd) entry
+    let entry = rankedEntry re
+        score = rankedTotalScore re
+        hasScore = not (null (rankedReviews re))
+        imgUrl = coverImageUrl (gdPbUrl gd) entry
         submitter = submitterName config msgs gd entry
     H.article ! HA.class_ "entry-card" $ do
         case imgUrl of
             Just url ->
                 H.div ! HA.class_ "entry-img-wrap" $
-                    H.img ! HA.src (H.toValue url)
-                          ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
-                          ! HA.class_ "entry-img"
-                          ! H.dataAttribute "lightbox" (H.toValue url)
-            Nothing  -> return ()
+                    H.img
+                        ! HA.src (H.toValue url)
+                        ! HA.alt (H.toValue (altText config gd entry (entryTitle entry)))
+                        ! HA.class_ "entry-img"
+                        ! H.dataAttribute "lightbox" (H.toValue url)
+            Nothing -> return ()
         H.div ! HA.class_ "entry-body" $ do
             H.h3 ! HA.class_ "entry-title" $ H.toHtml (entryTitle entry)
             case entryDescription entry of
                 Just desc -> H.p ! HA.class_ "entry-desc" $ H.toHtml desc
-                Nothing   -> return ()
+                Nothing -> return ()
             case submitter of
                 Just name ->
                     H.p ! HA.class_ "entry-submitter" $ H.toHtml name
-                Nothing   -> return ()
+                Nothing -> return ()
             when hasScore $
                 H.p ! HA.class_ "entry-score" $ do
                     H.toHtml (msgScore msgs <> ": ")
@@ -175,11 +189,11 @@ renderEntryCard config msgs gd re = do
 coverImageUrl :: Text -> Entry -> Maybe Text
 coverImageUrl pbUrl entry =
     case entryImages entry of
-        []     -> Nothing
-        imgs   ->
-            let idx  = min (entryCoverIndex entry) (length imgs - 1)
+        [] -> Nothing
+        imgs ->
+            let idx = min (entryCoverIndex entry) (length imgs - 1)
                 fname = imgs !! idx
-            in Just $ resolveFileUrl pbUrl (entryId entry) fname
+             in Just $ resolveFileUrl pbUrl (entryId entry) fname
 
 -- | Build the img alt text, appending " by {name}" when not anonymized.
 altText :: Config -> GalleryData -> Entry -> Text -> Text
@@ -188,18 +202,18 @@ altText config gd entry title
     | otherwise =
         case Map.lookup (entrySubmitter entry) (gdDisplayNames gd) of
             Just name -> title <> " by " <> name
-            Nothing   -> title
+            Nothing -> title
 
 submitterName :: Config -> Messages -> GalleryData -> Entry -> Maybe Text
 submitterName config msgs gd entry
     | configAnonymize config = Nothing
     | otherwise =
-        let uid   = entrySubmitter entry
-            name  = Map.lookup uid (gdDisplayNames gd)
+        let uid = entrySubmitter entry
+            name = Map.lookup uid (gdDisplayNames gd)
             prefix = msgBy msgs
-        in case name of
-               Nothing -> Nothing
-               Just n  ->
-                   if T.null prefix
-                       then Just n
-                       else Just (prefix <> " " <> n)
+         in case name of
+                Nothing -> Nothing
+                Just n ->
+                    if T.null prefix
+                        then Just n
+                        else Just (prefix <> " " <> n)

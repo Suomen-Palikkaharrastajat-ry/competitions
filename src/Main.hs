@@ -26,18 +26,18 @@ main = do
 
     pbCfgFromEnv <- loadPbConfig
     let pbUrl = case (configPbUrl config, pbCfgFromEnv) of
-                    (Just u, _)       -> u
-                    (Nothing, Just c) -> pbBaseUrl c
-                    (Nothing, Nothing) -> T.pack "https://data.palikkaharrastajat.fi"
+            (Just u, _) -> u
+            (Nothing, Just c) -> pbBaseUrl c
+            (Nothing, Nothing) -> T.pack "https://data.palikkaharrastajat.fi"
         pbToken = case pbCfgFromEnv of
-                      Just c  -> pbApiToken c
-                      Nothing -> T.pack ""
+            Just c -> pbApiToken c
+            Nothing -> T.pack ""
 
     mApiKey <- lookupEnv "POCKETBASE_API_KEY"
     let token = maybe pbToken T.pack mApiKey
 
     let pbCfg = PbConfig pbUrl token
-    let msgs  = getMessages (configLocale config)
+    let msgs = getMessages (configLocale config)
 
     putStrLn "Fetching gallery data..."
     gd <- fetchGalleryData pbCfg
@@ -45,7 +45,7 @@ main = do
     putStrLn "Rendering gallery..."
     let html = renderGallery config msgs gd
 
-    let outDir  = configOutputDir config
+    let outDir = configOutputDir config
         outFile = outDir </> "index.html"
     createDirectoryIfMissing True outDir
     TIO.writeFile outFile html

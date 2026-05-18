@@ -4,9 +4,9 @@ module StarRatingTest exposing (suite)
 -}
 
 import Expect
+import Html.Attributes
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
-import Html.Attributes
 import Test.Html.Selector exposing (attribute, class, tag)
 import View exposing (starRating)
 

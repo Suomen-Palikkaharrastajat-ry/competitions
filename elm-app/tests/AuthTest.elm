@@ -2,13 +2,14 @@ module AuthTest exposing (suite)
 
 {-| Tests for auth state transitions and validation.
 
-Given  a model in a particular auth state
-When   an auth-related Msg is processed via update
-Then   the model transitions correctly
+Given a model in a particular auth state
+When an auth-related Msg is processed via update
+Then the model transitions correctly
 
-Given  email / OTP code strings
-When   validateEmail / validateOtpCode is called
-Then   Ok or Err is returned according to the validation rules
+Given email / OTP code strings
+When validateEmail / validateOtpCode is called
+Then Ok or Err is returned according to the validation rules
+
 -}
 
 import Expect

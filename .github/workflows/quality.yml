@@ -1,0 +1,66 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: palikkaharrastajat
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          extraPullNames: devenv
+
+      - name: Install devenv
+        run: nix profile install "github:cachix/devenv/v2.0.6"
+
+      - name: Restore Cabal index cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cabal/packages
+          key: cabal-index-${{ runner.os }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: cabal-index-${{ runner.os }}-
+
+      - name: Restore Cabal store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cabal/store
+          key: cabal-store-${{ runner.os }}-${{ hashFiles('cabal.project.freeze', 'competition.cabal', 'devenv.lock', 'devenv.nix', 'overrides.nix') }}
+          restore-keys: cabal-store-${{ runner.os }}-
+
+      - name: Restore Elm cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elm
+            elm-app/elm-stuff
+            review/elm-stuff
+          key: elm-${{ runner.os }}-${{ hashFiles('elm-app/elm.json', 'review/elm.json') }}
+          restore-keys: elm-${{ runner.os }}-
+
+      - name: Update Cabal package index
+        run: devenv shell --profile ci -- cabal update
+
+      - name: Run non-browser quality gate
+        run: devenv shell --profile ci -- make quality

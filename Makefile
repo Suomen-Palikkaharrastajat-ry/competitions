@@ -1,5 +1,6 @@
 HLINT ?= hlint
 FOURMOLU ?= fourmolu
+ELM_REVIEW ?= elm-review
 COMPETITION_NIX ?= competition-nix
 POCKETBASE ?= env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase
 
@@ -71,8 +72,12 @@ elm-test: elm-tailwind-gen ## Run Elm unit tests
 	cd elm-app && elm-test
 
 .PHONY: elm-check
-elm-check: ## Check Elm formatting (no changes)
-	cd elm-app && elm-format --validate src/
+elm-check: elm-tailwind-gen ## Check Elm formatting and elm-review rules (no changes)
+	cd elm-app && elm-format --validate src/ tests/
+	cd elm-app && $(ELM_REVIEW) --config ../review --ignore-dirs .elm-tailwind
+
+.PHONY: elm-quality
+elm-quality: elm-check elm-test ## Run non-browser Elm quality gates
 
 .PHONY: elm-format
 elm-format: ## Auto-format Elm source files
@@ -105,7 +110,7 @@ repl: ## Start the Haskell REPL
 	cabal repl
 
 .PHONY: cabal-check
-cabal-check: ## Check the package for common errors
+cabal-check: ## Check the package for common Cabal metadata errors
 	cabal check
 
 # ── Combined targets ──────────────────────────────────────────────────────────
@@ -130,10 +135,26 @@ watch: ## Watch for changes in Haskell and Elm files and rebuild
 
 # ── Test & quality ────────────────────────────────────────────────────────────
 
-.PHONY: check
-check: ## Check formatting and run hlint (no changes)
+.PHONY: haskell-check
+haskell-check: ## Check Haskell formatting and run hlint (no changes)
 	$(HLINT) src tests
-	$(MAKE) elm-check
+	find src tests -name '*.hs' | xargs $(FOURMOLU) --mode check
+
+.PHONY: check
+check: haskell-check elm-check ## Check Haskell and Elm static quality gates
+
+.PHONY: hs-coverage
+hs-coverage: ## Run Haskell tests with Cabal/HPC coverage enabled
+	cabal test --enable-coverage
+	@echo "Haskell coverage report generated under dist-newstyle/**/t/competition-tests/hpc/vanilla/html/"
+
+.PHONY: quality
+quality: haskell-check cabal-check ## Run strict non-browser quality gates for CI
+	cabal test
+	$(MAKE) elm-quality
+	$(MAKE) pb-test-migrate
+	$(MAKE) pb-test-fixture
+	$(MAKE) dev-proxy-test
 
 .PHONY: test
 test: check ## Run Haskell and Elm tests

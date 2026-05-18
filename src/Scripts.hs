@@ -5,9 +5,10 @@ module Scripts (js) where
 import Data.Text (Text)
 import qualified Data.Text as T
 
--- | Vanilla JS lightbox for gallery entry images.
--- Images with a data-lightbox attribute open in a full-screen overlay.
--- Respects prefers-reduced-motion for the overlay transition.
+{- | Vanilla JS lightbox for gallery entry images.
+Images with a data-lightbox attribute open in a full-screen overlay.
+Respects prefers-reduced-motion for the overlay transition.
+-}
 js :: Text
 js =
     T.unlines
