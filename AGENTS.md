@@ -211,28 +211,38 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
 
 ## 7. Build & Test Commands
 
+Agents must run one-shot repository commands as
+`devenv shell --no-eval-cache -- <command>`, unless the command is starting the
+long-running local stack with `devenv up` itself. Run these wrapped commands
+sequentially, not in parallel, because concurrent `devenv shell` invocations can
+race on shared GC-root cleanup.
+
 ```bash
 # Haskell
-make test              # hlint + cabal test
-make gallery-run       # generate dist/index.html (requires POCKETBASE_URL)
-cabal repl             # interactive REPL
+devenv shell --no-eval-cache -- make test              # hlint + cabal test
+devenv shell --no-eval-cache -- make gallery-run       # generate dist/index.html (requires POCKETBASE_URL)
+devenv shell --no-eval-cache -- cabal repl             # interactive REPL
 
 # Elm
-make elm-test          # elm-test via Nix-provided tooling
-make elm-dev           # Vite dev server at localhost:5173
-make elm-build         # production Elm/Vite build
+devenv shell --no-eval-cache -- make elm-test          # elm-test via Nix-provided tooling
+devenv shell --no-eval-cache -- make elm-dev           # Vite dev server at localhost:5173
+devenv shell --no-eval-cache -- make elm-build         # production Elm/Vite build
 
 # PocketBase
-make pb-dev            # start PocketBase in dev mode
-make pb-migrate        # apply pending migrations
-make pb-test-migrate   # smoke-test migrations against throwaway dir
-make pb-test-fixture   # smoke-test schema + local fixture migrations
-make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
-make pb-seed           # apply local-only fixture migrations to pb_data/
+devenv shell --no-eval-cache -- make pb-dev             # start PocketBase in dev mode
+devenv shell --no-eval-cache -- make pb-migrate         # apply pending migrations
+devenv shell --no-eval-cache -- make pb-test-migrate    # smoke-test migrations against throwaway dir
+devenv shell --no-eval-cache -- make pb-test-fixture    # smoke-test schema + local fixture migrations
+devenv shell --no-eval-cache -- make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+devenv shell --no-eval-cache -- make pb-seed            # apply local-only fixture migrations to pb_data/
 
 # Everything
 devenv up              # start PocketBase + Elm dev server + Mailpit + Caddy + Keycloak
 ```
+
+`make test` runs live PocketBase integration tests when `POCKETBASE_URL` is set.
+Start the local stack first with `devenv up` when those integration cases should
+run against `http://127.0.0.1:8080/`.
 
 `devenv up` exposes the local stack through Caddy:
 
