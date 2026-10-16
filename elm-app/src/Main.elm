@@ -9,6 +9,7 @@ module Main exposing
     , httpErrorMessage
     , imageMax
     , imageMin
+    , init
     , main
     , myEntriesUrl
     , otpResponseDecoder
@@ -76,7 +77,9 @@ init flags =
                         SetDisplayNamePage
 
                       else
-                        Route.fromHash flags.hash |> Maybe.withDefault DashboardPage
+                        Route.fromHash flags.hash
+                            |> Maybe.withDefault DashboardPage
+                            |> allowedPage user
                     )
 
                 Nothing ->
@@ -103,10 +106,21 @@ init flags =
                 , activeReview = Nothing
                 , reviewFilter = AllEntries
                 }
+
+        -- A deep link the app does not keep (unknown, or not allowed for the
+        -- user) is replaced by the address of the page shown, so that Back
+        -- stays inside the app.
+        hashCmd =
+            if List.member flags.hash [ "", "#", Route.toHash model.page ] || model.auth == LoggedOut then
+                Cmd.none
+
+            else
+                Ports.replaceHash (Route.toHash model.page)
     in
     ( model
     , Cmd.batch
         [ pageCmd
+        , hashCmd
         , case settings.error of
             Just problem ->
                 Ports.reportError problem
@@ -117,10 +131,30 @@ init flags =
     )
 
 
+{-| The page itself, or the dashboard when the user may not see it.
+-}
+allowedPage : AuthUser -> Page -> Page
+allowedPage user page =
+    if page == ReviewQueuePage && not user.isReviewer then
+        DashboardPage
+
+    else
+        page
+
+
 {-| Switch to a page and start loading the data it shows.
 -}
 enterPage : Page -> Model -> ( Model, Cmd Msg )
-enterPage page model =
+enterPage page_ model =
+    let
+        page =
+            case model.auth of
+                LoggedIn user ->
+                    allowedPage user page_
+
+                _ ->
+                    page_
+    in
     case ( page, model.auth ) of
         ( DashboardPage, LoggedIn user ) ->
             ( { model | page = page, competitions = RemoteData.Loading }
@@ -239,7 +273,16 @@ updateModel msg model =
             ( { model | authError = Just (t model.lang I18n.ErrLoginFailed) }, Cmd.none )
 
         StartKeycloakLogin ->
-            ( { model | authError = Nothing }, Ports.startKeycloakLogin model.pbUrl )
+            ( { model | authError = Nothing, menuOpen = False }
+            , Cmd.batch
+                [ Ports.startKeycloakLogin model.pbUrl
+                , if model.menuOpen then
+                    Layout.onMenuClosed NoOp
+
+                  else
+                    Cmd.none
+                ]
+            )
 
         KeycloakLoginCompleted resp ->
             let
@@ -341,16 +384,31 @@ updateModel msg model =
             enterPage page model
 
         HashChanged hash ->
-            case Route.fromHash hash of
-                Just page ->
-                    if page == model.page then
+            -- The hash of the page shown is ours (the display-name page
+            -- shares the dashboard's), and the display-name step cannot be
+            -- skipped by navigating.
+            if Route.toHash model.page == hash || model.page == SetDisplayNamePage || model.auth == LoggedOut then
+                ( model, Cmd.none )
+
+            else
+                case Route.fromHash hash of
+                    Just page ->
+                        if page == model.page then
+                            ( model, Cmd.none )
+
+                        else
+                            let
+                                ( newModel, cmd ) =
+                                    enterPage page model
+                            in
+                            if newModel.page == page then
+                                ( newModel, cmd )
+
+                            else
+                                ( newModel, Cmd.batch [ cmd, Ports.replaceHash (Route.toHash newModel.page) ] )
+
+                    Nothing ->
                         ( model, Cmd.none )
-
-                    else
-                        enterPage page model
-
-                Nothing ->
-                    ( model, Cmd.none )
 
         ToggleMenu ->
             if model.menuOpen then

@@ -39,6 +39,12 @@ app.ports.setHash.subscribe(function (hash) {
   }
 });
 
+app.ports.replaceHash.subscribe(function (hash) {
+  if (location.hash !== hash) {
+    history.replaceState(null, '', hash);
+  }
+});
+
 app.ports.reportError.subscribe(function (problem) {
   console.error(problem);
 });

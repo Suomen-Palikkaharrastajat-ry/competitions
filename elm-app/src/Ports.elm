@@ -1,4 +1,4 @@
-port module Ports exposing (clearAuth, hashChanged, keycloakLoginFailed, keycloakLoginSucceeded, onAuthRestored, reportError, setHash, startKeycloakLogin, storeAuth)
+port module Ports exposing (clearAuth, hashChanged, keycloakLoginFailed, keycloakLoginSucceeded, onAuthRestored, replaceHash, reportError, setHash, startKeycloakLogin, storeAuth)
 
 {-| Ports for JS interop — auth persistence via localStorage.
 -}
@@ -40,6 +40,12 @@ port onAuthRestored : (AuthUser -> msg) -> Sub msg
 same value).
 -}
 port setHash : String -> Cmd msg
+
+
+{-| Replace the current location hash without adding a history entry or
+raising a hash change. Used to normalise addresses the app does not keep.
+-}
+port replaceHash : String -> Cmd msg
 
 
 {-| Receive the new location hash when it changes, for instance when a link
