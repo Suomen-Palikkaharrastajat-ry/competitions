@@ -285,6 +285,38 @@ suite =
                     in
                     model.activeReview |> Expect.equal Nothing
             ]
+        , describe "Saving a review"
+            -- Given an open review form
+            -- When the reviewer clicks "Tallenna" or "Tallenna ja julkaise"
+            -- Then the review is saved unpublished or published
+            [ test "SaveReview saves the review unpublished" <|
+                \_ ->
+                    let
+                        published =
+                            emptyReview "entry1" "reviewer1"
+
+                        ( model, _ ) =
+                            update SaveReview (withReviewForm { published | isPublished = True })
+                    in
+                    case model.activeReview of
+                        Just rf ->
+                            Expect.equal ( rf.saving, rf.draftReview.isPublished ) ( True, False )
+
+                        Nothing ->
+                            Expect.fail "Expected activeReview"
+            , test "SaveAndPublishReview saves the review published" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update SaveAndPublishReview (withReviewForm (emptyReview "entry1" "reviewer1"))
+                    in
+                    case model.activeReview of
+                        Just rf ->
+                            Expect.equal ( rf.saving, rf.draftReview.isPublished ) ( True, True )
+
+                        Nothing ->
+                            Expect.fail "Expected activeReview"
+            ]
         , describe "Score changes"
             [ test "ScoreThemeChanged updates draftReview.scoreTheme" <|
                 \_ ->
@@ -425,3 +457,16 @@ suite =
                             Expect.fail "Expected Success"
             ]
         ]
+
+
+withReviewForm : Review -> Model
+withReviewForm review =
+    { baseModel
+        | activeReview =
+            Just
+                { reviewableEntry = testReviewableEntry
+                , draftReview = review
+                , saving = False
+                , saveError = Nothing
+                }
+    }

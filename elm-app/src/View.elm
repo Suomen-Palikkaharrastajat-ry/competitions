@@ -730,7 +730,7 @@ viewReviewFormPanel lang pbUrl rf =
                 , button
                     [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand outline-none"
                     , Attr.disabled rf.saving
-                    , Events.onClick SaveReview
+                    , Events.onClick SaveAndPublishReview
                     ]
                     [ text (t lang I18n.SaveAndPublish) ]
                 ]

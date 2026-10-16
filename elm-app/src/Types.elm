@@ -277,6 +277,7 @@ type Msg
     | ReviewCommentChanged String
       -- Review actions
     | SaveReview
+    | SaveAndPublishReview
     | ReviewSaved (Result Http.Error Review)
     | ApproveEntry String
     | RejectEntry String
