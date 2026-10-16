@@ -10,10 +10,12 @@ Then state transitions are correct
 
 import Expect
 import Http
+import Lang exposing (Lang(..))
 import Main exposing (emptyReview, filteredReviewQueue, update)
 import RemoteData
 import Scoring exposing (entryAverage, reviewTotal)
 import Test exposing (Test, describe, test)
+import TestSite
 import Time
 import Types exposing (..)
 
@@ -108,6 +110,8 @@ baseModel =
     , displayNameInput = ""
     , page = ReviewQueuePage
     , lang = Fi
+    , site = TestSite.site Fi
+    , menuOpen = False
     , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked

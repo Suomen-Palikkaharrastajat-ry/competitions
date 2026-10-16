@@ -5,6 +5,7 @@ module StarRatingTest exposing (suite)
 
 import Expect
 import Html.Attributes
+import Lang exposing (Lang(..))
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
 import Test.Html.Selector exposing (attribute, class, tag)
@@ -16,39 +17,39 @@ suite =
     describe "starRating"
         [ test "renders 5 star buttons" <|
             \_ ->
-                starRating 3 identity
+                starRating Fi 3 identity
                     |> Query.fromHtml
                     |> Query.findAll [ tag "button" ]
                     |> Query.count (Expect.equal 5)
         , test "score 0: all stars have text-text-subtle" <|
             \_ ->
-                starRating 0 identity
+                starRating Fi 0 identity
                     |> Query.fromHtml
                     |> Query.findAll [ class "text-text-subtle" ]
                     |> Query.count (Expect.equal 5)
         , test "score 5: all stars have text-brand-yellow" <|
             \_ ->
-                starRating 5 identity
+                starRating Fi 5 identity
                     |> Query.fromHtml
                     |> Query.findAll [ class "text-brand-yellow" ]
                     |> Query.count (Expect.equal 5)
         , test "first button has aria-label=Arvo 1 viidestä" <|
             \_ ->
-                starRating 3 identity
+                starRating Fi 3 identity
                     |> Query.fromHtml
                     |> Query.findAll [ tag "button" ]
                     |> Query.first
                     |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Arvo 1 viidestä") ]
         , test "fifth button has aria-label=Arvo 5 viidestä" <|
             \_ ->
-                starRating 3 identity
+                starRating Fi 3 identity
                     |> Query.fromHtml
                     |> Query.findAll [ tag "button" ]
                     |> Query.index 4
                     |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Arvo 5 viidestä") ]
         , test "score 3: 3 yellow stars and 2 gray stars" <|
             \_ ->
-                starRating 3 identity
+                starRating Fi 3 identity
                     |> Query.fromHtml
                     |> (\html ->
                             Expect.all

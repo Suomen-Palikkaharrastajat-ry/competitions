@@ -159,7 +159,7 @@ renderEntryCard config msgs gd re = do
         imgUrls = entryImageUrls (gdPbUrl gd) entry
         submitter = submitterName config msgs gd entry
     H.article ! HA.class_ "entry-card" $ do
-        renderEntryImages config gd entry imgUrls
+        renderEntryImages config msgs gd entry imgUrls
         H.div ! HA.class_ "entry-body" $ do
             H.h3 ! HA.class_ "entry-title" $ H.toHtml (entryTitle entry)
             case entryDescription entry of
@@ -198,8 +198,8 @@ entryImageUrls pbUrl entry =
                         cover : afterCover -> cover : beforeCover ++ afterCover
              in map (resolveFileUrl pbUrl (entryId entry)) ordered
 
-renderEntryImages :: Config -> GalleryData -> Entry -> [Text] -> H.Html
-renderEntryImages config gd entry imgUrls =
+renderEntryImages :: Config -> Messages -> GalleryData -> Entry -> [Text] -> H.Html
+renderEntryImages config msgs gd entry imgUrls =
     case imgUrls of
         [] ->
             return ()
@@ -208,7 +208,7 @@ renderEntryImages config gd entry imgUrls =
                 $ H.a
                     ! HA.href (H.toValue primary)
                     ! HA.class_ "entry-img-link"
-                    ! H.customAttribute "aria-label" (H.toValue ("Avaa kuva: " <> entryTitle entry))
+                    ! H.customAttribute "aria-label" (H.toValue (msgOpenImage msgs <> entryTitle entry))
                     ! H.dataAttribute "lightbox" (H.toValue primary)
                 $ H.img
                     ! HA.src (H.toValue primary)
@@ -216,14 +216,14 @@ renderEntryImages config gd entry imgUrls =
                     ! HA.class_ "entry-img"
             unless (null rest) $
                 H.div ! HA.class_ "entry-thumb-row" $
-                    mapM_ (renderEntryThumb config gd entry) rest
+                    mapM_ (renderEntryThumb config msgs gd entry) rest
 
-renderEntryThumb :: Config -> GalleryData -> Entry -> Text -> H.Html
-renderEntryThumb config gd entry url =
+renderEntryThumb :: Config -> Messages -> GalleryData -> Entry -> Text -> H.Html
+renderEntryThumb config msgs gd entry url =
     H.a
         ! HA.href (H.toValue url)
         ! HA.class_ "entry-thumb-link"
-        ! H.customAttribute "aria-label" (H.toValue ("Avaa kuva: " <> entryTitle entry))
+        ! H.customAttribute "aria-label" (H.toValue (msgOpenImage msgs <> entryTitle entry))
         ! H.dataAttribute "lightbox" (H.toValue url)
         $ H.img
             ! HA.src (H.toValue url)

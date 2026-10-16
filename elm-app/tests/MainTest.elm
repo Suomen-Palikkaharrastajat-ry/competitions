@@ -5,8 +5,9 @@ module MainTest exposing (suite)
 
 import Expect
 import I18n
+import Lang exposing (Lang(..))
 import Test exposing (Test, describe, test)
-import Types exposing (AuthState(..), AuthUser, Lang(..))
+import Types exposing (AuthState(..), AuthUser)
 
 
 testUser : AuthUser
@@ -39,6 +40,12 @@ suite =
         , test "I18n Competition Fi" <|
             \_ ->
                 Expect.equal "Kilpailu" (I18n.translate Fi I18n.Competition)
+        , test "I18n keeps the Finnish validation text" <|
+            \_ ->
+                Expect.equal "Syötä kelvollinen sähköpostiosoite" (I18n.t Fi I18n.ErrInvalidEmail)
+        , test "I18n has an English validation text" <|
+            \_ ->
+                Expect.equal "Enter a valid email address" (I18n.t En I18n.ErrInvalidEmail)
         , test "I18n Competition En" <|
             \_ ->
                 Expect.equal "Competition" (I18n.translate En I18n.Competition)

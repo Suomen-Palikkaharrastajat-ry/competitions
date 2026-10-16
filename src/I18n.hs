@@ -35,6 +35,7 @@ data Messages = Messages
     , msgScore :: Text
     , msgEntries :: Text
     , msgBy :: Text
+    , msgOpenImage :: Text
     }
 
 messagesEn :: Messages
@@ -54,6 +55,7 @@ messagesEn =
         , msgScore = "Score"
         , msgEntries = "Entries"
         , msgBy = "by"
+        , msgOpenImage = "Open image: "
         }
 
 messagesFi :: Messages
@@ -73,6 +75,7 @@ messagesFi =
         , msgScore = "Pisteet"
         , msgEntries = "Osallistujat"
         , msgBy = ""
+        , msgOpenImage = "Avaa kuva: "
         }
 
 getMessages :: Locale -> Messages

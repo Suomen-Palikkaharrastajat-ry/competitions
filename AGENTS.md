@@ -57,6 +57,7 @@ competitions/
 ├── TODO-07-missing-features.md ← Step 7: Admin tools, accessibility, SMTP, scores, error boundaries
 ├── TODO-08-fixes.md            ← Step 8: Security, quality, and test gap fixes
 ├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
+├── config.toml                 ← Site configuration (URL, title, footer) for the shared Component.Layout; see vendor/master-builder/docs/site-config.md
 ├── competition.cabal           ← Haskell project (after TODO-00)
 ├── Makefile                    ← Build targets
 ├── Caddyfile                   ← Local reverse proxy: app, PocketBase, Mailpit on port 8080
@@ -88,17 +89,19 @@ competitions/
 │   │   ├── Main.elm            ← App entry point (The Elm Architecture)
 │   │   ├── Types.elm           ← Model, Msg, AuthState, Page, Competition, Entry, Review
 │   │   ├── View.elm            ← All page views and UI components
+│   │   ├── View/Layout.elm     ← Wraps the page in the shared Component.Layout (header, drawer, footer)
+│   │   ├── Route.elm           ← Location hashes (#/, #/omat, #/arvostelu) of the pages
 │   │   ├── Ports.elm           ← JS interop (auth persistence)
-│   │   └── main.css            ← TailwindCSS v4 with @theme brand tokens
 │   ├── tests/                  ← Elm test suite (elm-test)
 │   │   ├── AuthTest.elm
 │   │   ├── SubmitFormTest.elm
 │   │   ├── ReviewTest.elm
 │   │   └── DecoderTest.elm
 │   ├── index.html              ← App shell
-│   ├── src/main.js             ← Vite entrypoint (flags: pbUrl, restoredAuth)
+│   ├── main.js                 ← Vite entrypoint (flags: pbUrl, restoredAuth) + PocketBase JS OAuth helper
+│   ├── main.css                ← Tailwind v4; imports the shared design tokens and component CSS from packages/
+│   ├── public/fonts/           ← Outfit font (outfit.css + variable TTF), the only committed public asset
 │   ├── elm.json
-│   ├── src/main.js             ← Vite entrypoint + PocketBase JS OAuth helper
 │   └── packages → ../vendor/master-builder/packages
 │
 ├── cmd/competition-pocketbase/ ← Go wrapper that registers PB JS migrations/hooks
@@ -167,7 +170,7 @@ You **MUST STOP** and escalate to the user if:
 
 This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
 
-- **Agent CSS reference:** Fetch `https://logo.palikkaharrastajat.fi/brand.css` for the latest canonical `@theme`, `@utility type-*`, `@font-face`, reduced-motion rule, and shared component classes. Tailwind v4 requires `@theme` in the locally-processed file — copy the content into `elm-app/src/main.css`.
+- **Shared CSS:** `elm-app/main.css` imports the design tokens (`@theme`, `type-*` utilities) and shared component classes from `elm-app/packages/design-tokens/design-tokens.css` and `elm-app/packages/ui-components/ui-components.css` (the pinned `vendor/master-builder`). Do not copy them into the app; change them in master-builder and bump the pin.
 - **Human-readable:** https://logo.palikkaharrastajat.fi/
 - **Machine-readable (JSON-LD):** https://logo.palikkaharrastajat.fi/design-guide/index.jsonld
   - Colors: https://logo.palikkaharrastajat.fi/design-guide/colors.jsonld
@@ -185,7 +188,7 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
    - Brand accent is `#FAC80A` (yellow) — only for CTAs/highlights, always paired with brand-black text.
    - Red `#C91A09` is for danger/error/reject states only.
    - Use semantic Tailwind classes: `bg-bg-dark`, `text-text-on-dark`, `bg-bg-accent`, `border-border-default`, etc.
-3. **Use named `type-*` utility classes** for all text (defined in `elm-app/src/main.css`). Never use raw Tailwind size/weight combinations.
+3. **Use named `type-*` utility classes** for all text (defined in the shared `design-tokens.css`). Never use raw Tailwind size/weight combinations.
 
    | Class | Size | Weight | Notes |
    |---|---|---|---|
@@ -200,7 +203,7 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
    | `type-mono` | 0.875rem | 400 | Code snippets (monospace) |
    | `type-overline` | 0.75rem | 600 uppercase | Category labels |
 
-4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Self-hosted from `elm-app/public/fonts/`.
+4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Self-hosted from `elm-app/public/fonts/` (declared in `outfit.css`, imported by `main.css`).
 5. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
 6. **Use named spacing tokens** (4px base: `space-1` through `space-16`); never use arbitrary px values.
 7. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration-fast` = 150ms; `duration-base` = 300ms; `ease-standard = cubic-bezier(0.4, 0, 0.2, 1)`.

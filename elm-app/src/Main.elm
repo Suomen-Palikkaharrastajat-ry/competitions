@@ -1,14 +1,17 @@
 module Main exposing
-    ( authResponseDecoder
+    ( HashEffect(..)
+    , authResponseDecoder
     , canSubmitMore
     , competitionDecoder
     , emptyReview
     , entryDecoder
     , filteredReviewQueue
     , handleHttpError
+    , hashEffect
     , httpErrorMessage
     , imageMax
     , imageMin
+    , init
     , main
     , myEntriesUrl
     , otpResponseDecoder
@@ -23,13 +26,18 @@ module Main exposing
 -}
 
 import Browser
+import Component.Layout as Layout
 import Html exposing (Html)
 import Http
+import I18n exposing (t)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Lang exposing (Lang)
 import Ports
 import RemoteData
+import Route
 import Scoring
+import SiteSettings
 import Time
 import Types exposing (..)
 import View
@@ -60,6 +68,9 @@ emptyForm =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
+        settings =
+            SiteSettings.fromFlags flags.requestedLang flags.siteConfig
+
         ( auth, page ) =
             case flags.restoredAuth of
                 Just user ->
@@ -68,51 +79,163 @@ init flags =
                         SetDisplayNamePage
 
                       else
-                        DashboardPage
+                        Route.fromHash flags.hash
+                            |> Maybe.withDefault DashboardPage
+                            |> allowedPage user
                     )
 
                 Nothing ->
                     ( LoggedOut, LoginPage )
 
-        fetchCmd =
-            case ( flags.restoredAuth, page ) of
-                ( Just user, DashboardPage ) ->
-                    fetchCompetitions flags.pbUrl user.token
+        ( model, pageCmd ) =
+            enterPage page
+                { auth = auth
+                , pbUrl = flags.pbUrl
+                , emailInput = ""
+                , otpInput = ""
+                , authError = Nothing
+                , displayNameInput = ""
+                , page = page
+                , lang = settings.lang
+                , site = settings.site
+                , menuOpen = False
+                , now = Time.millisToPosix 0
+                , competitions = RemoteData.NotAsked
+                , myEntries = RemoteData.NotAsked
+                , submitForm = emptyForm
+                , selectedCompetition = Nothing
+                , reviewQueue = RemoteData.NotAsked
+                , activeReview = Nothing
+                , reviewFilter = AllEntries
+                }
 
-                _ ->
-                    Cmd.none
+        -- A deep link the app does not keep (unknown, or not allowed for the
+        -- user) is replaced by the address of the page shown, so that Back
+        -- stays inside the app.
+        hashCmd =
+            if List.member flags.hash [ "", "#", Route.toHash model.page ] || model.auth == LoggedOut then
+                Cmd.none
 
-        competitionsState =
-            case page of
-                DashboardPage ->
-                    RemoteData.Loading
-
-                _ ->
-                    RemoteData.NotAsked
+            else
+                Ports.replaceHash (Route.toHash model.page)
     in
-    ( { auth = auth
-      , pbUrl = flags.pbUrl
-      , emailInput = ""
-      , otpInput = ""
-      , authError = Nothing
-      , displayNameInput = ""
-      , page = page
-      , lang = Fi
-      , now = Time.millisToPosix 0
-      , competitions = competitionsState
-      , myEntries = RemoteData.NotAsked
-      , submitForm = emptyForm
-      , selectedCompetition = Nothing
-      , reviewQueue = RemoteData.NotAsked
-      , activeReview = Nothing
-      , reviewFilter = AllEntries
-      }
-    , fetchCmd
+    ( model
+    , Cmd.batch
+        [ pageCmd
+        , hashCmd
+        , case settings.error of
+            Just problem ->
+                Ports.reportError problem
+
+            Nothing ->
+                Cmd.none
+        ]
     )
 
 
+{-| The page itself, or the dashboard when the user may not see it.
+-}
+allowedPage : AuthUser -> Page -> Page
+allowedPage user page =
+    if page == ReviewQueuePage && not user.isReviewer then
+        DashboardPage
+
+    else
+        page
+
+
+{-| Switch to a page and start loading the data it shows.
+-}
+enterPage : Page -> Model -> ( Model, Cmd Msg )
+enterPage page_ model =
+    let
+        page =
+            case model.auth of
+                LoggedIn user ->
+                    allowedPage user page_
+
+                _ ->
+                    page_
+    in
+    case ( page, model.auth ) of
+        ( DashboardPage, LoggedIn user ) ->
+            ( { model | page = page, competitions = RemoteData.Loading }
+            , fetchCompetitions model.pbUrl user.token
+            )
+
+        ( MyEntriesPage, LoggedIn user ) ->
+            ( { model | page = page, myEntries = RemoteData.Loading }
+            , fetchMyEntries model.pbUrl user.token user.profileId
+            )
+
+        ( ReviewQueuePage, LoggedIn user ) ->
+            ( { model | page = page, reviewQueue = RemoteData.Loading }
+            , fetchReviewQueue model.pbUrl user.token
+            )
+
+        _ ->
+            ( { model | page = page }, Cmd.none )
+
+
+{-| What to do to the browser's hash after a page change.
+-}
+type HashEffect
+    = KeepHash
+    | PushHash String
+    | ReplaceHash String
+
+
+{-| Decide how to keep the hash in step with the page. `incoming` is the hash
+the browser reported when the change follows `HashChanged`; it must never
+push a history entry, only correct a non-canonical hash in place.
+-}
+hashEffect : Page -> Page -> Maybe String -> HashEffect
+hashEffect oldPage newPage incoming =
+    if newPage == oldPage then
+        KeepHash
+
+    else
+        case incoming of
+            Nothing ->
+                PushHash (Route.toHash newPage)
+
+            Just hash ->
+                if hash == Route.toHash newPage then
+                    KeepHash
+
+                else
+                    ReplaceHash (Route.toHash newPage)
+
+
+{-| Run `updateModel` and keep the browser's hash in step with the page.
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        ( newModel, cmd ) =
+            updateModel msg model
+
+        incoming =
+            case msg of
+                HashChanged hash ->
+                    Just hash
+
+                _ ->
+                    Nothing
+    in
+    case hashEffect model.page newModel.page incoming of
+        KeepHash ->
+            ( newModel, cmd )
+
+        PushHash hash ->
+            ( newModel, Cmd.batch [ cmd, Ports.setHash hash ] )
+
+        ReplaceHash hash ->
+            ( newModel, Cmd.batch [ cmd, Ports.replaceHash hash ] )
+
+
+updateModel : Msg -> Model -> ( Model, Cmd Msg )
+updateModel msg model =
     case msg of
         -- Auth
         EmailChanged email ->
@@ -122,7 +245,7 @@ update msg model =
             ( { model | otpInput = code, authError = Nothing }, Cmd.none )
 
         RequestOtp ->
-            case validateEmail model.emailInput of
+            case validateEmail model.lang model.emailInput of
                 Err e ->
                     ( { model | authError = Just e }, Cmd.none )
 
@@ -135,15 +258,15 @@ update msg model =
             )
 
         OtpRequested (Err (Http.BadStatus 409)) ->
-            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakOnly) }, Cmd.none )
 
         OtpRequested (Err _) ->
-            ( { model | authError = Just "Sähköpostin lähetys epäonnistui" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrEmailSendFailed) }, Cmd.none )
 
         SubmitOtp ->
             case model.auth of
                 AwaitingOtp state ->
-                    case validateOtpCode model.otpInput of
+                    case validateOtpCode model.lang model.otpInput of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
@@ -185,16 +308,25 @@ update msg model =
             )
 
         OtpSubmitted (Err (Http.BadStatus 400)) ->
-            ( { model | authError = Just "Väärä koodi tai vanhentunut linkki" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrWrongCode) }, Cmd.none )
 
         OtpSubmitted (Err (Http.BadStatus 409)) ->
-            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakOnly) }, Cmd.none )
 
         OtpSubmitted (Err _) ->
-            ( { model | authError = Just "Kirjautuminen epäonnistui" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrLoginFailed) }, Cmd.none )
 
         StartKeycloakLogin ->
-            ( { model | authError = Nothing }, Ports.startKeycloakLogin model.pbUrl )
+            ( { model | authError = Nothing, menuOpen = False }
+            , Cmd.batch
+                [ Ports.startKeycloakLogin model.pbUrl
+                , if model.menuOpen then
+                    Layout.onMenuClosed NoOp
+
+                  else
+                    Cmd.none
+                ]
+            )
 
         KeycloakLoginCompleted resp ->
             let
@@ -227,8 +359,8 @@ update msg model =
                 ]
             )
 
-        KeycloakLoginFailed message ->
-            ( { model | authError = Just message }, Cmd.none )
+        KeycloakLoginFailed _ ->
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakLoginFailed) }, Cmd.none )
 
         LogOut ->
             ( { model
@@ -239,8 +371,16 @@ update msg model =
                 , authError = Nothing
                 , competitions = RemoteData.NotAsked
                 , myEntries = RemoteData.NotAsked
+                , menuOpen = False
               }
-            , Ports.clearAuth ()
+            , Cmd.batch
+                [ Ports.clearAuth ()
+                , if model.menuOpen then
+                    Layout.onMenuClosed NoOp
+
+                  else
+                    Cmd.none
+                ]
             )
 
         DisplayNameChanged name ->
@@ -281,28 +421,57 @@ update msg model =
                     handleHttpError err model
 
                 _ ->
-                    ( { model | authError = Just "Näyttönimen tallennus epäonnistui" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrDisplayNameSave) }, Cmd.none )
 
         -- Navigation
         NavigateTo page ->
-            case ( page, model.auth ) of
-                ( DashboardPage, LoggedIn user ) ->
-                    ( { model | page = page, competitions = RemoteData.Loading }
-                    , fetchCompetitions model.pbUrl user.token
-                    )
+            enterPage page model
 
-                ( MyEntriesPage, LoggedIn user ) ->
-                    ( { model | page = page, myEntries = RemoteData.Loading }
-                    , fetchMyEntries model.pbUrl user.token user.profileId
-                    )
+        HashChanged hash ->
+            -- The hash of the page shown is ours (the display-name page
+            -- shares the dashboard's), and the display-name step cannot be
+            -- skipped by navigating.
+            if Route.toHash model.page == hash || model.page == SetDisplayNamePage || model.auth == LoggedOut then
+                ( model, Cmd.none )
 
-                ( ReviewQueuePage, LoggedIn user ) ->
-                    ( { model | page = page, reviewQueue = RemoteData.Loading }
-                    , fetchReviewQueue model.pbUrl user.token
-                    )
+            else
+                case Route.fromHash hash of
+                    Just page ->
+                        if page == model.page then
+                            ( model, Cmd.none )
 
-                _ ->
-                    ( { model | page = page }, Cmd.none )
+                        else
+                            let
+                                ( newModel, cmd ) =
+                                    enterPage page model
+                            in
+                            if newModel.page == model.page then
+                                -- Redirected back to where we are: `update` sees
+                                -- no page change, so correct the hash here.
+                                ( newModel, Cmd.batch [ cmd, Ports.replaceHash (Route.toHash newModel.page) ] )
+
+                            else
+                                ( newModel, cmd )
+
+                    Nothing ->
+                        ( model, Cmd.none )
+
+        ToggleMenu ->
+            if model.menuOpen then
+                ( { model | menuOpen = False }, Layout.onMenuClosed NoOp )
+
+            else
+                ( { model | menuOpen = True }, Layout.onMenuOpened NoOp )
+
+        CloseMenu ->
+            if model.menuOpen then
+                ( { model | menuOpen = False }, Layout.onMenuClosed NoOp )
+
+            else
+                ( model, Cmd.none )
+
+        NoOp ->
+            ( model, Cmd.none )
 
         -- Competitions
         CompetitionsLoaded (Ok comps) ->
@@ -426,14 +595,14 @@ update msg model =
                         form =
                             model.submitForm
                     in
-                    ( { model | submitForm = { form | step = UploadError "Luonnoksen tallennus epäonnistui" } }
+                    ( { model | submitForm = { form | step = UploadError (t model.lang I18n.ErrDraftSave) } }
                     , Cmd.none
                     )
 
         SubmitEntry ->
             case ( model.auth, model.submitForm.entryId, model.selectedCompetition ) of
                 ( LoggedIn user, Just entryId, Just competition ) ->
-                    case validateForm competition model.submitForm of
+                    case validateForm model.lang competition model.submitForm of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
@@ -441,7 +610,7 @@ update msg model =
                             ( model, submitEntryCmd model.pbUrl user.token entryId )
 
                 ( LoggedIn _, Just _, Nothing ) ->
-                    ( { model | authError = Just "Kilpailua ei ole valittu" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrNoCompetitionSelected) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -463,7 +632,7 @@ update msg model =
                         form =
                             model.submitForm
                     in
-                    ( { model | submitForm = { form | step = UploadError "Lähettäminen epäonnistui" } }
+                    ( { model | submitForm = { form | step = UploadError (t model.lang I18n.ErrSubmitFailed) } }
                     , Cmd.none
                     )
 
@@ -504,16 +673,16 @@ update msg model =
                                 Nothing ->
                                     ( { model
                                         | selectedCompetition = Nothing
-                                        , authError = Just "Kilpailun tietoja ei voitu ladata"
+                                        , authError = Just (t model.lang I18n.ErrCompetitionLoad)
                                       }
                                     , Cmd.none
                                     )
 
                         Nothing ->
-                            ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
+                            ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
 
                 _ ->
-                    ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
 
         CancelEdit ->
             ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
@@ -633,7 +802,7 @@ update msg model =
                                     Just
                                         { rf
                                             | saving = False
-                                            , saveError = Just "Arvostelun tallennus epäonnistui"
+                                            , saveError = Just (t model.lang I18n.ErrReviewSave)
                                         }
                               }
                             , Cmd.none
@@ -681,7 +850,7 @@ update msg model =
                     handleHttpError err model
 
                 _ ->
-                    ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrStatusChange) }, Cmd.none )
 
         Tick time ->
             ( { model | now = time }, Cmd.none )
@@ -693,9 +862,11 @@ view model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ Time.every 60000 Tick
+        , Ports.hashChanged HashChanged
+        , Layout.subscriptions { isOpen = model.menuOpen, onClose = CloseMenu }
         , Ports.keycloakLoginSucceeded KeycloakLoginCompleted
         , Ports.keycloakLoginFailed KeycloakLoginFailed
         ]
@@ -707,27 +878,27 @@ subscriptions _ =
 -- ---------------------------------------------------------------------------
 
 
-validateEmail : String -> Result String String
-validateEmail email =
+validateEmail : Lang -> String -> Result String String
+validateEmail lang email =
     case String.split "@" email of
         [ before, after ] ->
             if String.length before > 0 && String.contains "." after && String.length after > 1 then
                 Ok email
 
             else
-                Err "Syötä kelvollinen sähköpostiosoite"
+                Err (t lang I18n.ErrInvalidEmail)
 
         _ ->
-            Err "Syötä kelvollinen sähköpostiosoite"
+            Err (t lang I18n.ErrInvalidEmail)
 
 
-validateOtpCode : String -> Result String String
-validateOtpCode code =
+validateOtpCode : Lang -> String -> Result String String
+validateOtpCode lang code =
     if String.length code == 6 && String.all Char.isDigit code then
         Ok code
 
     else
-        Err "Koodi koostuu kuudesta numerosta"
+        Err (t lang I18n.ErrOtpFormat)
 
 
 imageMin : Competition -> Int
@@ -749,8 +920,8 @@ imageMax competition =
     max configured (imageMin competition)
 
 
-validateForm : Competition -> SubmitForm -> Result String SubmitForm
-validateForm competition form =
+validateForm : Lang -> Competition -> SubmitForm -> Result String SubmitForm
+validateForm lang competition form =
     let
         count =
             List.length form.selectedFiles + List.length form.existingImages
@@ -762,20 +933,20 @@ validateForm competition form =
             imageMax competition
     in
     if String.isEmpty form.title then
-        Err "Nimi on pakollinen"
+        Err (t lang I18n.ErrNameRequired)
 
     else if String.length form.title > 200 then
-        Err "Nimi on liian pitkä (max 200 merkkiä)"
+        Err (t lang I18n.ErrNameTooLong)
 
     else if count < minImages then
         if minImages <= 1 then
-            Err "Lisää vähintään yksi kuva"
+            Err (t lang I18n.ErrAddOneImage)
 
         else
-            Err ("Lisää vähintään " ++ String.fromInt minImages ++ " kuvaa")
+            Err (t lang I18n.AddAtLeastPrefix ++ String.fromInt minImages ++ t lang I18n.ImagesSuffix)
 
     else if count > maxImages then
-        Err ("Enintään " ++ String.fromInt maxImages ++ " kuvaa sallittu")
+        Err (t lang I18n.AtMostPrefix ++ String.fromInt maxImages ++ t lang I18n.AtMostSuffix)
 
     else
         Ok form
@@ -821,26 +992,26 @@ updateDraftScore f model =
 
 
 
--- | Map an Http.Error to a Finnish user-facing message.
+-- | Map an Http.Error to a user-facing message in the given language.
 
 
-httpErrorMessage : Http.Error -> String
-httpErrorMessage err =
+httpErrorMessage : Lang -> Http.Error -> String
+httpErrorMessage lang err =
     case err of
         Http.NetworkError ->
-            "Verkkovirhe — tarkista yhteys"
+            t lang I18n.HttpNetwork
 
         Http.BadStatus 401 ->
-            "Istunto vanhentunut — kirjaudu uudelleen"
+            t lang I18n.HttpSessionExpired
 
         Http.BadStatus 403 ->
-            "Ei oikeutta"
+            t lang I18n.HttpForbidden
 
         Http.BadStatus 404 ->
-            "Ei löydy"
+            t lang I18n.HttpNotFound
 
         _ ->
-            "Odottamaton virhe; yritä uudelleen"
+            t lang I18n.HttpUnexpected
 
 
 

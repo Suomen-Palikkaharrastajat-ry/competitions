@@ -15,8 +15,13 @@ vendor: ## Init and update all git submodules to their pinned commits
 	@# In CI environments (GitHub Actions) SSH access is unavailable;
 	@# rewrite git@github.com: to https://github.com/ so submodules clone via HTTPS.
 	@[ -z "$$CI" ] || git config --global url."https://github.com/".insteadOf "git@github.com:"
-	@if [ -d .git ]; then git submodule update --init; elif [ ! -d vendor/master-builder ]; then mkdir -p vendor && git clone https://github.com/Suomen-Palikkaharrastajat-ry/master-builder.git vendor/master-builder; fi
-	ln -sfn ../vendor/master-builder/packages elm-app/packages
+	@# Fall back to a plain clone when this tree is not a git checkout (source
+	@# tarball, vendored copy). The submodule directory itself always exists, so
+	@# probe for a file inside it rather than for the directory.
+	@if [ -d .git ]; then git submodule update --init; \
+	elif [ ! -e vendor/master-builder/AGENTS.md ]; then \
+		mkdir -p vendor && git clone https://github.com/Suomen-Palikkaharrastajat-ry/master-builder.git vendor/master-builder; \
+	fi
 
 # ── Development environment ──────────────────────────────────────────────────
 
@@ -40,9 +45,17 @@ devenv.local.yaml:
 
 # ── Elm frontend ──────────────────────────────────────────────────────────────
 
+# Vite must not write its temp config into the read-only node_modules.
+VITE_FLAGS ?= --configLoader runner
+
+# The shared targets `site-config` and `site-config-check` come from the hub.
+SITE_CONFIG_I18N := elm-app/src elm-app/main.js src
+
+-include vendor/master-builder/mk/site-config.mk
+
 .PHONY: elm-dev
 elm-dev: ## Start Elm + Vite dev server (hot reload)
-	cd elm-app && vite
+	cd elm-app && vite $(VITE_FLAGS)
 
 ELM_APP_SOURCES := $(shell find elm-app/src -name '*.elm')
 ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm' -o -name '*.css' 2>/dev/null)
@@ -50,17 +63,17 @@ ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm'
 .PHONY: elm-tailwind-gen
 elm-tailwind-gen: elm-app/.elm-tailwind/.stamp ## Generate typed Tailwind Elm modules into elm-app/.elm-tailwind/
 
-elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/src/main.css $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES)
+elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/main.css $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES)
 	cd elm-app && elm-tailwind-classes gen
 	mkdir -p elm-app/.elm-tailwind
 	touch $@
 
-elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
-	cd elm-app && vite build
+elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
+	cd elm-app && vite build $(VITE_FLAGS)
 	touch $@
 
-elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
-	cd elm-app && vite build
+elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
+	cd elm-app && vite build $(VITE_FLAGS)
 	touch $@
 
 .PHONY: elm-build
@@ -72,7 +85,7 @@ elm-test: elm-tailwind-gen ## Run Elm unit tests
 	cd elm-app && elm-test
 
 .PHONY: elm-check
-elm-check: elm-tailwind-gen ## Check Elm formatting and elm-review rules (no changes)
+elm-check: site-config-check elm-tailwind-gen ## Check Elm formatting, elm-review rules and display-text placement (no changes)
 	cd elm-app && elm-format --validate src/ tests/
 	cd elm-app && $(ELM_REVIEW) --config ../review --ignore-dirs .elm-tailwind
 

@@ -10,7 +10,6 @@ devenv.local.yaml
 node_modules
 node_modules/
 elm-app/node_modules/
-elm-app/packages
 
 # --- Haskell build artifacts ---
 dist-newstyle/
@@ -25,8 +24,6 @@ review/elm-stuff/
 review/suppressed/
 elm-app/public/*
 !elm-app/public/fonts/
-!elm-app/public/logo/
-!elm-app/public/favicon/
 elm-app/src/Data.elm
 dist/
 
@@ -36,7 +33,7 @@ pb_migrations/types.d.ts
 pb_migrations/*.db
 
 # --- Generated output ---
-public/
+/public/
 
 # --- Editor & OS ---
 .vscode/

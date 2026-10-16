@@ -12,8 +12,6 @@ let
       '';
     in
     {
-      overlays = [ (import ./overlays.nix) ];
-
       languages.elm.enable = true;
 
       languages.haskell.enable = true;

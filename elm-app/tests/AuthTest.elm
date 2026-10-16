@@ -14,9 +14,11 @@ Then Ok or Err is returned according to the validation rules
 
 import Expect
 import Http
+import Lang exposing (Lang(..))
 import Main exposing (requestOtpUrl, update, validateEmail, validateOtpCode)
 import RemoteData
 import Test exposing (Test, describe, test)
+import TestSite
 import Time
 import Types exposing (..)
 
@@ -43,6 +45,8 @@ baseModel =
     , displayNameInput = ""
     , page = LoginPage
     , lang = Fi
+    , site = TestSite.site Fi
+    , menuOpen = False
     , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked
@@ -72,11 +76,11 @@ suite =
         [ describe "validateEmail"
             [ test "valid email returns Ok" <|
                 \_ ->
-                    validateEmail "user@example.fi"
+                    validateEmail Fi "user@example.fi"
                         |> Expect.equal (Ok "user@example.fi")
             , test "missing @ returns Err" <|
                 \_ ->
-                    case validateEmail "notanemail" of
+                    case validateEmail Fi "notanemail" of
                         Err _ ->
                             Expect.pass
 
@@ -84,7 +88,7 @@ suite =
                             Expect.fail "Should have returned Err"
             , test "missing dot returns Err" <|
                 \_ ->
-                    case validateEmail "no@dot" of
+                    case validateEmail Fi "no@dot" of
                         Err _ ->
                             Expect.pass
 
@@ -92,7 +96,7 @@ suite =
                             Expect.fail "Should have returned Err"
             , test "empty string returns Err" <|
                 \_ ->
-                    case validateEmail "" of
+                    case validateEmail Fi "" of
                         Err _ ->
                             Expect.pass
 
@@ -102,11 +106,11 @@ suite =
         , describe "validateOtpCode"
             [ test "6-digit code returns Ok" <|
                 \_ ->
-                    validateOtpCode "123456"
+                    validateOtpCode Fi "123456"
                         |> Expect.equal (Ok "123456")
             , test "5-digit code returns Err" <|
                 \_ ->
-                    case validateOtpCode "12345" of
+                    case validateOtpCode Fi "12345" of
                         Err _ ->
                             Expect.pass
 
@@ -114,7 +118,7 @@ suite =
                             Expect.fail "Should have returned Err"
             , test "7-digit code returns Err" <|
                 \_ ->
-                    case validateOtpCode "1234567" of
+                    case validateOtpCode Fi "1234567" of
                         Err _ ->
                             Expect.pass
 
@@ -122,7 +126,7 @@ suite =
                             Expect.fail "Should have returned Err"
             , test "non-numeric 6 chars returns Err" <|
                 \_ ->
-                    case validateOtpCode "abc123" of
+                    case validateOtpCode Fi "abc123" of
                         Err _ ->
                             Expect.pass
 
@@ -130,7 +134,7 @@ suite =
                             Expect.fail "Should have returned Err"
             , test "empty string returns Err" <|
                 \_ ->
-                    case validateOtpCode "" of
+                    case validateOtpCode Fi "" of
                         Err _ ->
                             Expect.pass
 
