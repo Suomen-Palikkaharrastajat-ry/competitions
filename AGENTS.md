@@ -58,31 +58,27 @@ competitions/
 ├── TODO-08-fixes.md            ← Step 8: Security, quality, and test gap fixes
 ├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
 ├── config.toml                 ← Site configuration (URL, title, footer) for the shared Component.Layout; see vendor/master-builder/docs/site-config.md
-├── competition.cabal           ← Haskell project (after TODO-00)
+├── cabal.project               ← Cabal project: the statics/ package
 ├── Makefile                    ← Build targets
 ├── Caddyfile                   ← Local reverse proxy: app, PocketBase, Mailpit on port 8080
 ├── overlays.nix                ← PocketBase 0.37.5 package pin
 ├── go.mod / go.sum             ← Custom PocketBase wrapper dependencies
 ├── .env / .env.example         ← POCKETBASE_URL + POCKETBASE_API_KEY
 │
-├── src/                        ← Haskell source
-│   ├── Main.hs                 ← Entry point (runs gallery pipeline)
-│   ├── Config.hs               ← TOML config parser
-│   ├── GalleryTypes.hs         ← Domain types: Competition, Entry, Review, RankedEntry
-│   ├── GalleryFetcher.hs       ← Fetch data from PocketBase REST API
-│   ├── GalleryGen.hs           ← Render blaze-html gallery page
-│   ├── GalleryElmData.hs       ← (optional) Generate Elm data module
-│   ├── PocketBase.hs           ← Generic PocketBase HTTP client (reusable)
-│   ├── HtmlSanitizer.hs        ← HTML sanitization (for entry descriptions)
-│   ├── Styles.hs               ← Inlined CSS with brand design tokens
-│   ├── Scripts.hs              ← Inlined JS (lightbox, etc.)
-│   └── I18n.hs                 ← Finnish/English labels and date formatting
-│
-├── tests/                      ← Haskell test suite
-│   ├── TestSuite.hs            ← Test suite entry point
-│   ├── ConfigSpec.hs           ← Config parsing tests
-│   ├── GalleryFetcherSpec.hs   ← Ranking algorithm + HTTP integration tests
-│   └── GalleryGenSpec.hs       ← HTML generation tests
+├── statics/                    ← Haskell gallery pipeline (package `competition`)
+│   ├── competition.cabal
+│   ├── app/Main.hs             ← Entry point (runs gallery pipeline)
+│   ├── src/
+│   │   ├── Config.hs           ← TOML config parser
+│   │   ├── GalleryTypes.hs     ← Domain types: Competition, Entry, Review, RankedEntry
+│   │   ├── GalleryFetcher.hs   ← Fetch data from PocketBase REST API
+│   │   ├── GalleryGen.hs       ← Render blaze-html gallery page
+│   │   ├── PocketBase.hs       ← Generic PocketBase HTTP client (reusable)
+│   │   ├── HtmlSanitizer.hs    ← HTML sanitization (for entry descriptions)
+│   │   ├── Styles.hs           ← Inlined CSS with the hub's design-token names
+│   │   ├── Scripts.hs          ← Inlined JS (lightbox, etc.)
+│   │   └── I18n.hs             ← Finnish/English labels and date formatting
+│   └── tests/                  ← Haskell test suite (TestSuite.hs, *Spec.hs)
 │
 ├── elm-app/                    ← Elm web application (participant + reviewer UI)
 │   ├── src/
@@ -100,7 +96,6 @@ competitions/
 │   ├── index.html              ← App shell
 │   ├── main.js                 ← Vite entrypoint (flags: pbUrl, restoredAuth) + PocketBase JS OAuth helper
 │   ├── main.css                ← Tailwind v4; imports the shared design tokens and component CSS from packages/
-│   ├── public/fonts/           ← Outfit font (outfit.css + variable TTF), the only committed public asset
 │   ├── elm.json
 │   └── packages → ../vendor/master-builder/packages
 │
@@ -203,7 +198,7 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
    | `type-mono` | 0.875rem | 400 | Code snippets (monospace) |
    | `type-overline` | 0.75rem | 600 uppercase | Category labels |
 
-4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Self-hosted from `elm-app/public/fonts/` (declared in `outfit.css`, imported by `main.css`).
+4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Served from the hub: `main.css` imports `vendor/master-builder/public/fonts/outfit.css`, and the site-config Vite plugin serves `/fonts/*` from there.
 5. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
 6. **Use named spacing tokens** (4px base: `space-1` through `space-16`); never use arbitrary px values.
 7. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration-fast` = 150ms; `duration-base` = 300ms; `ease-standard = cubic-bezier(0.4, 0, 0.2, 1)`.
@@ -223,7 +218,7 @@ race on shared GC-root cleanup.
 ```bash
 # Haskell
 devenv shell --no-eval-cache -- make test              # hlint + cabal test
-devenv shell --no-eval-cache -- make gallery-run       # generate dist/index.html (requires POCKETBASE_URL)
+devenv shell --no-eval-cache -- make gallery-run       # generate dist/galleria/index.html (requires POCKETBASE_URL)
 devenv shell --no-eval-cache -- cabal repl             # interactive REPL
 
 # Elm

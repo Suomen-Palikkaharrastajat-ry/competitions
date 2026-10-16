@@ -45,37 +45,15 @@ library
 
 executable competition
   main-is: Main.hs
-  other-modules:
-      Config
-      GalleryFetcher
-      GalleryGen
-      GalleryTypes
-      I18n
-      HtmlSanitizer
-      PocketBase
-      Styles
-      Scripts
   hs-source-dirs:
-      src
+      app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       base >=4.7 && <5
     , text
-    , bytestring
     , directory
     , filepath
-    , time
-    , containers
-    , unordered-containers
-    , htoml-megaparsec
-    , http-conduit
-    , http-client
-    , http-client-tls
-    , blaze-html
-    , blaze-markup
-    , tagsoup
-    , aeson
-    , http-types
+    , competition
   default-language: Haskell2010
 
 test-suite competition-tests
@@ -85,6 +63,7 @@ test-suite competition-tests
       PocketBaseSchemaSpec
       GalleryFetcherSpec
       GalleryGenSpec
+      StylesSpec
   hs-source-dirs:
       tests
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
@@ -102,5 +81,6 @@ test-suite competition-tests
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , directory
     , competition
   default-language: Haskell2010

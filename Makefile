@@ -49,7 +49,7 @@ devenv.local.yaml:
 VITE_FLAGS ?= --configLoader runner
 
 # The shared targets `site-config` and `site-config-check` come from the hub.
-SITE_CONFIG_I18N := elm-app/src elm-app/main.js src
+SITE_CONFIG_I18N := elm-app/src elm-app/main.js statics/src statics/app
 
 -include vendor/master-builder/mk/site-config.mk
 
@@ -68,16 +68,14 @@ elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/m
 	mkdir -p elm-app/.elm-tailwind
 	touch $@
 
-elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
-	cd elm-app && vite build $(VITE_FLAGS)
-	touch $@
-
-elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
+# The app builds into dist/ (emptied first); the gallery goes to
+# dist/galleria/ after it (competition.toml output_dir).
+dist/.elm-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
 	cd elm-app && vite build $(VITE_FLAGS)
 	touch $@
 
 .PHONY: elm-build
-elm-build: elm-app/dist/.build-stamp ## Build the Elm app
+elm-build: dist/.elm-stamp ## Build the Elm app into dist/
 
 .PHONY: elm-test
 elm-test: elm-tailwind-gen ## Run Elm unit tests
@@ -98,72 +96,74 @@ elm-format: ## Auto-format Elm source files
 
 # ── Haskell gallery pipeline ──────────────────────────────────────────────────
 
-HS_SOURCES := $(shell find src -name '*.hs') competition.cabal $(wildcard cabal.project*)
+# The package lives in statics/ (cabal.project), like the other apps' static
+# generators; the binary is copied to ./competition, run from the repository
+# root (it reads competition.toml).
+HS_SOURCES := $(shell find statics/src statics/app -name '*.hs') statics/competition.cabal $(wildcard cabal.project*)
 
 competition: $(HS_SOURCES)
-	cabal build
-	cp $$(cabal list-bin competition) $@
+	cabal build competition
+	cp $$(cabal list-bin exe:competition) $@
 
-.PHONY: gallery-build
+.PHONY: gallery-build statics-build
 gallery-build: competition ## Build Haskell gallery pipeline
+statics-build: competition ## Build Haskell gallery pipeline (the family's target name)
 
-elm-app/dist/.gallery-stamp: competition
-	./competition
-	touch $@
-
+# The gallery depends on PocketBase data, not on files: it is rebuilt every
+# time, after the app build that empties dist/.
 .PHONY: gallery-run
-gallery-run: elm-app/dist/.gallery-stamp ## Run the gallery pipeline (requires POCKETBASE_URL)
+gallery-run: competition dist/.elm-stamp ## Generate the gallery into dist/galleria/ (requires POCKETBASE_URL)
+	./competition
 
-elm-app/dist/.gallery-stamp-ci:
+.PHONY: gallery-ci
+gallery-ci: dist/.elm-stamp ## Generate the gallery with the Nix-built pipeline (production PocketBase)
 	POCKETBASE_URL=https://data.palikkaharrastajat.fi $(COMPETITION_NIX)
-	touch $@
 
 .PHONY: repl
 repl: ## Start the Haskell REPL
-	cabal repl
+	cabal repl competition
 
 .PHONY: cabal-check
 cabal-check: ## Check the package for common Cabal metadata errors
-	cabal check
+	cd statics && cabal check
 
 # ── Combined targets ──────────────────────────────────────────────────────────
 
 .PHONY: dist-ci
-dist-ci: elm-app/dist/.gallery-stamp-ci elm-app/dist/.build-stamp-ci ## CI build: gallery pipeline + Elm app via Nix-provided binary
-	rm -rf build
-	mkdir -p build
-	cp -R elm-app/dist/. build/
+dist-ci: gallery-ci ## CI build into dist/: the app and the gallery (Nix-built pipeline)
 
 .PHONY: dist
-dist: elm-app/dist/.build-stamp ## Full local build: gallery pipeline + Elm app
-	rm -rf build
-	mkdir -p build
-	cp -R elm-app/dist/. build/
+dist: gallery-run ## Full local build into dist/: the app and the gallery
 
 .PHONY: watch
 watch: ## Watch for changes in Haskell and Elm files and rebuild
 	make gallery-run
-	find src competition.cabal competition.toml -name "*.hs" -o -name "*.cabal" -o -name "*.toml" | entr -s 'make gallery-run' &
+	find statics competition.toml -name "*.hs" -o -name "*.cabal" -o -name "*.toml" | entr -s 'make gallery-run' &
 	cd elm-app && elm-tailwind-classes gen && vite
 
 # ── Test & quality ────────────────────────────────────────────────────────────
 
 .PHONY: haskell-check
 haskell-check: ## Check Haskell formatting and run hlint (no changes)
-	$(HLINT) src tests
-	find src tests -name '*.hs' | xargs $(FOURMOLU) --mode check
+	$(HLINT) statics/src statics/app statics/tests
+	find statics -name '*.hs' | xargs $(FOURMOLU) --mode check
+
+.PHONY: statics-check statics-test
+statics-check: haskell-check ## Lint Haskell source (the family's target name)
+statics-test: ## Run Haskell tests
+	cabal test competition-tests
 
 .PHONY: check
 check: haskell-check elm-check ## Check Haskell and Elm static quality gates
 
 .PHONY: hs-coverage
 hs-coverage: ## Run Haskell tests with Cabal/HPC coverage enabled
-	cabal test --enable-coverage
+	cabal test competition-tests --enable-coverage
 	@echo "Haskell coverage report generated under dist-newstyle/**/t/competition-tests/hpc/vanilla/html/"
 
 .PHONY: quality
 quality: haskell-check cabal-check ## Run strict non-browser quality gates for CI
-	cabal test
+	cabal test competition-tests
 	$(MAKE) elm-quality
 	$(MAKE) pb-test-migrate
 	$(MAKE) pb-test-fixture
@@ -171,7 +171,7 @@ quality: haskell-check cabal-check ## Run strict non-browser quality gates for C
 
 .PHONY: test
 test: check ## Run Haskell and Elm tests
-	cabal test
+	cabal test competition-tests
 	$(MAKE) elm-test
 
 .PHONY: dev-proxy-test
@@ -271,4 +271,4 @@ pb-test-entry-limits: ## Smoke-test the entry image limit hooks
 .PHONY: clean
 clean: ## Clean build artifacts and output
 	cabal clean
-	rm -rf build competition .hpc *.html elm-app/.elm-tailwind elm-app/dist
+	rm -rf dist competition .hpc *.html elm-app/.elm-tailwind

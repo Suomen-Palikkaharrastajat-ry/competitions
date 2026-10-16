@@ -37,7 +37,7 @@ make pb-test-migrate         # smoke-test migrations against a throwaway pb_data
 make pb-seed                 # apply dev seed data (pb_migrations_dev/) — local only
 make pb-configure            # enable OTP + configure mailpit SMTP via PocketBase API
 make dev-proxy-test          # smoke-test local reverse proxy config
-make gallery-run             # generate dist/index.html (requires devenv up first)
+make gallery-run             # generate dist/galleria/index.html (requires devenv up first)
 ```
 
 ## 4. Migration Directories

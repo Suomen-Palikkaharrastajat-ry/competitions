@@ -1,0 +1,9 @@
+-- Cabal project for the statics/ Haskell package (the gallery pipeline).
+--
+-- Usage:
+--   cabal build competition        -- build the library and executable
+--   cabal run exe:competition      -- generate the gallery
+--   cabal test competition-tests   -- run the tests
+
+packages:
+  statics/

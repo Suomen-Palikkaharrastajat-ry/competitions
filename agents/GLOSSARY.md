@@ -72,7 +72,7 @@ draft  →  open  →  closed  →  judging  →  finished
 - **Haskell Gallery Pipeline** (`src/`): The `competition` executable that reads from PocketBase and generates the static gallery HTML in `dist/`.
 - **PocketBase**: The SQLite-backed backend, providing REST API, auth (OTP), file storage, and admin UI. Runs at `http://127.0.0.1:8090` in development.
 - **Gallery Pipeline** (`GalleryFetcher.hs`, `GalleryGen.hs`): The Haskell modules that fetch competition data and render the static HTML gallery.
-- **Self-Contained HTML**: A gallery output file (`dist/index.html`) that requires no external file requests to render (except the Outfit font CDN link).
+- **Self-Contained HTML**: A gallery output file (`dist/galleria/index.html`) that requires no external file requests to render, except the Outfit font the site serves at `/fonts/`.
 
 ---
 

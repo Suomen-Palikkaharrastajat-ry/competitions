@@ -6,7 +6,7 @@ let
         overrides = import ./overrides.nix { inherit pkgs; };
       };
       npmTools = pkgs.callPackage ./pkgs/npm-tools.nix { };
-      competitionPackage = hpkgs.callCabal2nix "competition" ./. { };
+      competitionPackage = hpkgs.callCabal2nix "competition" ./statics { };
       competitionCommand = pkgs.writeShellScriptBin "competition-nix" ''
         exec ${competitionPackage}/bin/competition "$@"
       '';

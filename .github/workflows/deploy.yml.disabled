@@ -43,7 +43,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cabal/store
-          key: cabal-store-${{ runner.os }}-${{ hashFiles('cabal.project.freeze', 'competition.cabal', 'devenv.lock', 'devenv.nix', 'overrides.nix') }}
+          key: cabal-store-${{ runner.os }}-${{ hashFiles('cabal.project.freeze', 'statics/competition.cabal', 'devenv.lock', 'devenv.nix', 'overrides.nix') }}
           restore-keys: cabal-store-${{ runner.os }}-
 
       - name: Update Cabal package index
@@ -79,9 +79,10 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      # dist/ holds the app and, under galleria/, the gallery.
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./build
+          path: ./dist
 
   deploy:
     needs: build
@@ -104,3 +105,35 @@ jobs:
       - run: bash scripts/smoke-test.sh
         env:
           SITE_URL: ${{ needs.deploy.outputs.page_url }}
+      - run: bash scripts/smoke-test.sh
+        env:
+          SITE_URL: ${{ needs.deploy.outputs.page_url }}galleria/
+
+  # A native build of the gallery pipeline for the scheduled update, which
+  # rebuilds the gallery from PocketBase data without Nix.
+  build-update-binary:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Native Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.6.7'
+          cabal-version: '3.10.3.0'
+          update-index: false
+
+      - name: Build Native Binary
+        run: |
+          rm -f cabal.project.freeze
+          bash -c "cd /tmp && cabal update"
+          cabal install exe:competition --installdir=.bin --install-method=copy
+
+      - name: Cache Native Binary
+        uses: actions/cache/save@v4
+        with:
+          path: .bin
+          key: gallery-native-bin-${{ github.sha }}

@@ -2,9 +2,13 @@ module ReviewConfig exposing (config)
 
 {-| elm-review configuration for the competition Elm app.
 
-The rules focus on readability contracts that complement `elm-format` and
-`elm-test`: module purpose, explicit public APIs, top-level type annotations,
-no committed debug code, and no inline style attributes that bypass brand tokens.
+Uses the shared LlmAgent rules maintained in master-builder
+(`review/src/LlmAgent` is a symlink to `vendor/master-builder/review/src/LlmAgent`):
+module purpose, explicit public APIs, top-level type annotations, no committed
+debug code, and no inline style attributes that bypass brand tokens.
+
+`NoTailwindRawStrings` is not enabled yet: the views still use raw Tailwind
+class strings instead of typed tokens.
 
 -}
 

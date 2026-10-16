@@ -48,16 +48,11 @@ galleryHtml config msgs gd = do
                 ! HA.name "viewport"
                 ! HA.content "width=device-width, initial-scale=1"
             H.title $ H.toHtml (configTitle config)
-            H.link
-                ! HA.rel "preconnect"
-                ! HA.href "https://fonts.googleapis.com"
-            H.link
-                ! HA.rel "preconnect"
-                ! HA.href "https://fonts.gstatic.com"
-                ! H.dataAttribute "crossorigin" ""
+            -- The gallery is published under the app's site (/galleria/),
+            -- which serves the hub's self-hosted Outfit at /fonts/.
             H.link
                 ! HA.rel "stylesheet"
-                ! HA.href "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+                ! HA.href "/fonts/outfit.css"
             H.style $ H.toHtml css
         H.body $ do
             H.a
