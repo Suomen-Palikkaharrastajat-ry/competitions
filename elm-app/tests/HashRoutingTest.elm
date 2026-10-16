@@ -150,4 +150,24 @@ suite =
                     |> Tuple.first
                     |> .page
                     |> Expect.equal ReviewQueuePage
+        , test "following the browser's hash never pushes an entry" <|
+            \_ ->
+                Expect.equal
+                    [ Main.KeepHash, Main.ReplaceHash "#/", Main.ReplaceHash "#/" ]
+                    [ Main.hashEffect MyEntriesPage MyEntriesPage (Just "#/omat")
+                    , Main.hashEffect MyEntriesPage DashboardPage (Just "")
+                    , Main.hashEffect MyEntriesPage DashboardPage (Just "#/osallistu")
+                    ]
+        , test "a canonical incoming hash is left alone" <|
+            \_ ->
+                Main.hashEffect DashboardPage MyEntriesPage (Just "#/omat")
+                    |> Expect.equal Main.KeepHash
+        , test "app-initiated navigation pushes the canonical hash" <|
+            \_ ->
+                Main.hashEffect DashboardPage MyEntriesPage Nothing
+                    |> Expect.equal (Main.PushHash "#/omat")
+        , test "no page change leaves the hash alone" <|
+            \_ ->
+                Main.hashEffect DashboardPage DashboardPage Nothing
+                    |> Expect.equal Main.KeepHash
         ]

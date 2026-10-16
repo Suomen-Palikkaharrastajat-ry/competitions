@@ -1,11 +1,13 @@
 module Main exposing
-    ( authResponseDecoder
+    ( HashEffect(..)
+    , authResponseDecoder
     , canSubmitMore
     , competitionDecoder
     , emptyReview
     , entryDecoder
     , filteredReviewQueue
     , handleHttpError
+    , hashEffect
     , httpErrorMessage
     , imageMax
     , imageMin
@@ -175,6 +177,36 @@ enterPage page_ model =
             ( { model | page = page }, Cmd.none )
 
 
+{-| What to do to the browser's hash after a page change.
+-}
+type HashEffect
+    = KeepHash
+    | PushHash String
+    | ReplaceHash String
+
+
+{-| Decide how to keep the hash in step with the page. `incoming` is the hash
+the browser reported when the change follows `HashChanged`; it must never
+push a history entry, only correct a non-canonical hash in place.
+-}
+hashEffect : Page -> Page -> Maybe String -> HashEffect
+hashEffect oldPage newPage incoming =
+    if newPage == oldPage then
+        KeepHash
+
+    else
+        case incoming of
+            Nothing ->
+                PushHash (Route.toHash newPage)
+
+            Just hash ->
+                if hash == Route.toHash newPage then
+                    KeepHash
+
+                else
+                    ReplaceHash (Route.toHash newPage)
+
+
 {-| Run `updateModel` and keep the browser's hash in step with the page.
 -}
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -182,12 +214,24 @@ update msg model =
     let
         ( newModel, cmd ) =
             updateModel msg model
-    in
-    if newModel.page == model.page then
-        ( newModel, cmd )
 
-    else
-        ( newModel, Cmd.batch [ cmd, Ports.setHash (Route.toHash newModel.page) ] )
+        incoming =
+            case msg of
+                HashChanged hash ->
+                    Just hash
+
+                _ ->
+                    Nothing
+    in
+    case hashEffect model.page newModel.page incoming of
+        KeepHash ->
+            ( newModel, cmd )
+
+        PushHash hash ->
+            ( newModel, Cmd.batch [ cmd, Ports.setHash hash ] )
+
+        ReplaceHash hash ->
+            ( newModel, Cmd.batch [ cmd, Ports.replaceHash hash ] )
 
 
 updateModel : Msg -> Model -> ( Model, Cmd Msg )
@@ -401,11 +445,13 @@ updateModel msg model =
                                 ( newModel, cmd ) =
                                     enterPage page model
                             in
-                            if newModel.page == page then
-                                ( newModel, cmd )
+                            if newModel.page == model.page then
+                                -- Redirected back to where we are: `update` sees
+                                -- no page change, so correct the hash here.
+                                ( newModel, Cmd.batch [ cmd, Ports.replaceHash (Route.toHash newModel.page) ] )
 
                             else
-                                ( newModel, Cmd.batch [ cmd, Ports.replaceHash (Route.toHash newModel.page) ] )
+                                ( newModel, cmd )
 
                     Nothing ->
                         ( model, Cmd.none )
