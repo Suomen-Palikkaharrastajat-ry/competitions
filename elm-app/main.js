@@ -1,6 +1,8 @@
 import './main.css'
 import { Elm } from './src/Main.elm'
 import PocketBase from 'pocketbase'
+import siteConfig from 'virtual:site-config'
+import { requestedLang } from './packages/site-config/browser.mjs'
 import { keycloakAuthToElmAuthResponse } from './src/authInterop.mjs'
 
 // Restore auth from localStorage (null if not present or invalid JSON)
@@ -19,7 +21,26 @@ const app = Elm.Main.init({
   flags: {
     pbUrl: import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8080',
     restoredAuth: restoredAuth,
+    siteConfig,
+    requestedLang: requestedLang(siteConfig),
+    hash: location.hash,
   },
+});
+
+// Hash navigation: the layout's links change the hash, Elm follows it and
+// keeps it in step with the page.
+window.addEventListener('hashchange', function () {
+  app.ports.hashChanged.send(location.hash);
+});
+
+app.ports.setHash.subscribe(function (hash) {
+  if (location.hash !== hash) {
+    location.hash = hash;
+  }
+});
+
+app.ports.reportError.subscribe(function (problem) {
+  console.error(problem);
 });
 
 // Persist auth when Elm sends it

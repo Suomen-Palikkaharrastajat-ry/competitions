@@ -1,4 +1,4 @@
-module View exposing (starRating, view, viewEntryRow, viewHeader)
+module View exposing (starRating, view, viewEntryRow)
 
 {-| View rendering for the competition platform.
 -}
@@ -12,26 +12,39 @@ import RemoteData
 import Scoring
 import Time
 import Types exposing (..)
+import View.Layout
 
 
-{-| Top-level view — dispatches to page views based on auth and page state.
+{-| Top-level view — the shared layout around the page for the auth state.
 -}
 view : Model -> Html Msg
 view model =
-    case model.auth of
-        LoggedOut ->
-            viewLoginEmail model
+    div []
+        (View.Layout.view
+            { model = model
+            , main =
+                main_
+                    [ Attr.id "main-content"
+                    , Attr.attribute "tabindex" "-1"
+                    , Attr.class "max-w-5xl mx-auto w-full px-4 py-8 flex-1"
+                    ]
+                    [ case model.auth of
+                        LoggedOut ->
+                            viewLoginEmail model
 
-        AwaitingOtp state ->
-            viewLoginOtp state model
+                        AwaitingOtp state ->
+                            viewLoginOtp state model
 
-        LoggedIn user ->
-            viewAppShell user model
+                        LoggedIn user ->
+                            viewPage user model
+                    ]
+            }
+        )
 
 
 viewLoginEmail : Model -> Html Msg
 viewLoginEmail model =
-    div [ Attr.class "min-h-screen bg-bg-subtle flex items-center justify-center px-4" ]
+    div [ Attr.class "flex items-center justify-center" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
             [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "type-h1 tracking-tight text-brand mb-6" ]
@@ -70,7 +83,7 @@ viewLoginEmail model =
 
 viewLoginOtp : { email : String, otpId : String } -> Model -> Html Msg
 viewLoginOtp state model =
-    div [ Attr.class "min-h-screen bg-bg-subtle flex items-center justify-center px-4" ]
+    div [ Attr.class "flex items-center justify-center" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
             [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "type-h1 tracking-tight text-brand mb-2" ]
@@ -114,7 +127,7 @@ viewLoginOtp state model =
 
 viewSetDisplayName : Model -> Html Msg
 viewSetDisplayName model =
-    div [ Attr.class "min-h-screen bg-bg-subtle flex items-center justify-center px-4" ]
+    div [ Attr.class "flex items-center justify-center" ]
         [ div [ Attr.class "max-w-5xl mx-auto w-full" ]
             [ div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-md mx-auto" ]
                 [ h1 [ Attr.class "type-h1 tracking-tight text-brand mb-6" ]
@@ -143,66 +156,22 @@ viewSetDisplayName model =
         ]
 
 
-viewAppShell : AuthUser -> Model -> Html Msg
-viewAppShell user model =
-    div [ Attr.class "min-h-screen bg-bg-subtle" ]
-        [ viewHeader user model.pbUrl
-        , main_ [ Attr.class "max-w-5xl mx-auto px-4 py-8" ]
-            [ viewPage user model ]
-        ]
-
-
-viewHeader : AuthUser -> String -> Html Msg
-viewHeader user pbUrl =
-    header [ Attr.class "bg-white border-b border-border-default" ]
-        [ div [ Attr.class "max-w-5xl mx-auto px-4 flex items-center justify-between h-14" ]
-            [ span [ Attr.class "type-h4 text-brand" ] [ text "Palikkakilpailu" ]
-            , nav [ Attr.class "flex items-center gap-4 type-caption", Attr.attribute "aria-label" "Sivunavigaatio" ]
-                ([ a
-                    [ Attr.href "#"
-                    , Attr.class "text-brand hover:underline"
-                    , Events.onClick (NavigateTo DashboardPage)
-                    ]
-                    [ text "Kilpailut" ]
-                 , a
-                    [ Attr.href "#"
-                    , Attr.class "text-brand hover:underline"
-                    , Events.onClick (NavigateTo MyEntriesPage)
-                    ]
-                    [ text "Omat osallistumiset" ]
-                 ]
-                    ++ (if user.isReviewer then
-                            [ a
-                                [ Attr.href "#"
-                                , Attr.class "text-brand hover:underline"
-                                , Events.onClick (NavigateTo ReviewQueuePage)
-                                ]
-                                [ text "Arvosteltavat" ]
-                            , span []
-                                [ text "Kilpailujen hallinta: "
-                                , a
-                                    [ Attr.href (pbUrl ++ "/_/")
-                                    , Attr.class "text-brand hover:underline"
-                                    , Attr.target "_blank"
-                                    , Attr.rel "noopener"
-                                    ]
-                                    [ text "Admin UI →" ]
-                                ]
-                            ]
-
-                        else
-                            []
-                       )
-                    ++ [ span [ Attr.class "text-text-muted" ] [ text user.displayName ]
-                       , button
-                            [ Attr.class "text-brand underline focus-visible:ring-2 focus-visible:ring-brand outline-none"
-                            , Events.onClick LogOut
-                            ]
-                            [ text "Kirjaudu ulos" ]
-                       ]
-                )
+viewAdminLink : AuthUser -> String -> Html Msg
+viewAdminLink user pbUrl =
+    if user.isReviewer then
+        p [ Attr.class "mb-6 type-caption text-text-muted" ]
+            [ text "Kilpailujen hallinta: "
+            , a
+                [ Attr.href (pbUrl ++ "/_/")
+                , Attr.class "text-brand hover:underline"
+                , Attr.target "_blank"
+                , Attr.rel "noopener"
+                ]
+                [ text "Admin UI →" ]
             ]
-        ]
+
+    else
+        text ""
 
 
 viewPage : AuthUser -> Model -> Html Msg
@@ -235,9 +204,10 @@ viewPage user model =
 
 
 viewDashboard : AuthUser -> Model -> Html Msg
-viewDashboard _ model =
+viewDashboard user model =
     div []
-        [ h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text "Avoimet kilpailut" ]
+        [ viewAdminLink user model.pbUrl
+        , h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text "Avoimet kilpailut" ]
         , case model.competitions of
             RemoteData.NotAsked ->
                 text ""

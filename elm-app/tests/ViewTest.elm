@@ -10,10 +10,12 @@ Then the correct HTML elements are present
 
 import Expect
 import Html.Attributes
+import Lang exposing (Lang(..))
 import RemoteData
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
 import Test.Html.Selector exposing (attribute, containing, tag, text)
+import TestSite
 import Time
 import Types exposing (..)
 import View
@@ -53,6 +55,8 @@ loggedOutModel =
     , displayNameInput = ""
     , page = LoginPage
     , lang = Fi
+    , site = TestSite.site Fi
+    , menuOpen = False
     , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked
@@ -95,27 +99,37 @@ testEntry =
 suite : Test
 suite =
     describe "View"
-        [ describe "viewHeader — admin UI link"
+        [ describe "dashboard — admin UI link"
             [ test "reviewer sees Admin UI link" <|
                 \_ ->
-                    View.viewHeader { testUser | isReviewer = True } "http://localhost:8090"
+                    View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }
                         |> Query.fromHtml
                         |> Query.findAll [ tag "a", containing [ text "Admin UI" ] ]
                         |> Query.count (Expect.equal 1)
             , test "non-reviewer does NOT see Admin UI link" <|
                 \_ ->
-                    View.viewHeader { testUser | isReviewer = False } "http://localhost:8090"
+                    View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = False }, page = DashboardPage }
                         |> Query.fromHtml
                         |> Query.findAll [ tag "a", containing [ text "Admin UI" ] ]
                         |> Query.count (Expect.equal 0)
             ]
-        , describe "viewHeader — nav aria-label"
-            [ test "nav has aria-label=Sivunavigaatio" <|
+        , describe "layout — navigation"
+            [ test "reviewer's navigation links to the review queue" <|
                 \_ ->
-                    View.viewHeader testUser "http://localhost:8090"
+                    View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }
                         |> Query.fromHtml
-                        |> Query.find [ tag "nav" ]
-                        |> Query.has [ attribute (Html.Attributes.attribute "aria-label" "Sivunavigaatio") ]
+                        |> Query.has [ tag "a", attribute (Html.Attributes.href "#/arvostelu") ]
+            , test "non-reviewer's navigation has no link to the review queue" <|
+                \_ ->
+                    View.view { loggedOutModel | auth = LoggedIn testUser, page = DashboardPage }
+                        |> Query.fromHtml
+                        |> Query.findAll [ tag "a", attribute (Html.Attributes.href "#/arvostelu") ]
+                        |> Query.count (Expect.equal 0)
+            , test "page content sits in main#main-content" <|
+                \_ ->
+                    View.view loggedOutModel
+                        |> Query.fromHtml
+                        |> Query.has [ tag "main", attribute (Html.Attributes.id "main-content") ]
             ]
         , describe "viewError — role=alert"
             [ test "authError present renders role=alert" <|
@@ -188,6 +202,7 @@ suite =
                     in
                     View.view model
                         |> Query.fromHtml
+                        |> Query.find [ tag "main" ]
                         |> Query.findAll [ tag "img" ]
                         |> Query.count (Expect.equal 3)
             ]

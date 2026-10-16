@@ -23,13 +23,16 @@ module Main exposing
 -}
 
 import Browser
+import Component.Layout as Layout
 import Html exposing (Html)
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Ports
 import RemoteData
+import Route
 import Scoring
+import SiteSettings
 import Time
 import Types exposing (..)
 import View
@@ -60,6 +63,9 @@ emptyForm =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
+        settings =
+            SiteSettings.fromFlags flags.requestedLang flags.siteConfig
+
         ( auth, page ) =
             case flags.restoredAuth of
                 Just user ->
@@ -68,51 +74,88 @@ init flags =
                         SetDisplayNamePage
 
                       else
-                        DashboardPage
+                        Route.fromHash flags.hash |> Maybe.withDefault DashboardPage
                     )
 
                 Nothing ->
                     ( LoggedOut, LoginPage )
 
-        fetchCmd =
-            case ( flags.restoredAuth, page ) of
-                ( Just user, DashboardPage ) ->
-                    fetchCompetitions flags.pbUrl user.token
-
-                _ ->
-                    Cmd.none
-
-        competitionsState =
-            case page of
-                DashboardPage ->
-                    RemoteData.Loading
-
-                _ ->
-                    RemoteData.NotAsked
+        ( model, pageCmd ) =
+            enterPage page
+                { auth = auth
+                , pbUrl = flags.pbUrl
+                , emailInput = ""
+                , otpInput = ""
+                , authError = Nothing
+                , displayNameInput = ""
+                , page = page
+                , lang = settings.lang
+                , site = settings.site
+                , menuOpen = False
+                , now = Time.millisToPosix 0
+                , competitions = RemoteData.NotAsked
+                , myEntries = RemoteData.NotAsked
+                , submitForm = emptyForm
+                , selectedCompetition = Nothing
+                , reviewQueue = RemoteData.NotAsked
+                , activeReview = Nothing
+                , reviewFilter = AllEntries
+                }
     in
-    ( { auth = auth
-      , pbUrl = flags.pbUrl
-      , emailInput = ""
-      , otpInput = ""
-      , authError = Nothing
-      , displayNameInput = ""
-      , page = page
-      , lang = Fi
-      , now = Time.millisToPosix 0
-      , competitions = competitionsState
-      , myEntries = RemoteData.NotAsked
-      , submitForm = emptyForm
-      , selectedCompetition = Nothing
-      , reviewQueue = RemoteData.NotAsked
-      , activeReview = Nothing
-      , reviewFilter = AllEntries
-      }
-    , fetchCmd
+    ( model
+    , Cmd.batch
+        [ pageCmd
+        , case settings.error of
+            Just problem ->
+                Ports.reportError problem
+
+            Nothing ->
+                Cmd.none
+        ]
     )
 
 
+{-| Switch to a page and start loading the data it shows.
+-}
+enterPage : Page -> Model -> ( Model, Cmd Msg )
+enterPage page model =
+    case ( page, model.auth ) of
+        ( DashboardPage, LoggedIn user ) ->
+            ( { model | page = page, competitions = RemoteData.Loading }
+            , fetchCompetitions model.pbUrl user.token
+            )
+
+        ( MyEntriesPage, LoggedIn user ) ->
+            ( { model | page = page, myEntries = RemoteData.Loading }
+            , fetchMyEntries model.pbUrl user.token user.profileId
+            )
+
+        ( ReviewQueuePage, LoggedIn user ) ->
+            ( { model | page = page, reviewQueue = RemoteData.Loading }
+            , fetchReviewQueue model.pbUrl user.token
+            )
+
+        _ ->
+            ( { model | page = page }, Cmd.none )
+
+
+{-| Run `updateModel` and keep the browser's hash in step with the page.
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        ( newModel, cmd ) =
+            updateModel msg model
+    in
+    if newModel.page == model.page then
+        ( newModel, cmd )
+
+    else
+        ( newModel, Cmd.batch [ cmd, Ports.setHash (Route.toHash newModel.page) ] )
+
+
+updateModel : Msg -> Model -> ( Model, Cmd Msg )
+updateModel msg model =
     case msg of
         -- Auth
         EmailChanged email ->
@@ -239,8 +282,16 @@ update msg model =
                 , authError = Nothing
                 , competitions = RemoteData.NotAsked
                 , myEntries = RemoteData.NotAsked
+                , menuOpen = False
               }
-            , Ports.clearAuth ()
+            , Cmd.batch
+                [ Ports.clearAuth ()
+                , if model.menuOpen then
+                    Layout.onMenuClosed NoOp
+
+                  else
+                    Cmd.none
+                ]
             )
 
         DisplayNameChanged name ->
@@ -285,24 +336,36 @@ update msg model =
 
         -- Navigation
         NavigateTo page ->
-            case ( page, model.auth ) of
-                ( DashboardPage, LoggedIn user ) ->
-                    ( { model | page = page, competitions = RemoteData.Loading }
-                    , fetchCompetitions model.pbUrl user.token
-                    )
+            enterPage page model
 
-                ( MyEntriesPage, LoggedIn user ) ->
-                    ( { model | page = page, myEntries = RemoteData.Loading }
-                    , fetchMyEntries model.pbUrl user.token user.profileId
-                    )
+        HashChanged hash ->
+            case Route.fromHash hash of
+                Just page ->
+                    if page == model.page then
+                        ( model, Cmd.none )
 
-                ( ReviewQueuePage, LoggedIn user ) ->
-                    ( { model | page = page, reviewQueue = RemoteData.Loading }
-                    , fetchReviewQueue model.pbUrl user.token
-                    )
+                    else
+                        enterPage page model
 
-                _ ->
-                    ( { model | page = page }, Cmd.none )
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ToggleMenu ->
+            if model.menuOpen then
+                ( { model | menuOpen = False }, Layout.onMenuClosed NoOp )
+
+            else
+                ( { model | menuOpen = True }, Layout.onMenuOpened NoOp )
+
+        CloseMenu ->
+            if model.menuOpen then
+                ( { model | menuOpen = False }, Layout.onMenuClosed NoOp )
+
+            else
+                ( model, Cmd.none )
+
+        NoOp ->
+            ( model, Cmd.none )
 
         -- Competitions
         CompetitionsLoaded (Ok comps) ->
@@ -693,9 +756,11 @@ view model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ Time.every 60000 Tick
+        , Ports.hashChanged HashChanged
+        , Layout.subscriptions { isOpen = model.menuOpen, onClose = CloseMenu }
         , Ports.keycloakLoginSucceeded KeycloakLoginCompleted
         , Ports.keycloakLoginFailed KeycloakLoginFailed
         ]

@@ -6,7 +6,6 @@ module Types exposing
     , Entry
     , EntryStatus(..)
     , Flags
-    , Lang(..)
     , Model
     , Msg(..)
     , OtpResponse
@@ -25,15 +24,11 @@ module Types exposing
 
 import File exposing (File)
 import Http
+import Json.Decode as Decode
+import Lang exposing (Lang)
 import RemoteData exposing (RemoteData)
+import SiteSettings exposing (SiteSettings)
 import Time
-
-
-{-| Supported display languages.
--}
-type Lang
-    = Fi
-    | En
 
 
 {-| An authenticated user with PocketBase auth token and profile.
@@ -200,6 +195,9 @@ type Page
 type alias Flags =
     { pbUrl : String
     , restoredAuth : Maybe AuthUser
+    , siteConfig : Decode.Value
+    , requestedLang : Maybe String
+    , hash : String
     }
 
 
@@ -214,6 +212,8 @@ type alias Model =
     , displayNameInput : String
     , page : Page
     , lang : Lang
+    , site : SiteSettings
+    , menuOpen : Bool
     , now : Time.Posix
     , competitions : RemoteData Http.Error (List Competition)
     , myEntries : RemoteData Http.Error (List Entry)
@@ -244,6 +244,10 @@ type Msg
     | KeycloakLoginFailed String
       -- Navigation
     | NavigateTo Page
+    | HashChanged String
+    | ToggleMenu
+    | CloseMenu
+    | NoOp
       -- Competitions
     | CompetitionsLoaded (Result Http.Error (List Competition))
     | SelectCompetition Competition

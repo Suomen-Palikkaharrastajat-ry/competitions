@@ -3,7 +3,7 @@ module I18n exposing (MsgKey(..), translate)
 {-| Internationalization for the competition platform
 -}
 
-import Types exposing (Lang(..))
+import Lang exposing (Lang(..))
 
 
 {-| Translation keys

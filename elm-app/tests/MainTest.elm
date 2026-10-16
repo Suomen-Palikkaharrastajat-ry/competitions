@@ -5,8 +5,9 @@ module MainTest exposing (suite)
 
 import Expect
 import I18n
+import Lang exposing (Lang(..))
 import Test exposing (Test, describe, test)
-import Types exposing (AuthState(..), AuthUser, Lang(..))
+import Types exposing (AuthState(..), AuthUser)
 
 
 testUser : AuthUser

@@ -14,9 +14,11 @@ Then Ok or Err is returned according to the validation rules
 
 import Expect
 import Http
+import Lang exposing (Lang(..))
 import Main exposing (requestOtpUrl, update, validateEmail, validateOtpCode)
 import RemoteData
 import Test exposing (Test, describe, test)
+import TestSite
 import Time
 import Types exposing (..)
 
@@ -43,6 +45,8 @@ baseModel =
     , displayNameInput = ""
     , page = LoginPage
     , lang = Fi
+    , site = TestSite.site Fi
+    , menuOpen = False
     , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked

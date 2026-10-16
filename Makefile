@@ -45,9 +45,17 @@ devenv.local.yaml:
 
 # ── Elm frontend ──────────────────────────────────────────────────────────────
 
+# Vite must not write its temp config into the read-only node_modules.
+VITE_FLAGS ?= --configLoader runner
+
+# The shared targets `site-config` and `site-config-check` come from the hub.
+SITE_CONFIG_I18N := elm-app/src elm-app/main.js src
+
+-include vendor/master-builder/mk/site-config.mk
+
 .PHONY: elm-dev
 elm-dev: ## Start Elm + Vite dev server (hot reload)
-	cd elm-app && vite
+	cd elm-app && vite $(VITE_FLAGS)
 
 ELM_APP_SOURCES := $(shell find elm-app/src -name '*.elm')
 ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm' -o -name '*.css' 2>/dev/null)
@@ -60,12 +68,12 @@ elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/m
 	mkdir -p elm-app/.elm-tailwind
 	touch $@
 
-elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css
-	cd elm-app && vite build
+elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
+	cd elm-app && vite build $(VITE_FLAGS)
 	touch $@
 
-elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css
-	cd elm-app && vite build
+elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css $(SITE_CONFIG_DEPS)
+	cd elm-app && vite build $(VITE_FLAGS)
 	touch $@
 
 .PHONY: elm-build

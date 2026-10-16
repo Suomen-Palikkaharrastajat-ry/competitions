@@ -10,10 +10,12 @@ Then state transitions and validation errors are correct
 
 import Expect
 import Http
+import Lang exposing (Lang(..))
 import Main exposing (canSubmitMore, update, validateForm)
 import RemoteData
 import Scoring exposing (deadlineUrgency, isDeadlinePassed)
 import Test exposing (Test, describe, test)
+import TestSite
 import Time
 import Types exposing (..)
 
@@ -80,6 +82,8 @@ baseModel =
     , displayNameInput = ""
     , page = DashboardPage
     , lang = Fi
+    , site = TestSite.site Fi
+    , menuOpen = False
     , now = Time.millisToPosix 0
     , competitions = RemoteData.NotAsked
     , myEntries = RemoteData.NotAsked

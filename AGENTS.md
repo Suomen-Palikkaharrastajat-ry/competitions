@@ -57,6 +57,7 @@ competitions/
 ├── TODO-07-missing-features.md ← Step 7: Admin tools, accessibility, SMTP, scores, error boundaries
 ├── TODO-08-fixes.md            ← Step 8: Security, quality, and test gap fixes
 ├── competition.toml            ← Gallery pipeline config (title, locale, timezone)
+├── config.toml                 ← Site configuration (URL, title, footer) for the shared Component.Layout; see vendor/master-builder/docs/site-config.md
 ├── competition.cabal           ← Haskell project (after TODO-00)
 ├── Makefile                    ← Build targets
 ├── Caddyfile                   ← Local reverse proxy: app, PocketBase, Mailpit on port 8080
@@ -88,6 +89,8 @@ competitions/
 │   │   ├── Main.elm            ← App entry point (The Elm Architecture)
 │   │   ├── Types.elm           ← Model, Msg, AuthState, Page, Competition, Entry, Review
 │   │   ├── View.elm            ← All page views and UI components
+│   │   ├── View/Layout.elm     ← Wraps the page in the shared Component.Layout (header, drawer, footer)
+│   │   ├── Route.elm           ← Location hashes (#/, #/omat, #/arvostelu) of the pages
 │   │   ├── Ports.elm           ← JS interop (auth persistence)
 │   ├── tests/                  ← Elm test suite (elm-test)
 │   │   ├── AuthTest.elm
