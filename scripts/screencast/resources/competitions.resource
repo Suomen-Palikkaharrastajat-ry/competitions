@@ -125,6 +125,20 @@ Fill Entry
         Upload Images    input[type=file]    @{images}
     END
 
+Submit Entry
+    [Documentation]    "Lähetä arvosteltavaksi" and confirm in the dialog.
+    Human Click    role=button[name="Lähetä arvosteltavaksi"]
+    Wait Until Visible    role=dialog[name="Lähetetäänkö arvioitavaksi?"]
+    Human Click    role=dialog >> role=button[name="Lähetä"s]
+    Wait Until Visible    role=heading[name="Osallistuminen lähetetty!"]
+
+Choose Display Name
+    [Arguments]    ${name}
+    Wait Until Visible    label=Näyttönimi
+    Human Type    label=Näyttönimi    ${name}
+    Human Click    role=button[name="Tallenna"s]
+    Wait Until Visible    role=button[name="Kirjaudu ulos"]
+
 Open My Entries
     Human Click    role=link[name="Omat osallistumiset"]
     Wait Until Visible    role=heading[name="Omat osallistumiset"]

@@ -72,12 +72,15 @@ Aino Osallistuu
     ...    Punavalkoinen majakka kalliosaarella. Valo pyörii pienellä moottorilla.
     ...    ${IMAGES}/aino-1.png    ${IMAGES}/aino-2.png    ${IMAGES}/aino-3.png
     Save Draft
+    Wait Until Visible    text=Luonnos tallennettu.
     Caption    Luonnosta voi muokata, kunnes sen lähettää arvioitavaksi.
-    Human Click    role=button[name="Lähetä arvosteltavaksi"]
-    Wait Until Visible    role=heading[name="Osallistuminen lähetetty!"]
-    Caption    Lähettämisen jälkeen työtä ei voi enää muokata.
+    Submit Entry
+    Caption    Lähettäminen vahvistetaan: sen jälkeen työtä ei voi enää muokata.
     Open My Entries
     Wait Until Visible    text=${AINO_ENTRY}
+    Human Click    role=link[name="Kilpailut"]
+    Wait Until Visible    text=Olet käyttänyt kaikki osallistumispaikkasi
+    Caption    Kilpailun osallistumisraja näkyy kilpailukortissa.
     Refresh Admin List
     Take Screenshot    ${SHOTS_DIR}/02-aino-lahetetty.png
     [Teardown]    End Actor Turn
@@ -94,18 +97,16 @@ Ville Osallistuu Sähköpostilla
     Caption    Väärä tai vanhentunut koodi ei kelpaa.
     ${code}=    Latest Login Code    ${OTP_EMAIL}
     Enter Login Code    ${code}
-    Wait Until Visible    role=button[name="Kirjaudu ulos"]
+    Caption    Ensimmäisellä kerralla valitaan näyttönimi, joka näkyy arvioijille ja galleriassa.
+    Choose Display Name    Ville Virtanen
     Start Entry    ${COMPETITION}
     Fill Entry    ${VILLE_ENTRY}    Majakka laiturin päässä, mukana kalastajan vene.
-    Save Draft
     Human Click    role=button[name="Lähetä arvosteltavaksi"]
     Wait Until Visible    text=Lisää vähintään yksi kuva
     Caption    Kilpailun kuvarajat tarkistetaan ennen lähettämistä.
     Human Move    role=button[name^="Kuvat *"]
     Upload Images    input[type=file]    ${IMAGES}/ville-1.png    ${IMAGES}/ville-2.png
-    Save Draft
-    Human Click    role=button[name="Lähetä arvosteltavaksi"]
-    Wait Until Visible    role=heading[name="Osallistuminen lähetetty!"]
+    Submit Entry
     Refresh Admin List
     Take Screenshot    ${SHOTS_DIR}/03-ville-lahetetty.png
     [Teardown]    End Actor Turn
@@ -155,8 +156,9 @@ Aino Näkee Tuloksen
     ...    subtitle=Aino näkee julkaistut pisteet ja kommentin
     Open App As    aino_session    /#/omat
     Wait Until Visible    text=${AINO_ENTRY}
+    Wait Until Visible    text=Arvioijan kommentti
     Human Move    text=${AINO_ENTRY}
-    Caption    Osallistuja näkee työnsä tilan ja julkaistut arviot omalla sivullaan.
+    Caption    Osallistuja näkee työnsä tilan, pisteet ja arvioijan kommentin omalla sivullaan.
     Take Screenshot    ${SHOTS_DIR}/06-aino-tulos.png
     [Teardown]    End Actor Turn
 
