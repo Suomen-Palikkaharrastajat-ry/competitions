@@ -29,6 +29,7 @@
   ],
   "users": [
     {
+      "id": "92582711-3f41-4b27-afe5-693bf378b162",
       "username": "keycloak-participant@example.test",
       "email": "keycloak-participant@example.test",
       "firstName": "Keycloak",
@@ -44,6 +45,7 @@
       ]
     },
     {
+      "id": "44e48326-f377-4b2b-8857-7db817b24ea0",
       "username": "keycloak-reviewer@example.test",
       "email": "keycloak-reviewer@example.test",
       "firstName": "Keycloak",
