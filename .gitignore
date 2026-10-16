@@ -10,7 +10,6 @@ devenv.local.yaml
 node_modules
 node_modules/
 elm-app/node_modules/
-elm-app/packages
 
 # --- Haskell build artifacts ---
 dist-newstyle/

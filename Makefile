@@ -15,8 +15,13 @@ vendor: ## Init and update all git submodules to their pinned commits
 	@# In CI environments (GitHub Actions) SSH access is unavailable;
 	@# rewrite git@github.com: to https://github.com/ so submodules clone via HTTPS.
 	@[ -z "$$CI" ] || git config --global url."https://github.com/".insteadOf "git@github.com:"
-	@if [ -d .git ]; then git submodule update --init; elif [ ! -d vendor/master-builder ]; then mkdir -p vendor && git clone https://github.com/Suomen-Palikkaharrastajat-ry/master-builder.git vendor/master-builder; fi
-	ln -sfn ../vendor/master-builder/packages elm-app/packages
+	@# Fall back to a plain clone when this tree is not a git checkout (source
+	@# tarball, vendored copy). The submodule directory itself always exists, so
+	@# probe for a file inside it rather than for the directory.
+	@if [ -d .git ]; then git submodule update --init; \
+	elif [ ! -e vendor/master-builder/AGENTS.md ]; then \
+		mkdir -p vendor && git clone https://github.com/Suomen-Palikkaharrastajat-ry/master-builder.git vendor/master-builder; \
+	fi
 
 # ── Development environment ──────────────────────────────────────────────────
 

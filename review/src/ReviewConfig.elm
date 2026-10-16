@@ -18,7 +18,7 @@ import Review.Rule as Rule exposing (Rule)
 
 generatedDirectories : List String
 generatedDirectories =
-    [ ".elm-tailwind/" ]
+    [ ".elm-tailwind/", "packages/" ]
 
 
 testDirectories : List String
@@ -26,17 +26,11 @@ testDirectories =
     [ "tests/" ]
 
 
-packageDirectories : List String
-packageDirectories =
-    [ "packages/" ]
-
-
 config : List Rule
 config =
     [ LlmAgent.NoDebug.rule
     , LlmAgent.NoExposingEverything.rule
     , LlmAgent.NoInlineStyleAttribute.rule
-        |> Rule.ignoreErrorsForDirectories packageDirectories
     , LlmAgent.RequireModuleDoc.rule
         |> Rule.ignoreErrorsForDirectories testDirectories
     , LlmAgent.RequireTypeAnnotation.rule
