@@ -750,14 +750,10 @@ updateModel msg model =
 
         -- Review actions
         SaveReview ->
-            case ( model.auth, model.activeReview ) of
-                ( LoggedIn user, Just reviewForm ) ->
-                    ( { model | activeReview = Just { reviewForm | saving = True } }
-                    , saveReviewCmd model.pbUrl user.token reviewForm.draftReview
-                    )
+            saveReview False model
 
-                _ ->
-                    ( model, Cmd.none )
+        SaveAndPublishReview ->
+            saveReview True model
 
         ReviewSaved (Ok review) ->
             let
@@ -1378,6 +1374,28 @@ fetchReviewQueue pbUrl token =
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+{-| Save the open review form; `isPublished` decides whether the submitter
+sees the scores ("Tallenna ja julkaise") or not ("Tallenna").
+-}
+saveReview : Bool -> Model -> ( Model, Cmd Msg )
+saveReview isPublished model =
+    case ( model.auth, model.activeReview ) of
+        ( LoggedIn user, Just reviewForm ) ->
+            let
+                draft =
+                    reviewForm.draftReview
+
+                review =
+                    { draft | isPublished = isPublished }
+            in
+            ( { model | activeReview = Just { reviewForm | saving = True, draftReview = review } }
+            , saveReviewCmd model.pbUrl user.token review
+            )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 saveReviewCmd : String -> String -> Review -> Cmd Msg
