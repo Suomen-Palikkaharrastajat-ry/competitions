@@ -105,7 +105,7 @@ suite =
                         form =
                             { emptyForm | existingImages = [ "photo.jpg" ] }
                     in
-                    case validateForm testCompetition form of
+                    case validateForm Fi testCompetition form of
                         Err _ ->
                             Expect.pass
 
@@ -117,7 +117,7 @@ suite =
                         form =
                             { emptyForm | title = "My MOC" }
                     in
-                    case validateForm testCompetition form of
+                    case validateForm Fi testCompetition form of
                         Err msg ->
                             Expect.equal "Lisää vähintään yksi kuva" msg
 
@@ -132,7 +132,7 @@ suite =
                                 , existingImages = [ "photo.jpg" ]
                             }
                     in
-                    case validateForm testCompetition form of
+                    case validateForm Fi testCompetition form of
                         Ok _ ->
                             Expect.pass
 
@@ -150,7 +150,7 @@ suite =
                                 , existingImages = [ "photo.jpg" ]
                             }
                     in
-                    case validateForm competition form of
+                    case validateForm Fi competition form of
                         Err msg ->
                             Expect.equal "Lisää vähintään 2 kuvaa" msg
 
@@ -168,7 +168,7 @@ suite =
                                 , existingImages = [ "a.jpg", "b.jpg", "c.jpg" ]
                             }
                     in
-                    case validateForm competition form of
+                    case validateForm Fi competition form of
                         Err msg ->
                             Expect.equal "Enintään 2 kuvaa sallittu" msg
 
@@ -195,7 +195,7 @@ suite =
                                     ]
                             }
                     in
-                    case validateForm testCompetition form of
+                    case validateForm Fi testCompetition form of
                         Err msg ->
                             Expect.equal "Enintään 10 kuvaa sallittu" msg
 

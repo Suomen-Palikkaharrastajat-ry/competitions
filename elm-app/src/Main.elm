@@ -26,8 +26,10 @@ import Browser
 import Component.Layout as Layout
 import Html exposing (Html)
 import Http
+import I18n exposing (t)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Lang exposing (Lang)
 import Ports
 import RemoteData
 import Route
@@ -165,7 +167,7 @@ updateModel msg model =
             ( { model | otpInput = code, authError = Nothing }, Cmd.none )
 
         RequestOtp ->
-            case validateEmail model.emailInput of
+            case validateEmail model.lang model.emailInput of
                 Err e ->
                     ( { model | authError = Just e }, Cmd.none )
 
@@ -178,15 +180,15 @@ updateModel msg model =
             )
 
         OtpRequested (Err (Http.BadStatus 409)) ->
-            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakOnly) }, Cmd.none )
 
         OtpRequested (Err _) ->
-            ( { model | authError = Just "Sähköpostin lähetys epäonnistui" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrEmailSendFailed) }, Cmd.none )
 
         SubmitOtp ->
             case model.auth of
                 AwaitingOtp state ->
-                    case validateOtpCode model.otpInput of
+                    case validateOtpCode model.lang model.otpInput of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
@@ -228,13 +230,13 @@ updateModel msg model =
             )
 
         OtpSubmitted (Err (Http.BadStatus 400)) ->
-            ( { model | authError = Just "Väärä koodi tai vanhentunut linkki" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrWrongCode) }, Cmd.none )
 
         OtpSubmitted (Err (Http.BadStatus 409)) ->
-            ( { model | authError = Just "Kirjaudu tällä osoitteella Keycloakin kautta" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakOnly) }, Cmd.none )
 
         OtpSubmitted (Err _) ->
-            ( { model | authError = Just "Kirjautuminen epäonnistui" }, Cmd.none )
+            ( { model | authError = Just (t model.lang I18n.ErrLoginFailed) }, Cmd.none )
 
         StartKeycloakLogin ->
             ( { model | authError = Nothing }, Ports.startKeycloakLogin model.pbUrl )
@@ -270,8 +272,8 @@ updateModel msg model =
                 ]
             )
 
-        KeycloakLoginFailed message ->
-            ( { model | authError = Just message }, Cmd.none )
+        KeycloakLoginFailed _ ->
+            ( { model | authError = Just (t model.lang I18n.ErrKeycloakLoginFailed) }, Cmd.none )
 
         LogOut ->
             ( { model
@@ -332,7 +334,7 @@ updateModel msg model =
                     handleHttpError err model
 
                 _ ->
-                    ( { model | authError = Just "Näyttönimen tallennus epäonnistui" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrDisplayNameSave) }, Cmd.none )
 
         -- Navigation
         NavigateTo page ->
@@ -489,14 +491,14 @@ updateModel msg model =
                         form =
                             model.submitForm
                     in
-                    ( { model | submitForm = { form | step = UploadError "Luonnoksen tallennus epäonnistui" } }
+                    ( { model | submitForm = { form | step = UploadError (t model.lang I18n.ErrDraftSave) } }
                     , Cmd.none
                     )
 
         SubmitEntry ->
             case ( model.auth, model.submitForm.entryId, model.selectedCompetition ) of
                 ( LoggedIn user, Just entryId, Just competition ) ->
-                    case validateForm competition model.submitForm of
+                    case validateForm model.lang competition model.submitForm of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
@@ -504,7 +506,7 @@ updateModel msg model =
                             ( model, submitEntryCmd model.pbUrl user.token entryId )
 
                 ( LoggedIn _, Just _, Nothing ) ->
-                    ( { model | authError = Just "Kilpailua ei ole valittu" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrNoCompetitionSelected) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -526,7 +528,7 @@ updateModel msg model =
                         form =
                             model.submitForm
                     in
-                    ( { model | submitForm = { form | step = UploadError "Lähettäminen epäonnistui" } }
+                    ( { model | submitForm = { form | step = UploadError (t model.lang I18n.ErrSubmitFailed) } }
                     , Cmd.none
                     )
 
@@ -567,16 +569,16 @@ updateModel msg model =
                                 Nothing ->
                                     ( { model
                                         | selectedCompetition = Nothing
-                                        , authError = Just "Kilpailun tietoja ei voitu ladata"
+                                        , authError = Just (t model.lang I18n.ErrCompetitionLoad)
                                       }
                                     , Cmd.none
                                     )
 
                         Nothing ->
-                            ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
+                            ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
 
                 _ ->
-                    ( { model | authError = Just "Luonnosta ei löytynyt" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
 
         CancelEdit ->
             ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
@@ -696,7 +698,7 @@ updateModel msg model =
                                     Just
                                         { rf
                                             | saving = False
-                                            , saveError = Just "Arvostelun tallennus epäonnistui"
+                                            , saveError = Just (t model.lang I18n.ErrReviewSave)
                                         }
                               }
                             , Cmd.none
@@ -744,7 +746,7 @@ updateModel msg model =
                     handleHttpError err model
 
                 _ ->
-                    ( { model | authError = Just "Tilan vaihto epäonnistui" }, Cmd.none )
+                    ( { model | authError = Just (t model.lang I18n.ErrStatusChange) }, Cmd.none )
 
         Tick time ->
             ( { model | now = time }, Cmd.none )
@@ -772,27 +774,27 @@ subscriptions model =
 -- ---------------------------------------------------------------------------
 
 
-validateEmail : String -> Result String String
-validateEmail email =
+validateEmail : Lang -> String -> Result String String
+validateEmail lang email =
     case String.split "@" email of
         [ before, after ] ->
             if String.length before > 0 && String.contains "." after && String.length after > 1 then
                 Ok email
 
             else
-                Err "Syötä kelvollinen sähköpostiosoite"
+                Err (t lang I18n.ErrInvalidEmail)
 
         _ ->
-            Err "Syötä kelvollinen sähköpostiosoite"
+            Err (t lang I18n.ErrInvalidEmail)
 
 
-validateOtpCode : String -> Result String String
-validateOtpCode code =
+validateOtpCode : Lang -> String -> Result String String
+validateOtpCode lang code =
     if String.length code == 6 && String.all Char.isDigit code then
         Ok code
 
     else
-        Err "Koodi koostuu kuudesta numerosta"
+        Err (t lang I18n.ErrOtpFormat)
 
 
 imageMin : Competition -> Int
@@ -814,8 +816,8 @@ imageMax competition =
     max configured (imageMin competition)
 
 
-validateForm : Competition -> SubmitForm -> Result String SubmitForm
-validateForm competition form =
+validateForm : Lang -> Competition -> SubmitForm -> Result String SubmitForm
+validateForm lang competition form =
     let
         count =
             List.length form.selectedFiles + List.length form.existingImages
@@ -827,20 +829,20 @@ validateForm competition form =
             imageMax competition
     in
     if String.isEmpty form.title then
-        Err "Nimi on pakollinen"
+        Err (t lang I18n.ErrNameRequired)
 
     else if String.length form.title > 200 then
-        Err "Nimi on liian pitkä (max 200 merkkiä)"
+        Err (t lang I18n.ErrNameTooLong)
 
     else if count < minImages then
         if minImages <= 1 then
-            Err "Lisää vähintään yksi kuva"
+            Err (t lang I18n.ErrAddOneImage)
 
         else
-            Err ("Lisää vähintään " ++ String.fromInt minImages ++ " kuvaa")
+            Err (t lang I18n.AddAtLeastPrefix ++ String.fromInt minImages ++ t lang I18n.ImagesSuffix)
 
     else if count > maxImages then
-        Err ("Enintään " ++ String.fromInt maxImages ++ " kuvaa sallittu")
+        Err (t lang I18n.AtMostPrefix ++ String.fromInt maxImages ++ t lang I18n.AtMostSuffix)
 
     else
         Ok form
@@ -886,26 +888,26 @@ updateDraftScore f model =
 
 
 
--- | Map an Http.Error to a Finnish user-facing message.
+-- | Map an Http.Error to a user-facing message in the given language.
 
 
-httpErrorMessage : Http.Error -> String
-httpErrorMessage err =
+httpErrorMessage : Lang -> Http.Error -> String
+httpErrorMessage lang err =
     case err of
         Http.NetworkError ->
-            "Verkkovirhe — tarkista yhteys"
+            t lang I18n.HttpNetwork
 
         Http.BadStatus 401 ->
-            "Istunto vanhentunut — kirjaudu uudelleen"
+            t lang I18n.HttpSessionExpired
 
         Http.BadStatus 403 ->
-            "Ei oikeutta"
+            t lang I18n.HttpForbidden
 
         Http.BadStatus 404 ->
-            "Ei löydy"
+            t lang I18n.HttpNotFound
 
         _ ->
-            "Odottamaton virhe; yritä uudelleen"
+            t lang I18n.HttpUnexpected
 
 
 

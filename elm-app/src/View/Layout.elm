@@ -8,6 +8,8 @@ import Component.Account as Account
 import Component.Layout as Layout
 import Html exposing (Html, div, nav)
 import Html.Attributes exposing (attribute, class)
+import I18n exposing (t)
+import Lang exposing (Lang)
 import Route
 import Types exposing (AuthState(..), AuthUser, Model, Msg(..), Page(..))
 import UiStrings
@@ -52,7 +54,7 @@ view config =
         , links =
             case model.auth of
                 LoggedIn user ->
-                    links link user
+                    links model.lang link user
 
                 _ ->
                     []
@@ -80,15 +82,16 @@ view config =
 
 
 links :
-    (Page -> String -> { label : String, href : String, mobileOnly : Bool, isActive : Bool })
+    Lang
+    -> (Page -> String -> { label : String, href : String, mobileOnly : Bool, isActive : Bool })
     -> AuthUser
     -> List { label : String, href : String, mobileOnly : Bool, isActive : Bool }
-links link user =
-    [ link DashboardPage "Kilpailut"
-    , link MyEntriesPage "Omat osallistumiset"
+links lang link user =
+    [ link DashboardPage (t lang I18n.NavCompetitions)
+    , link MyEntriesPage (t lang I18n.MyEntries)
     ]
         ++ (if user.isReviewer then
-                [ link ReviewQueuePage "Arvosteltavat" ]
+                [ link ReviewQueuePage (t lang I18n.NavReview) ]
 
             else
                 []

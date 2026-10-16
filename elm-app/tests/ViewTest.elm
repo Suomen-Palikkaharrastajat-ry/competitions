@@ -142,7 +142,7 @@ suite =
         , describe "viewEntryRow — published review scores"
             [ test "entry with no published reviews shows no score" <|
                 \_ ->
-                    View.viewEntryRow testEntry
+                    View.viewEntryRow Fi testEntry
                         |> Query.fromHtml
                         |> Query.findAll [ containing [ text "Pisteet:" ] ]
                         |> Query.count (Expect.equal 0)
@@ -158,7 +158,7 @@ suite =
                                     ]
                             }
                     in
-                    View.viewEntryRow entryWithReviews
+                    View.viewEntryRow Fi entryWithReviews
                         |> Query.fromHtml
                         |> Query.findAll [ containing [ text "Pisteet: 17.0 / 20" ] ]
                         |> Query.count (Expect.equal 1)

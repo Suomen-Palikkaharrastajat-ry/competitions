@@ -61,6 +61,8 @@ app.ports.startKeycloakLogin.subscribe(async function (pbUrl) {
     });
     app.ports.keycloakLoginSucceeded.send(keycloakAuthToElmAuthResponse(authData));
   } catch (err) {
-    app.ports.keycloakLoginFailed.send('Keycloak-kirjautuminen epäonnistui');
+    console.error(err);
+    // Elm shows its own, translated message; the raw error is for diagnostics.
+    app.ports.keycloakLoginFailed.send(String((err && err.message) || err));
   }
 });

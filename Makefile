@@ -85,7 +85,7 @@ elm-test: elm-tailwind-gen ## Run Elm unit tests
 	cd elm-app && elm-test
 
 .PHONY: elm-check
-elm-check: elm-tailwind-gen ## Check Elm formatting and elm-review rules (no changes)
+elm-check: site-config-check elm-tailwind-gen ## Check Elm formatting, elm-review rules and display-text placement (no changes)
 	cd elm-app && elm-format --validate src/ tests/
 	cd elm-app && $(ELM_REVIEW) --config ../review --ignore-dirs .elm-tailwind
 
