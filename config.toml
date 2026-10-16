@@ -5,11 +5,17 @@
 # icons, branding and footer. See vendor/master-builder/docs/site-config.md.
 
 [site]
-# PLACEHOLDER: the production URL of the competition app is not recorded in
-# the repository or the hub docs. Replace it with the real address.
+# PLACEHOLDER - REPLACE BEFORE DEPLOYING: the production URL of the competition
+# app is not recorded in the repository or the hub docs, so this is a guess. It
+# ends up in the canonical link and the og:/twitter: image URLs. After changing
+# it, run `make site-config` and commit elm-app/tests/SiteFixture.elm.
 url         = "https://kilpailut.palikkaharrastajat.fi"
 title       = "Palikkakilpailu"
 description = "Suomen Palikkaharrastajat ry:n rakennuskilpailut"
 
 [navbar]
 variant = "app"
+
+[metadata]
+# The app is login-gated: keep it out of search indexes.
+robots = "noindex, nofollow"
