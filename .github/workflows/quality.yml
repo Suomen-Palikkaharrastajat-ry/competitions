@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cabal/store
-          key: cabal-store-${{ runner.os }}-${{ hashFiles('cabal.project.freeze', 'competition.cabal', 'devenv.lock', 'devenv.nix', 'overrides.nix') }}
+          key: cabal-store-${{ runner.os }}-${{ hashFiles('cabal.project.freeze', 'statics/competition.cabal', 'devenv.lock', 'devenv.nix', 'overrides.nix') }}
           restore-keys: cabal-store-${{ runner.os }}-
 
       - name: Restore Elm cache

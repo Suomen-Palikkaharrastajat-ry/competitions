@@ -19,7 +19,6 @@ dist-newstyle/
 elm-app/elm-stuff/
 elm-app/.elm-tailwind/
 elm-app/.vite/
-elm-app/dist/
 review/elm-stuff/
 review/suppressed/
 elm-app/public/*

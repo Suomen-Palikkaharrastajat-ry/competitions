@@ -1,3 +1,5 @@
 title = "Palikkakilpailu"
 locale = "fi"
 timezone = "Europe/Helsinki"
+# Published with the app: the app is dist/, the gallery dist/galleria/.
+output_dir = "dist/galleria"

@@ -1,5 +1,9 @@
 name: Scheduled update
 
+# Rebuilds the gallery from the collected PocketBase data, independently of
+# app changes: the gallery pipeline binary the last deploy cached, the app
+# rebuilt from the same commit (no Nix), redeployed together as one site.
+
 on:
   schedule:
     - cron: '0 0,6,12,18 * * *' # Four times per day
@@ -15,22 +19,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  update:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
 
-      - name: Vendor submodules
+      - name: Setup vendor
         run: make vendor
 
-      - name: Setup Nix + devenv
-        uses: ./vendor/master-builder/.github/actions/setup-nix
+      - name: Restore Native Binary
+        uses: actions/cache/restore@v4
         with:
-          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .bin
+          key: gallery-native-bin-${{ github.sha }}
+          restore-keys: gallery-native-bin-
 
       - name: Restore Elm cache
         uses: actions/cache/restore@v4
@@ -41,8 +45,11 @@ jobs:
           key: elm-${{ runner.os }}-${{ hashFiles('elm-app/elm.json') }}
           restore-keys: elm-${{ runner.os }}-
 
-      - name: Build
-        run: devenv shell --profile ci -- make dist-ci
+      - name: Build frontend
+        uses: ./vendor/master-builder/.github/actions/build-frontend
+
+      - name: Generate the gallery
+        run: ./.bin/competition
         env:
           POCKETBASE_URL: https://data.palikkaharrastajat.fi
           POCKETBASE_API_KEY: ${{ secrets.POCKETBASE_API_KEY }}
@@ -51,8 +58,15 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./build
+          path: ./dist
 
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

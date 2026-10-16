@@ -279,7 +279,8 @@ class CompetitionsLibrary:
         builder = builder or getattr(self, "_gallery_builder", None) or self.prepare_gallery_builder()
         # A fresh superuser token: the API key in .env may be from another database.
         env = {**os.environ, **_env(), "POCKETBASE_URL": BASE, "POCKETBASE_API_KEY": self._superuser_token()}
-        subprocess.run([builder], cwd=REPO, env=env, check=True, capture_output=True)
+        # Writes dist/galleria/ (competition.toml) next to the served app.
+        subprocess.run([builder], cwd=APP_REPO, env=env, check=True, capture_output=True)
 
     def _serve(self, name, directory, port):
         servers = self.__dict__.setdefault("_servers", {})
@@ -296,9 +297,10 @@ class CompetitionsLibrary:
         return f"http://127.0.0.1:{servers[name].server_address[1]}"
 
     @keyword
-    def serve_gallery(self, port=8099):
-        """Serve dist/ (the gallery) and return its URL."""
-        return self._serve("gallery", REPO / "dist", port) + "/"
+    def serve_gallery(self):
+        """The gallery's URL: dist/galleria/ under the served app, as in
+        production (it uses the app's /fonts/)."""
+        return self.serve_app_build() + "/galleria/"
 
     @keyword
     def build_app(self):
@@ -312,5 +314,5 @@ class CompetitionsLibrary:
 
     @keyword
     def serve_app_build(self, port=5174):
-        """Serve the production build (elm-app/dist) and return its origin."""
-        return self._serve("app", APP_REPO / "elm-app" / "dist", port)
+        """Serve the production build (dist/) and return its origin."""
+        return self._serve("app", APP_REPO / "dist", port)

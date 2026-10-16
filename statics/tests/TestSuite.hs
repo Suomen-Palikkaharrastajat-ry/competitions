@@ -18,6 +18,7 @@ import HtmlSanitizer
 import I18n
 import PocketBase (PbConfig (..), authHeaders, urlEncodeFilter)
 import qualified PocketBaseSchemaSpec
+import qualified StylesSpec
 
 main :: IO ()
 main = defaultMain tests
@@ -33,6 +34,7 @@ tests =
         , PocketBaseSchemaSpec.tests
         , GalleryFetcherSpec.tests
         , GalleryGenSpec.tests
+        , StylesSpec.tests
         ]
 
 -- ---------------------------------------------------------------------------
