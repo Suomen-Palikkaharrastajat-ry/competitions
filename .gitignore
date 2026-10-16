@@ -23,7 +23,6 @@ elm-app/dist/
 review/elm-stuff/
 review/suppressed/
 elm-app/public/*
-!elm-app/public/fonts/
 elm-app/src/Data.elm
 dist/
 

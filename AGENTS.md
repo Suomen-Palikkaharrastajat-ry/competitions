@@ -100,7 +100,6 @@ competitions/
 │   ├── index.html              ← App shell
 │   ├── main.js                 ← Vite entrypoint (flags: pbUrl, restoredAuth) + PocketBase JS OAuth helper
 │   ├── main.css                ← Tailwind v4; imports the shared design tokens and component CSS from packages/
-│   ├── public/fonts/           ← Outfit font (outfit.css + variable TTF), the only committed public asset
 │   ├── elm.json
 │   └── packages → ../vendor/master-builder/packages
 │
@@ -203,7 +202,7 @@ This project follows the **Suomen Palikkaharrastajat ry** brand style guide.
    | `type-mono` | 0.875rem | 400 | Code snippets (monospace) |
    | `type-overline` | 0.75rem | 600 uppercase | Category labels |
 
-4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Self-hosted from `elm-app/public/fonts/` (declared in `outfit.css`, imported by `main.css`).
+4. **Use Outfit font exclusively** (variable font, weight 100–900; OFL licensed). Served from the hub: `main.css` imports `vendor/master-builder/public/fonts/outfit.css`, and the site-config Vite plugin serves `/fonts/*` from there.
 5. **Respect logo usage rules:** SVG preferred; minimum 80px wide; 25% clear space; no stretching or recolouring.
 6. **Use named spacing tokens** (4px base: `space-1` through `space-16`); never use arbitrary px values.
 7. **Respect motion rules:** `transform`/`opacity` only; `@media (prefers-reduced-motion: no-preference)`; `duration-fast` = 150ms; `duration-base` = 300ms; `ease-standard = cubic-bezier(0.4, 0, 0.2, 1)`.
