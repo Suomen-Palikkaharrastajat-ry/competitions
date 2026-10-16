@@ -120,6 +120,7 @@ make gallery-run      # generate static gallery output from PocketBase
 make pb-test-migrate  # smoke-test schema migrations
 make pb-test-fixture  # smoke-test schema + local fixture migrations
 make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+make pb-test-entry-limits # smoke-test entry image limit hooks
 make dev-proxy-test  # smoke-test local reverse proxy config
 make pb-seed          # apply local-only fixture migrations to pb_data/
 ```
