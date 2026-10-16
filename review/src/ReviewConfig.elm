@@ -4,17 +4,16 @@ module ReviewConfig exposing (config)
 
 Uses the shared LlmAgent rules maintained in master-builder
 (`review/src/LlmAgent` is a symlink to `vendor/master-builder/review/src/LlmAgent`):
-module purpose, explicit public APIs, top-level type annotations, no committed
-debug code, and no inline style attributes that bypass brand tokens.
-
-`NoTailwindRawStrings` is not enabled yet: the views still use raw Tailwind
-class strings instead of typed tokens.
+typed Tailwind tokens instead of `Tw.raw`, module purpose, explicit public
+APIs, top-level type annotations, no committed debug code, and no inline style
+attributes that bypass brand tokens.
 
 -}
 
 import LlmAgent.NoDebug
 import LlmAgent.NoExposingEverything
 import LlmAgent.NoInlineStyleAttribute
+import LlmAgent.NoTailwindRawStrings
 import LlmAgent.RequireModuleDoc
 import LlmAgent.RequireTypeAnnotation
 import Review.Rule as Rule exposing (Rule)
@@ -32,7 +31,8 @@ testDirectories =
 
 config : List Rule
 config =
-    [ LlmAgent.NoDebug.rule
+    [ LlmAgent.NoTailwindRawStrings.rule
+    , LlmAgent.NoDebug.rule
     , LlmAgent.NoExposingEverything.rule
     , LlmAgent.NoInlineStyleAttribute.rule
     , LlmAgent.RequireModuleDoc.rule
