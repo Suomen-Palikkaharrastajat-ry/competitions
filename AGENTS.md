@@ -105,7 +105,7 @@ competitions/
 │   └── packages → ../vendor/master-builder/packages
 │
 ├── cmd/competition-pocketbase/ ← Go wrapper that registers PB JS migrations/hooks
-├── pb_hooks/                   ← PocketBase JSVM hooks for Keycloak-first auth
+├── pb_hooks/                   ← PocketBase JSVM hooks: Keycloak-first auth, entry image limits (helpers in lib/)
 │
 ├── pb_migrations/              ← PocketBase schema migrations (all environments)
 │   ├── 001_create_competitions.js
@@ -237,6 +237,7 @@ devenv shell --no-eval-cache -- make pb-migrate         # apply pending migratio
 devenv shell --no-eval-cache -- make pb-test-migrate    # smoke-test migrations against throwaway dir
 devenv shell --no-eval-cache -- make pb-test-fixture    # smoke-test schema + local fixture migrations
 devenv shell --no-eval-cache -- make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+devenv shell --no-eval-cache -- make pb-test-entry-limits # smoke-test entry image limit hooks
 devenv shell --no-eval-cache -- make pb-seed            # apply local-only fixture migrations to pb_data/
 
 # Everything

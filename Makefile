@@ -262,6 +262,10 @@ pb-test-fixture: ## Smoke-test schema + dev fixture migrations against a throwaw
 pb-test-auth-policy: ## Smoke-test Keycloak-first OTP policy hooks
 	@POCKETBASE='$(POCKETBASE)' ./scripts/test-auth-policy.sh
 
+.PHONY: pb-test-entry-limits
+pb-test-entry-limits: ## Smoke-test the entry image limit hooks
+	@POCKETBASE='$(POCKETBASE)' ./scripts/test-entry-limits.sh
+
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
 .PHONY: clean
