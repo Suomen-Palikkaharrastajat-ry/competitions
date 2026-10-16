@@ -46,3 +46,6 @@ Thumbs.db
 # --- Misc / local ---
 .claude/
 TODO*
+
+# Python bytecode (scripts/screencast)
+__pycache__/

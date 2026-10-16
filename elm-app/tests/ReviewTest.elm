@@ -10,8 +10,9 @@ Then state transitions are correct
 
 import Expect
 import Http
+import Json.Decode as Decode
 import Lang exposing (Lang(..))
-import Main exposing (emptyReview, filteredReviewQueue, update)
+import Main exposing (emptyReview, filteredReviewQueue, reviewableEntryDecoder, update)
 import RemoteData
 import Scoring exposing (entryAverage, reviewTotal)
 import Test exposing (Test, describe, test)
@@ -97,6 +98,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 
@@ -126,7 +128,27 @@ baseModel =
 suite : Test
 suite =
     describe "Reviewer tools"
-        [ describe "Scoring.reviewTotal"
+        [ describe "Review queue with the reviewer's own reviews (US-004)"
+            -- Given entries expanded with all their reviews
+            -- When the queue is decoded for a reviewer
+            -- Then each entry carries that reviewer's review, so the form is pre-filled and saving updates it
+            [ test "picks the reviewer's own review" <|
+                \_ ->
+                    Decode.decodeString (reviewableEntryDecoder "profile1") queueItemJson
+                        |> Result.map (.myReview >> Maybe.andThen .id)
+                        |> Expect.equal (Ok (Just "mine"))
+            , test "ignores other reviewers' reviews" <|
+                \_ ->
+                    Decode.decodeString (reviewableEntryDecoder "profile3") queueItemJson
+                        |> Result.map .myReview
+                        |> Expect.equal (Ok Nothing)
+            , test "reads the submitter's name" <|
+                \_ ->
+                    Decode.decodeString (reviewableEntryDecoder "profile1") queueItemJson
+                        |> Result.map .submitterName
+                        |> Expect.equal (Ok "Aino")
+            ]
+        , describe "Scoring.reviewTotal"
             [ test "all 3s gives 12" <|
                 \_ ->
                     reviewTotal
@@ -470,3 +492,19 @@ withReviewForm review =
                 , saveError = Nothing
                 }
     }
+
+
+queueItemJson : String
+queueItemJson =
+    """
+    { "id": "entry1", "competition": "comp1", "title": "MOC", "description": "", "images": ["a.png"], "status": "submitted"
+    , "expand":
+        { "competition": { "id": "comp1", "title": "Kaupunki 2026", "slug": "kaupunki-2026", "end_date": "2026-12-31 00:00:00.000Z" }
+        , "submitter": { "id": "profile9", "display_name": "Aino" }
+        , "reviews_via_entry":
+            [ { "id": "theirs", "entry": "entry1", "reviewer": "profile2", "score_theme": 1, "score_originality": 1, "score_technique": 1, "score_presentation": 1, "comment": "", "is_published": false }
+            , { "id": "mine", "entry": "entry1", "reviewer": "profile1", "score_theme": 5, "score_originality": 4, "score_technique": 4, "score_presentation": 5, "comment": "Hieno", "is_published": true }
+            ]
+        }
+    }
+    """

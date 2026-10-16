@@ -29,6 +29,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 
@@ -98,7 +99,56 @@ baseModel =
 suite : Test
 suite =
     describe "Entry submission"
-        [ describe "validateForm"
+        [ describe "Submitting with confirmation (US-003)"
+            -- Given a filled form
+            -- When the participant clicks "Lähetä arvosteltavaksi"
+            -- Then a confirmation is asked, and confirming saves and submits in one request
+            [ test "a valid form asks for confirmation, without a saved draft" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update SubmitEntry { baseModel | submitForm = { emptyForm | title = "MOC", existingImages = [ "a.png" ] } }
+                    in
+                    model.submitForm.step |> Expect.equal ConfirmingSubmit
+            , test "an invalid form shows the error and asks nothing" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update SubmitEntry { baseModel | submitForm = { emptyForm | title = "MOC" } }
+                    in
+                    ( model.submitForm.step, model.authError /= Nothing ) |> Expect.equal ( FillingForm, True )
+            , test "confirming uploads" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update ConfirmSubmit { baseModel | submitForm = { emptyForm | title = "MOC", step = ConfirmingSubmit } }
+                    in
+                    model.submitForm.step |> Expect.equal Uploading
+            , test "cancelling returns to the form" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update CancelSubmit { baseModel | submitForm = { emptyForm | step = ConfirmingSubmit } }
+                    in
+                    model.submitForm.step |> Expect.equal FillingForm
+            ]
+        , describe "Draft saved notice (US-003)"
+            [ test "saving a draft shows the notice" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (DraftSaved (Ok testEntry)) baseModel
+                    in
+                    model.submitForm.draftSaved |> Expect.equal True
+            , test "editing the form clears the notice" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (EntryTitleChanged "New") { baseModel | submitForm = { emptyForm | draftSaved = True } }
+                    in
+                    model.submitForm.draftSaved |> Expect.equal False
+            ]
+        , describe "validateForm"
             [ test "empty title returns Err" <|
                 \_ ->
                     let

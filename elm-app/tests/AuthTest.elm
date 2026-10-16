@@ -32,6 +32,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 
@@ -73,7 +74,38 @@ testUser =
 suite : Test
 suite =
     describe "Auth"
-        [ describe "validateEmail"
+        [ describe "Restored session check (#3)"
+            -- Given a session restored from localStorage
+            -- When PocketBase answers the token refresh
+            -- Then an invalid token signs out and a valid one is renewed
+            [ test "a rejected token signs out" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (SessionRefreshed (Err (Http.BadStatus 401))) { baseModel | auth = LoggedIn testUser, page = MyEntriesPage }
+                    in
+                    ( model.auth, model.page ) |> Expect.equal ( LoggedOut, LoginPage )
+            , test "a network error keeps the session" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (SessionRefreshed (Err Http.NetworkError)) { baseModel | auth = LoggedIn testUser }
+                    in
+                    model.auth |> Expect.equal (LoggedIn testUser)
+            , test "a refreshed token replaces the stored one" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update (SessionRefreshed (Ok { token = "fresh", record = testUser })) { baseModel | auth = LoggedIn testUser }
+                    in
+                    case model.auth of
+                        LoggedIn user ->
+                            user.token |> Expect.equal "fresh"
+
+                        _ ->
+                            Expect.fail "Expected LoggedIn"
+            ]
+        , describe "validateEmail"
             [ test "valid email returns Ok" <|
                 \_ ->
                     validateEmail Fi "user@example.fi"

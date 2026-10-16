@@ -58,7 +58,9 @@ function ensureLocalProfile(local) {
     profile = new Record($app.findCollectionByNameOrId("profiles"));
     profile.set("email", email);
     profile.set("normalized_email", email);
-    profile.set("display_name", local.get("display_name") || displayNameFromEmail(email));
+    // No name from the email: the app asks a new local user to choose one
+    // ("Valitse näyttönimi", US-008).
+    profile.set("display_name", local.get("display_name") || "");
     profile.set("is_reviewer", !!local.get("is_reviewer"));
     profile.set("auth_source", "local");
   }
