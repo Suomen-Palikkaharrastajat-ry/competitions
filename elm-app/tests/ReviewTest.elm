@@ -97,6 +97,7 @@ emptyForm =
     , selectedFiles = []
     , existingImages = []
     , imagesToRemove = []
+    , isCompressing = False
     , step = FillingForm
     , draftSaved = False
     }

@@ -132,6 +132,7 @@ type alias SubmitForm =
     , selectedFiles : List File
     , existingImages : List String
     , imagesToRemove : List String
+    , isCompressing : Bool
     , step : SubmitFormStep
     , draftSaved : Bool
     }
@@ -257,7 +258,10 @@ type Msg
       -- Entry form
     | EntryTitleChanged String
     | EntryDescriptionChanged String
-    | FilesSelected File (List File)
+    | RawFilesSelected Decode.Value
+    | ImagesCompressed Decode.Value
+    | CompressionFailed String
+    | RemoveSelectedFile Int
     | RemoveExistingImage String
     | SaveDraft
     | DraftSaved (Result Http.Error Entry)

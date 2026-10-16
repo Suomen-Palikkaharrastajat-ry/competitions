@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import siteConfig from 'virtual:site-config'
 import { requestedLang } from './packages/site-config/browser.mjs'
 import { keycloakAuthToElmAuthResponse } from './src/authInterop.mjs'
+import { compressImages } from './src/imageCompression.mjs'
 
 // Restore auth from localStorage (null if not present or invalid JSON)
 let restoredAuth = null;
@@ -72,3 +73,31 @@ app.ports.startKeycloakLogin.subscribe(async function (pbUrl) {
     app.ports.keycloakLoginFailed.send(String((err && err.message) || err));
   }
 });
+
+if (app.ports.compressImages) {
+  app.ports.compressImages.subscribe(async function (payload) {
+    try {
+      const files = payload.files;
+      const options = {
+        maxDimension: payload.maxDimension || 1920,
+        quality: typeof payload.quality === 'number' ? payload.quality : 0.82,
+        remainingSlots: payload.remainingSlots,
+      };
+      const compressed = await compressImages(files, options);
+      if (app.ports.imagesCompressed) {
+        app.ports.imagesCompressed.send(compressed);
+      }
+    } catch (err) {
+      console.error(err);
+      if (app.ports.compressionFailed) {
+        app.ports.compressionFailed.send(String((err && err.message) || err));
+      }
+    } finally {
+      const input = document.getElementById('entry-images');
+      if (input) {
+        input.value = '';
+      }
+    }
+  });
+}
+

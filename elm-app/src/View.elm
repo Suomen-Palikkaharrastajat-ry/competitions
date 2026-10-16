@@ -484,15 +484,25 @@ viewSubmitForm model =
                             , Attr.multiple True
                             , Attr.accept "image/jpeg,image/png,image/webp"
                             , Attr.class "mb-2"
-                            , Attr.disabled (currentImageCount >= maxImages)
-                            , filesOnChange FilesSelected
+                            , Attr.disabled (currentImageCount >= maxImages || form.isCompressing)
+                            , rawFilesOnChange RawFilesSelected
                             ]
                             []
                         , p [ Attr.class "type-caption text-text-muted" ]
                             [ text (String.fromInt currentImageCount ++ " / " ++ String.fromInt maxImages ++ t model.lang I18n.ImagesSuffix) ]
-                        , if not (List.isEmpty form.existingImages) then
+                        , p [ Attr.class "type-caption text-text-muted mt-1" ]
+                            [ text (t model.lang I18n.ImagesOptimizedWebP) ]
+                        , if form.isCompressing then
+                            p [ Attr.class "type-caption text-text-muted mt-2 motion-safe:animate-pulse" ]
+                                [ text (t model.lang I18n.CompressingImages) ]
+
+                          else
+                            text ""
+                        , if not (List.isEmpty form.existingImages) || not (List.isEmpty form.selectedFiles) then
                             div [ Attr.class "flex flex-wrap gap-2 mt-2" ]
-                                (List.map (viewImageChip True) form.existingImages)
+                                (List.map (viewImageChip model.lang True) form.existingImages
+                                    ++ List.indexedMap (viewSelectedFileChip model.lang) form.selectedFiles
+                                )
 
                           else
                             text ""
@@ -516,7 +526,7 @@ viewSubmitForm model =
                     , div [ Attr.class "flex gap-3" ]
                         [ button
                             [ Attr.class "bg-bg-subtle text-brand type-body-small px-6 py-3 rounded hover:bg-border-default motion-safe:transition-colors"
-                            , Attr.disabled (form.step == Uploading)
+                            , Attr.disabled (form.isCompressing || form.step == Uploading)
                             , Events.onClick SaveDraft
                             ]
                             [ text
@@ -529,7 +539,7 @@ viewSubmitForm model =
                             ]
                         , button
                             [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 motion-safe:transition-opacity"
-                            , Attr.disabled (form.step == Uploading)
+                            , Attr.disabled (form.isCompressing || form.step == Uploading)
                             , Events.onClick SubmitEntry
                             ]
                             [ text (t model.lang I18n.SubmitForReview) ]
@@ -572,30 +582,67 @@ viewConfirmSubmit lang =
         ]
 
 
-viewImageChip : Bool -> String -> Html Msg
-viewImageChip removable filename =
+formatFileSize : Int -> String
+formatFileSize bytes =
+    if bytes < 1024 then
+        String.fromInt bytes ++ " B"
+
+    else if bytes < 1048576 then
+        String.fromInt (bytes // 1024) ++ " KB"
+
+    else
+        let
+            mb10 =
+                round (toFloat bytes / 104857.6)
+        in
+        String.fromInt (mb10 // 10) ++ "." ++ String.fromInt (modBy 10 mb10) ++ " MB"
+
+
+viewSelectedFileChip : Lang -> Int -> File.File -> Html Msg
+viewSelectedFileChip lang index file =
+    let
+        filename =
+            File.name file
+    in
+    div [ Attr.class "flex items-center gap-1 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
+        [ text filename
+        , span [ Attr.class "text-text-muted type-caption" ]
+            [ text (" (" ++ formatFileSize (File.size file) ++ ")") ]
+        , button
+            [ Attr.type_ "button"
+            , Attr.attribute "aria-label" (t lang I18n.RemoveFile ++ ": " ++ filename)
+            , Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
+            , Events.onClick (RemoveSelectedFile index)
+            ]
+            [ span [ Attr.attribute "aria-hidden" "true" ] [ text "×" ] ]
+        ]
+
+
+viewImageChip : Lang -> Bool -> String -> Html Msg
+viewImageChip lang removable filename =
     div [ Attr.class "flex items-center gap-1 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
         [ text filename
         , if removable then
             button
-                [ Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                [ Attr.type_ "button"
+                , Attr.attribute "aria-label" (t lang I18n.RemoveFile ++ ": " ++ filename)
+                , Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
                 , Events.onClick (RemoveExistingImage filename)
                 ]
-                [ text "×" ]
+                [ span [ Attr.attribute "aria-hidden" "true" ] [ text "×" ] ]
 
           else
             text ""
         ]
 
 
-filesOnChange : (File.File -> List File.File -> msg) -> Html.Attribute msg
-filesOnChange toMsg =
+rawFilesOnChange : (Decode.Value -> msg) -> Html.Attribute msg
+rawFilesOnChange toMsg =
     Events.custom "change"
-        (Decode.at [ "target", "files" ]
-            (Decode.oneOrMore toMsg File.decoder)
+        (Decode.at [ "target", "files" ] Decode.value
             |> Decode.map
-                (\msg ->
-                    { message = msg
+                (\files ->
+                    { message = toMsg files
                     , stopPropagation = False
                     , preventDefault = False
                     }
