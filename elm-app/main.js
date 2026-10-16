@@ -1,7 +1,7 @@
 import './main.css'
-import { Elm } from './Main.elm'
+import { Elm } from './src/Main.elm'
 import PocketBase from 'pocketbase'
-import { keycloakAuthToElmAuthResponse } from './authInterop.mjs'
+import { keycloakAuthToElmAuthResponse } from './src/authInterop.mjs'
 
 // Restore auth from localStorage (null if not present or invalid JSON)
 let restoredAuth = null;

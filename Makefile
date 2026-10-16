@@ -55,16 +55,16 @@ ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm'
 .PHONY: elm-tailwind-gen
 elm-tailwind-gen: elm-app/.elm-tailwind/.stamp ## Generate typed Tailwind Elm modules into elm-app/.elm-tailwind/
 
-elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/src/main.css $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES)
+elm-app/.elm-tailwind/.stamp: elm-app/elm.json elm-app/vite.config.mjs elm-app/main.css $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES)
 	cd elm-app && elm-tailwind-classes gen
 	mkdir -p elm-app/.elm-tailwind
 	touch $@
 
-elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
+elm-app/dist/.build-stamp: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css
 	cd elm-app && vite build
 	touch $@
 
-elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/src/main.js elm-app/src/main.css
+elm-app/dist/.build-stamp-ci: elm-app/.elm-tailwind/.stamp $(ELM_APP_SOURCES) $(ELM_PACKAGE_SOURCES) elm-app/elm.json elm-app/vite.config.mjs elm-app/index.html elm-app/main.js elm-app/main.css
 	cd elm-app && vite build
 	touch $@
 
