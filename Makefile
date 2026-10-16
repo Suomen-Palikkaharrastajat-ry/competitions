@@ -158,12 +158,12 @@ check: haskell-check elm-check ## Check Haskell and Elm static quality gates
 
 .PHONY: hs-coverage
 hs-coverage: ## Run Haskell tests with Cabal/HPC coverage enabled
-	cabal test --enable-coverage
+	cabal test competition-tests --enable-coverage
 	@echo "Haskell coverage report generated under dist-newstyle/**/t/competition-tests/hpc/vanilla/html/"
 
 .PHONY: quality
 quality: haskell-check cabal-check ## Run strict non-browser quality gates for CI
-	cabal test
+	cabal test competition-tests
 	$(MAKE) elm-quality
 	$(MAKE) pb-test-migrate
 	$(MAKE) pb-test-fixture
@@ -171,7 +171,7 @@ quality: haskell-check cabal-check ## Run strict non-browser quality gates for C
 
 .PHONY: test
 test: check ## Run Haskell and Elm tests
-	cabal test
+	cabal test competition-tests
 	$(MAKE) elm-test
 
 .PHONY: dev-proxy-test
