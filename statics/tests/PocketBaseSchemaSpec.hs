@@ -117,6 +117,68 @@ postMultipartWithTokenBody url token fields imageCount = do
             Left _ -> A.Null
     return (code, parsed)
 
+-- | POST multipart form data with a bearer token and WebP images.
+postMultipartWithWebpBody :: String -> T.Text -> [(T.Text, BS8.ByteString)] -> Int -> IO (Int, A.Value)
+postMultipartWithWebpBody url token fields imageCount = do
+    req0 <- parseRequest ("POST " <> url)
+    let reqAuth = addRequestHeader hAuthorization (BS8.pack "Bearer " <> TE.encodeUtf8 token) req0
+        fieldParts = map (uncurry partBS) fields
+        imageParts =
+            replicate
+                imageCount
+                (partFileRequestBody "images" "test-image.webp" (RequestBodyBS tinyWebp))
+    req <- formDataBody (fieldParts ++ imageParts) reqAuth
+    resp <- httpLBS req
+    let code = getResponseStatusCode resp
+    let parsed = case A.eitherDecode (getResponseBody resp) of
+            Right v -> v
+            Left _ -> A.Null
+    return (code, parsed)
+
+-- | A minimal 1x1 WebP used by multipart WebP tests.
+tinyWebp :: BS.ByteString
+tinyWebp =
+    BS.pack
+        [ 82
+        , 73
+        , 70
+        , 70
+        , 26
+        , 0
+        , 0
+        , 0
+        , 87
+        , 69
+        , 66
+        , 80
+        , 86
+        , 80
+        , 56
+        , 32
+        , 14
+        , 0
+        , 0
+        , 0
+        , 48
+        , 1
+        , 0
+        , 157
+        , 1
+        , 42
+        , 1
+        , 0
+        , 1
+        , 0
+        , 0
+        , 52
+        , 37
+        , 164
+        , 0
+        , 3
+        , 112
+        , 0
+        ]
+
 -- | A minimal 1x1 PNG used by multipart image-count tests.
 tinyPng :: BS.ByteString
 tinyPng =
@@ -1005,4 +1067,36 @@ tests =
                             (url <> "/api/collections/reviews/records?filter=is_published%3Dtrue")
                     resp <- httpLBS req0
                     getResponseStatusCode resp @?= 200
+        , -- Given an entry upload with a client-compressed WebP image
+          -- When the participant saves a draft
+          -- Then PocketBase accepts the WebP file and returns HTTP 200
+          testCase "participant can upload WebP entry image -> 200" $ do
+            mUrl <- lookupEnv "POCKETBASE_URL"
+            mKey <- lookupEnv "POCKETBASE_API_KEY"
+            case (mUrl, mKey) of
+                (Nothing, _) -> assertBool skipMsg True
+                (_, Nothing) -> assertBool skipMsg True
+                (Just url, Just key) -> do
+                    let cfg = PbConfig (T.pack url) (T.pack key)
+                    cid <- createTestCompetitionWithImageLimits cfg 1 5
+                    participant <- createVerifiedNonReviewerUser cfg "entry-webp@test.invalid"
+                    tok <- impersonateUser cfg participant
+                    let postUrl = url <> "/api/collections/entries/records"
+                        fields =
+                            [ ("title", "WebP MOC")
+                            , ("competition", TE.encodeUtf8 cid)
+                            , ("submitter", TE.encodeUtf8 (testProfileId participant))
+                            , ("status", "draft")
+                            ]
+                    (code, respBody) <- postMultipartWithWebpBody postUrl tok fields 1
+                    case respBody of
+                        A.Object km ->
+                            case KM.lookup "id" km of
+                                Just (A.String eid) -> deleteTestRecord cfg "entries" eid
+                                _ -> return ()
+                        _ -> return ()
+                    deleteTestRecord cfg "competitions" cid
+                    deleteTestRecord cfg "profiles" (testProfileId participant)
+                    deleteTestRecord cfg "local_users" (testAuthId participant)
+                    code @?= 200
         ]

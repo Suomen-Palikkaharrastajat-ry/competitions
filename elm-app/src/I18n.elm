@@ -65,6 +65,12 @@ type MsgKey
     | ImagesLabelStart
     | ImagesLabelEnd
     | ImagesSuffix
+    | CompressingImages
+    | ImagesOptimizedWebP
+    | ErrImageCompression
+    | ErrImageCompressionGeneric
+    | ErrExcessImagesDropped
+    | RemoveFile
     | NoEditAfterSubmit
     | Saving
     | SaveDraft
@@ -311,6 +317,24 @@ fi key =
 
         ImagesSuffix ->
             " kuvaa"
+
+        CompressingImages ->
+            "Optimoidaan kuvia..."
+
+        ImagesOptimizedWebP ->
+            "Kuvat optimoidaan automaattisesti WebP-muotoon."
+
+        ErrImageCompression ->
+            "Kuvan pakkaus epäonnistui: "
+
+        ErrImageCompressionGeneric ->
+            "Kuvan pakkaus epäonnistui."
+
+        ErrExcessImagesDropped ->
+            "Kuvia valittiin enemmän kuin mahtuu. Vain ensimmäiset lisättiin."
+
+        RemoveFile ->
+            "Poista kuva"
 
         NoEditAfterSubmit ->
             "ℹ Lähettämisen jälkeen muokkaus ei ole mahdollista."
@@ -654,6 +678,24 @@ en key =
 
         ImagesSuffix ->
             " images"
+
+        CompressingImages ->
+            "Optimizing images..."
+
+        ImagesOptimizedWebP ->
+            "Images are automatically optimized to WebP format."
+
+        ErrImageCompression ->
+            "Image compression failed: "
+
+        ErrImageCompressionGeneric ->
+            "Image compression failed."
+
+        ErrExcessImagesDropped ->
+            "More images were selected than allowed. Only the first were added."
+
+        RemoveFile ->
+            "Remove image"
 
         NoEditAfterSubmit ->
             "ℹ An entry cannot be edited after it has been submitted."

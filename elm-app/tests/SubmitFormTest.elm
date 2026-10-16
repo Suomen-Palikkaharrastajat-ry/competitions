@@ -10,6 +10,7 @@ Then state transitions and validation errors are correct
 
 import Expect
 import Http
+import Json.Encode as Encode
 import Lang exposing (Lang(..))
 import Main exposing (canSubmitMore, update, validateForm)
 import RemoteData
@@ -28,6 +29,7 @@ emptyForm =
     , selectedFiles = []
     , existingImages = []
     , imagesToRemove = []
+    , isCompressing = False
     , step = FillingForm
     , draftSaved = False
     }
@@ -516,5 +518,177 @@ suite =
                     in
                     deadlineUrgency "2026-01-01" jan10
                         |> Expect.equal Nothing
+            ]
+        , describe "WebP image compression & form selection"
+            [ test "Given emptyForm, Then isCompressing is False" <|
+                \_ ->
+                    emptyForm.isCompressing
+                        |> Expect.equal False
+            , test "Given form with remaining slots, When RawFilesSelected received, Then isCompressing becomes True" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = emptyForm
+                                , authError = Just "Previous error"
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (RawFilesSelected (Encode.list Encode.string [])) model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal True m.submitForm.isCompressing
+                        , \m -> Expect.equal Nothing m.authError
+                        ]
+                        updatedModel
+            , test "Given zero remaining slots, When RawFilesSelected received, Then isCompressing remains False and error shown" <|
+                \_ ->
+                    let
+                        fullComp =
+                            { testCompetition | maxImagesPerEntry = Just 2 }
+
+                        model =
+                            { baseModel
+                                | selectedCompetition = Just fullComp
+                                , submitForm = { emptyForm | existingImages = [ "1.webp", "2.webp" ] }
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (RawFilesSelected (Encode.object [ ( "length", Encode.int 1 ) ])) model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal False m.submitForm.isCompressing
+                        , \m -> Expect.equal (Just "Enintään 2 kuvaa sallittu") m.authError
+                        ]
+                        updatedModel
+            , test "Given excess files selected, When RawFilesSelected received, Then warning feedback shown" <|
+                \_ ->
+                    let
+                        comp =
+                            { testCompetition | maxImagesPerEntry = Just 2 }
+
+                        model =
+                            { baseModel
+                                | selectedCompetition = Just comp
+                                , submitForm = emptyForm
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (RawFilesSelected (Encode.object [ ( "length", Encode.int 5 ) ])) model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal True m.submitForm.isCompressing
+                        , \m -> Expect.equal (Just "Kuvia valittiin enemmän kuin mahtuu. Vain ensimmäiset lisättiin.") m.authError
+                        ]
+                        updatedModel
+            , test "Given valid compressed files, When ImagesCompressed received, Then isCompressing becomes False" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = { emptyForm | isCompressing = True }
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (ImagesCompressed (Encode.list identity [])) model
+                    in
+                    Expect.equal False updatedModel.submitForm.isCompressing
+            , test "Given invalid JSON payload, When ImagesCompressed received, Then isCompressing becomes False and generic error shown" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = { emptyForm | isCompressing = True }
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (ImagesCompressed (Encode.string "invalid payload")) model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal False m.submitForm.isCompressing
+                        , \m -> Expect.equal (UploadError "Kuvan pakkaus epäonnistui.") m.submitForm.step
+                        ]
+                        updatedModel
+            , test "Given compressing form, When CompressionFailed received, Then isCompressing becomes False and error shown" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = { emptyForm | isCompressing = True }
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (CompressionFailed "corrupt format") model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal False m.submitForm.isCompressing
+                        , \m -> Expect.equal (UploadError "Kuvan pakkaus epäonnistui: corrupt format") m.submitForm.step
+                        ]
+                        updatedModel
+            , test "Given compressing form, When SaveDraft triggered, Then submission is blocked" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = { emptyForm | isCompressing = True }
+                            }
+
+                        ( updatedModel, cmd ) =
+                            update SaveDraft model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal True m.submitForm.isCompressing
+                        , \m -> Expect.notEqual Uploading m.submitForm.step
+                        , \_ -> Expect.equal Cmd.none cmd
+                        ]
+                        updatedModel
+            , test "Given compressing form, When SubmitEntry triggered, Then submission is blocked" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm =
+                                    { emptyForm
+                                        | entryId = Just "entry1"
+                                        , isCompressing = True
+                                        , title = "My MOC"
+                                        , existingImages = [ "a.webp" ]
+                                    }
+                            }
+
+                        ( updatedModel, cmd ) =
+                            update SubmitEntry model
+                    in
+                    Expect.all
+                        [ \m -> Expect.equal True m.submitForm.isCompressing
+                        , \_ -> Expect.equal Cmd.none cmd
+                        ]
+                        updatedModel
+            , test "Given form with empty selected files, When RemoveSelectedFile received, Then list remains empty" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | submitForm = { emptyForm | selectedFiles = [] }
+                            }
+
+                        ( updatedModel, _ ) =
+                            update (RemoveSelectedFile 0) model
+                    in
+                    Expect.equal [] updatedModel.submitForm.selectedFiles
+            , test "Given list removal logic by index, removing index 1 leaves first and third items" <|
+                \_ ->
+                    let
+                        items =
+                            [ "first", "second", "third" ]
+
+                        removeAtIndex idx list =
+                            list
+                                |> List.indexedMap Tuple.pair
+                                |> List.filter (\( i, _ ) -> i /= idx)
+                                |> List.map Tuple.second
+                    in
+                    removeAtIndex 1 items
+                        |> Expect.equal [ "first", "third" ]
             ]
         ]

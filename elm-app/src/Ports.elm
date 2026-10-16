@@ -1,8 +1,10 @@
-port module Ports exposing (clearAuth, hashChanged, keycloakLoginFailed, keycloakLoginSucceeded, onAuthRestored, replaceHash, reportError, setHash, startKeycloakLogin, storeAuth)
+port module Ports exposing (clearAuth, compressImages, compressionFailed, hashChanged, imagesCompressed, keycloakLoginFailed, keycloakLoginSucceeded, onAuthRestored, replaceHash, reportError, setHash, startKeycloakLogin, storeAuth)
 
-{-| Ports for JS interop — auth persistence via localStorage.
+{-| Ports for JS interop — auth persistence via localStorage and image compression.
 -}
 
+import Json.Decode
+import Json.Encode
 import Types exposing (AuthResponse, AuthUser)
 
 
@@ -57,3 +59,18 @@ port hashChanged : (String -> msg) -> Sub msg
 {-| Report a problem to the browser console.
 -}
 port reportError : String -> Cmd msg
+
+
+{-| Request in-browser image compression to WebP.
+-}
+port compressImages : Json.Encode.Value -> Cmd msg
+
+
+{-| Receive compressed WebP File objects from JavaScript.
+-}
+port imagesCompressed : (Json.Decode.Value -> msg) -> Sub msg
+
+
+{-| Receive compression failure notifications from JavaScript.
+-}
+port compressionFailed : (String -> msg) -> Sub msg

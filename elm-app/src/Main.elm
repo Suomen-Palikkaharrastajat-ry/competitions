@@ -28,6 +28,7 @@ module Main exposing
 
 import Browser
 import Component.Layout as Layout
+import File
 import Html exposing (Html)
 import Http
 import I18n exposing (t)
@@ -62,6 +63,7 @@ emptyForm =
     , selectedFiles = []
     , existingImages = []
     , imagesToRemove = []
+    , isCompressing = False
     , step = FillingForm
     , draftSaved = False
     }
@@ -248,6 +250,34 @@ update msg model =
 
 updateModel : Msg -> Model -> ( Model, Cmd Msg )
 updateModel msg model =
+    if model.submitForm.isCompressing && savesTheEntry msg then
+        -- The selected images are still being compressed.
+        ( model, Cmd.none )
+
+    else
+        updateModelWith msg model
+
+
+{-| Messages that save or submit the entry form.
+-}
+savesTheEntry : Msg -> Bool
+savesTheEntry msg =
+    case msg of
+        SaveDraft ->
+            True
+
+        SubmitEntry ->
+            True
+
+        ConfirmSubmit ->
+            True
+
+        _ ->
+            False
+
+
+updateModelWith : Msg -> Model -> ( Model, Cmd Msg )
+updateModelWith msg model =
     case msg of
         -- Auth
         EmailChanged email ->
@@ -523,7 +553,7 @@ updateModel msg model =
             in
             ( { model | submitForm = { form | description = desc, draftSaved = False } }, Cmd.none )
 
-        FilesSelected first rest ->
+        RawFilesSelected filesValue ->
             let
                 form =
                     model.submitForm
@@ -536,10 +566,113 @@ updateModel msg model =
                 remainingSlots =
                     max 0 (maxImages - List.length form.existingImages - List.length form.selectedFiles)
 
-                newFiles =
-                    form.selectedFiles ++ List.take remainingSlots (first :: rest)
+                selectedCount =
+                    Decode.decodeValue (Decode.field "length" Decode.int) filesValue
+                        |> Result.withDefault 1
             in
-            ( { model | submitForm = { form | selectedFiles = newFiles, draftSaved = False } }, Cmd.none )
+            if remainingSlots <= 0 then
+                ( { model
+                    | authError =
+                        Just
+                            (t model.lang I18n.AtMostPrefix
+                                ++ String.fromInt maxImages
+                                ++ t model.lang I18n.AtMostSuffix
+                            )
+                  }
+                , Cmd.none
+                )
+
+            else
+                let
+                    excessFeedback =
+                        if selectedCount > remainingSlots then
+                            Just (t model.lang I18n.ErrExcessImagesDropped)
+
+                        else
+                            Nothing
+                in
+                ( { model
+                    | submitForm = { form | isCompressing = True, step = FillingForm }
+                    , authError = excessFeedback
+                  }
+                , Ports.compressImages
+                    (Encode.object
+                        [ ( "files", filesValue )
+                        , ( "maxDimension", Encode.int 1920 )
+                        , ( "quality", Encode.float 0.82 )
+                        , ( "remainingSlots", Encode.int remainingSlots )
+                        ]
+                    )
+                )
+
+        ImagesCompressed jsonValue ->
+            let
+                form =
+                    model.submitForm
+
+                maxImages =
+                    model.selectedCompetition
+                        |> Maybe.map imageMax
+                        |> Maybe.withDefault 10
+
+                remainingSlots =
+                    max 0 (maxImages - List.length form.existingImages - List.length form.selectedFiles)
+            in
+            case Decode.decodeValue (Decode.list File.decoder) jsonValue of
+                Ok decodedFiles ->
+                    ( { model
+                        | submitForm =
+                            { form
+                                | selectedFiles = form.selectedFiles ++ List.take remainingSlots decodedFiles
+                                , isCompressing = False
+                                , draftSaved = False
+                            }
+                      }
+                    , Cmd.none
+                    )
+
+                Err _ ->
+                    ( { model
+                        | submitForm =
+                            { form
+                                | isCompressing = False
+                                , step = UploadError (t model.lang I18n.ErrImageCompressionGeneric)
+                            }
+                      }
+                    , Cmd.none
+                    )
+
+        CompressionFailed err ->
+            let
+                form =
+                    model.submitForm
+            in
+            ( { model
+                | submitForm =
+                    { form
+                        | isCompressing = False
+                        , step = UploadError (t model.lang I18n.ErrImageCompression ++ err)
+                    }
+              }
+            , Cmd.none
+            )
+
+        RemoveSelectedFile index ->
+            let
+                form =
+                    model.submitForm
+
+                updated =
+                    { form
+                        | selectedFiles =
+                            form.selectedFiles
+                                |> List.indexedMap Tuple.pair
+                                |> List.filter (\( i, _ ) -> i /= index)
+                                |> List.map Tuple.second
+                        , draftSaved = False
+                    }
+            in
+            ( { model | submitForm = updated }, Cmd.none )
 
         RemoveExistingImage filename ->
             let
@@ -916,6 +1049,8 @@ subscriptions model =
         , Layout.subscriptions { isOpen = model.menuOpen, onClose = CloseMenu }
         , Ports.keycloakLoginSucceeded KeycloakLoginCompleted
         , Ports.keycloakLoginFailed KeycloakLoginFailed
+        , Ports.imagesCompressed ImagesCompressed
+        , Ports.compressionFailed CompressionFailed
         ]
 
 
