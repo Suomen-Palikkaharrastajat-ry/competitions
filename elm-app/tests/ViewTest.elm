@@ -42,6 +42,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 
@@ -99,7 +100,40 @@ testEntry =
 suite : Test
 suite =
     describe "View"
-        [ describe "dashboard — admin UI link"
+        [ describe "Dashboard entry limit (US-002)"
+            [ test "a competition whose entries are used up shows the note instead of the button" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn testUser
+                            , page = DashboardPage
+                            , competitions = RemoteData.Success [ { testCompetition | maxEntriesPerUser = Just 1 } ]
+                            , myEntries = RemoteData.Success [ testEntry ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ text "Olet käyttänyt kaikki osallistumispaikkasi tässä kilpailussa." ]
+                            , Query.findAll [ tag "button", containing [ text "Osallistu" ] ] >> Query.count (Expect.equal 0)
+                            ]
+            ]
+        , describe "My entries (US-007)"
+            [ test "shows the competition's title and the reviewer's comment" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn testUser
+                            , page = MyEntriesPage
+                            , myEntries =
+                                RemoteData.Success
+                                    [ { testEntry | status = Approved, publishedReviews = [ { total = 18, comment = Just "Upea!" } ] } ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ text testCompetition.title ]
+                            , Query.has [ text "Arvioijan kommentti: Upea!" ]
+                            ]
+            ]
+        , describe "dashboard — admin UI link"
             [ test "reviewer sees Admin UI link" <|
                 \_ ->
                     View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }

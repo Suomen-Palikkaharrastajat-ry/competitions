@@ -46,6 +46,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 

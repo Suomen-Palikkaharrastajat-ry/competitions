@@ -117,6 +117,7 @@ type alias Entry =
 -}
 type SubmitFormStep
     = FillingForm
+    | ConfirmingSubmit
     | Uploading
     | UploadError String
     | SubmitSuccess
@@ -132,6 +133,7 @@ type alias SubmitForm =
     , existingImages : List String
     , imagesToRemove : List String
     , step : SubmitFormStep
+    , draftSaved : Bool
     }
 
 
@@ -236,6 +238,7 @@ type Msg
     | SubmitOtp
     | OtpSubmitted (Result Http.Error AuthResponse)
     | LogOut
+    | SessionRefreshed (Result Http.Error AuthResponse)
     | DisplayNameChanged String
     | SaveDisplayName
     | DisplayNameSaved (Result Http.Error String)
@@ -259,6 +262,8 @@ type Msg
     | SaveDraft
     | DraftSaved (Result Http.Error Entry)
     | SubmitEntry
+    | ConfirmSubmit
+    | CancelSubmit
     | EntrySubmitted (Result Http.Error Entry)
       -- My entries
     | MyEntriesLoaded (Result Http.Error (List Entry))

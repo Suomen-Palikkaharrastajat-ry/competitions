@@ -116,6 +116,13 @@ type MsgKey
     | HttpForbidden
     | HttpNotFound
     | HttpUnexpected
+    | DraftSavedNotice
+    | ConfirmSubmitTitle
+    | ConfirmSubmitBody
+    | ConfirmSubmitYes
+    | Cancel
+    | MaxEntriesUsed
+    | ReviewerCommentPrefix
 
 
 {-| The text of a key in the given language.
@@ -458,6 +465,27 @@ fi key =
         HttpUnexpected ->
             "Odottamaton virhe; yritä uudelleen"
 
+        DraftSavedNotice ->
+            "Luonnos tallennettu."
+
+        ConfirmSubmitTitle ->
+            "Lähetetäänkö arvioitavaksi?"
+
+        ConfirmSubmitBody ->
+            "Lähettämisen jälkeen osallistumista ei voi enää muokata."
+
+        ConfirmSubmitYes ->
+            "Lähetä"
+
+        Cancel ->
+            "Peruuta"
+
+        MaxEntriesUsed ->
+            "Olet käyttänyt kaikki osallistumispaikkasi tässä kilpailussa."
+
+        ReviewerCommentPrefix ->
+            "Arvioijan kommentti: "
+
 
 en : MsgKey -> String
 en key =
@@ -779,3 +807,24 @@ en key =
 
         HttpUnexpected ->
             "Unexpected error; try again"
+
+        DraftSavedNotice ->
+            "Draft saved."
+
+        ConfirmSubmitTitle ->
+            "Submit for review?"
+
+        ConfirmSubmitBody ->
+            "After submitting, the entry can no longer be edited."
+
+        ConfirmSubmitYes ->
+            "Submit"
+
+        Cancel ->
+            "Cancel"
+
+        MaxEntriesUsed ->
+            "You have used all your entries in this competition."
+
+        ReviewerCommentPrefix ->
+            "Reviewer's comment: "

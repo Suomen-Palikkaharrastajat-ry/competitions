@@ -1,4 +1,4 @@
-module Scoring exposing (deadlineUrgency, entryAverage, isDeadlinePassed, reviewTotal, scoreMax)
+module Scoring exposing (canSubmitMore, deadlineUrgency, entryAverage, isDeadlinePassed, reviewTotal, scoreMax)
 
 {-| Canonical score aggregation formula used by both Elm and Haskell gallery.
 
@@ -161,3 +161,18 @@ calendarToMillis year month day =
                 |> List.sum
     in
     (yearDays + monthDays + day - 1) * 86400000
+
+
+{-| Whether the user may still enter `competition`, given their own entries
+(any status): `max_entries_per_user` 0 means no limit, and none means 3.
+-}
+canSubmitMore : { c | id : String, maxEntriesPerUser : Maybe Int } -> List { e | competitionId : String } -> Bool
+canSubmitMore competition entries =
+    let
+        myCount =
+            List.length (List.filter (\e -> e.competitionId == competition.id) entries)
+
+        limit =
+            Maybe.withDefault 3 competition.maxEntriesPerUser
+    in
+    limit == 0 || myCount < limit

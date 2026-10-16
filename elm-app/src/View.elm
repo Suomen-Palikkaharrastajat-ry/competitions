@@ -225,20 +225,27 @@ viewDashboard user model =
                     p [ Attr.class "text-text-muted" ] [ text (t model.lang I18n.NoOpenCompetitions) ]
 
                 else
+                    let
+                        myEntries =
+                            RemoteData.withDefault [] model.myEntries
+                    in
                     div [ Attr.class "grid grid-cols-1 sm:grid-cols-2 gap-4" ]
-                        (List.map (viewCompetitionCard model.lang model.now) comps)
+                        (List.map
+                            (\comp -> viewCompetitionCard model.lang model.pbUrl model.now (Scoring.canSubmitMore comp myEntries) comp)
+                            comps
+                        )
         ]
 
 
-viewCompetitionCard : Lang -> Time.Posix -> Competition -> Html Msg
-viewCompetitionCard lang now comp =
+viewCompetitionCard : Lang -> String -> Time.Posix -> Bool -> Competition -> Html Msg
+viewCompetitionCard lang pbUrl now canEnter comp =
     div
         [ Attr.class "rounded-lg overflow-hidden border border-border-default bg-white hover:shadow-md motion-safe:transition-shadow"
         ]
         [ case comp.coverImage of
             Just filename ->
                 img
-                    [ Attr.src ("/api/files/competitions/" ++ comp.id ++ "/" ++ filename)
+                    [ Attr.src (pbUrl ++ "/api/files/competitions/" ++ comp.id ++ "/" ++ filename)
                     , Attr.alt comp.title
                     , Attr.class "aspect-video object-cover w-full"
                     ]
@@ -257,11 +264,15 @@ viewCompetitionCard lang now comp =
                     text ""
             , p [ Attr.class ("type-caption mb-4 " ++ (Scoring.deadlineUrgency comp.endDate now |> Maybe.withDefault "text-text-muted")) ]
                 [ text (t lang I18n.EndsPrefix ++ String.left 10 comp.endDate) ]
-            , button
-                [ Attr.class "bg-brand-yellow text-brand type-body-small px-4 py-2 rounded hover:opacity-90 motion-safe:transition-opacity"
-                , Events.onClick (SelectCompetition comp)
-                ]
-                [ text (t lang I18n.Participate) ]
+            , if canEnter then
+                button
+                    [ Attr.class "bg-brand-yellow text-brand type-body-small px-4 py-2 rounded hover:opacity-90 motion-safe:transition-opacity"
+                    , Events.onClick (SelectCompetition comp)
+                    ]
+                    [ text (t lang I18n.Participate) ]
+
+              else
+                p [ Attr.class "type-caption text-text-muted" ] [ text (t lang I18n.MaxEntriesUsed) ]
             ]
         ]
 
@@ -311,7 +322,8 @@ viewEntryRow lang entry =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
             [ p [ Attr.class "type-body-small text-brand" ] [ text entry.title ]
-            , p [ Attr.class "type-caption text-text-muted" ] [ text entry.competitionId ]
+            , p [ Attr.class "type-caption text-text-muted" ]
+                [ text (entry.competition |> Maybe.map .title |> Maybe.withDefault entry.competitionId) ]
             , viewPublishedScores lang entry.publishedReviews
             ]
         , viewStatusBadge lang entry.status
@@ -350,8 +362,24 @@ viewPublishedScores lang reviews =
             avgStr =
                 String.fromInt intPart ++ "." ++ String.fromInt decPart
         in
-        p [ Attr.class "type-caption text-text-muted mt-1" ]
-            [ text (t lang I18n.ScorePrefix ++ avgStr ++ " / " ++ String.fromInt Scoring.scoreMax) ]
+        div []
+            (p [ Attr.class "type-caption text-text-muted mt-1" ]
+                [ text (t lang I18n.ScorePrefix ++ avgStr ++ " / " ++ String.fromInt Scoring.scoreMax) ]
+                :: List.filterMap
+                    (\review ->
+                        review.comment
+                            |> Maybe.map String.trim
+                            |> Maybe.andThen
+                                (\comment ->
+                                    if String.isEmpty comment then
+                                        Nothing
+
+                                    else
+                                        Just (p [ Attr.class "type-caption text-text-muted" ] [ text (t lang I18n.ReviewerCommentPrefix ++ comment) ])
+                                )
+                    )
+                    reviews
+            )
 
 
 viewStatusBadge : Lang -> EntryStatus -> Html msg
@@ -476,6 +504,13 @@ viewSubmitForm model =
                         _ ->
                             text ""
                     , viewError model.lang model.authError
+                    , p [ Attr.attribute "role" "status", Attr.class "type-caption text-brand mb-4" ]
+                        [ if form.draftSaved then
+                            text (t model.lang I18n.DraftSavedNotice)
+
+                          else
+                            text ""
+                        ]
                     , p [ Attr.class "type-caption text-text-muted mb-4" ]
                         [ text (t model.lang I18n.NoEditAfterSubmit) ]
                     , div [ Attr.class "flex gap-3" ]
@@ -500,7 +535,41 @@ viewSubmitForm model =
                             [ text (t model.lang I18n.SubmitForReview) ]
                         ]
                     ]
+                , if form.step == ConfirmingSubmit then
+                    viewConfirmSubmit model.lang
+
+                  else
+                    text ""
                 ]
+
+
+viewConfirmSubmit : Lang -> Html Msg
+viewConfirmSubmit lang =
+    div
+        [ Attr.attribute "role" "dialog"
+        , Attr.attribute "aria-modal" "true"
+        , Attr.attribute "aria-labelledby" "confirm-submit-title"
+        , Attr.class "fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+        ]
+        [ div [ Attr.class "bg-white rounded-lg shadow-xl max-w-md w-full p-6" ]
+            [ h2 [ Attr.id "confirm-submit-title", Attr.class "type-h3 text-brand mb-2" ]
+                [ text (t lang I18n.ConfirmSubmitTitle) ]
+            , p [ Attr.class "text-text-muted mb-6" ] [ text (t lang I18n.ConfirmSubmitBody) ]
+            , div [ Attr.class "flex gap-3 justify-end" ]
+                [ button
+                    [ Attr.class "bg-bg-subtle text-brand type-body-small px-6 py-3 rounded hover:bg-border-default focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                    , Events.onClick CancelSubmit
+                    ]
+                    [ text (t lang I18n.Cancel) ]
+                , button
+                    [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                    , Attr.autofocus True
+                    , Events.onClick ConfirmSubmit
+                    ]
+                    [ text (t lang I18n.ConfirmSubmitYes) ]
+                ]
+            ]
+        ]
 
 
 viewImageChip : Bool -> String -> Html Msg

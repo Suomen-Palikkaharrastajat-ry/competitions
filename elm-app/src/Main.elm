@@ -16,6 +16,7 @@ module Main exposing
     , myEntriesUrl
     , otpResponseDecoder
     , requestOtpUrl
+    , reviewableEntryDecoder
     , update
     , validateEmail
     , validateForm
@@ -62,6 +63,7 @@ emptyForm =
     , existingImages = []
     , imagesToRemove = []
     , step = FillingForm
+    , draftSaved = False
     }
 
 
@@ -123,6 +125,12 @@ init flags =
     , Cmd.batch
         [ pageCmd
         , hashCmd
+        , case flags.restoredAuth of
+            Just user ->
+                refreshSession flags.pbUrl user
+
+            Nothing ->
+                Cmd.none
         , case settings.error of
             Just problem ->
                 Ports.reportError problem
@@ -159,8 +167,12 @@ enterPage page_ model =
     in
     case ( page, model.auth ) of
         ( DashboardPage, LoggedIn user ) ->
-            ( { model | page = page, competitions = RemoteData.Loading }
-            , fetchCompetitions model.pbUrl user.token
+            -- The user's own entries tell which competitions are full.
+            ( { model | page = page, competitions = RemoteData.Loading, myEntries = RemoteData.Loading }
+            , Cmd.batch
+                [ fetchCompetitions model.pbUrl user.token
+                , fetchMyEntries model.pbUrl user.token user.profileId
+                ]
             )
 
         ( MyEntriesPage, LoggedIn user ) ->
@@ -170,7 +182,7 @@ enterPage page_ model =
 
         ( ReviewQueuePage, LoggedIn user ) ->
             ( { model | page = page, reviewQueue = RemoteData.Loading }
-            , fetchReviewQueue model.pbUrl user.token
+            , fetchReviewQueue model.pbUrl user.token user.profileId
             )
 
         _ ->
@@ -291,21 +303,7 @@ updateModel msg model =
                     else
                         DashboardPage
             in
-            ( { model
-                | auth = LoggedIn user
-                , page = page
-                , authError = Nothing
-                , competitions = RemoteData.Loading
-              }
-            , Cmd.batch
-                [ Ports.storeAuth user
-                , if page == DashboardPage then
-                    fetchCompetitions model.pbUrl user.token
-
-                  else
-                    Cmd.none
-                ]
-            )
+            signedIn user page model
 
         OtpSubmitted (Err (Http.BadStatus 400)) ->
             ( { model | authError = Just (t model.lang I18n.ErrWrongCode) }, Cmd.none )
@@ -343,21 +341,7 @@ updateModel msg model =
                     else
                         DashboardPage
             in
-            ( { model
-                | auth = LoggedIn user
-                , page = page
-                , authError = Nothing
-                , competitions = RemoteData.Loading
-              }
-            , Cmd.batch
-                [ Ports.storeAuth user
-                , if page == DashboardPage then
-                    fetchCompetitions model.pbUrl user.token
-
-                  else
-                    Cmd.none
-                ]
-            )
+            signedIn user page model
 
         KeycloakLoginFailed _ ->
             ( { model | authError = Just (t model.lang I18n.ErrKeycloakLoginFailed) }, Cmd.none )
@@ -383,6 +367,45 @@ updateModel msg model =
                 ]
             )
 
+        SessionRefreshed (Ok resp) ->
+            case model.auth of
+                LoggedIn user ->
+                    let
+                        refreshed =
+                            { user
+                                | token = resp.token
+                                , displayName = resp.record.displayName
+                                , isReviewer = resp.record.isReviewer
+                            }
+                    in
+                    ( { model | auth = LoggedIn refreshed }, Ports.storeAuth refreshed )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SessionRefreshed (Err err) ->
+            -- An invalid or expired stored token: PocketBase would answer
+            -- other requests as a guest, so sign out instead of looking
+            -- signed in. A network error keeps the session.
+            case err of
+                Http.BadStatus status ->
+                    if List.member status [ 401, 403, 404 ] then
+                        ( { model
+                            | auth = LoggedOut
+                            , page = LoginPage
+                            , authError = Just (t model.lang I18n.HttpSessionExpired)
+                            , competitions = RemoteData.NotAsked
+                            , myEntries = RemoteData.NotAsked
+                          }
+                        , Ports.clearAuth ()
+                        )
+
+                    else
+                        ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
         DisplayNameChanged name ->
             ( { model | displayNameInput = name }, Cmd.none )
 
@@ -401,16 +424,7 @@ updateModel msg model =
                         updatedUser =
                             { user | displayName = displayName }
                     in
-                    ( { model
-                        | auth = LoggedIn updatedUser
-                        , page = DashboardPage
-                        , competitions = RemoteData.Loading
-                      }
-                    , Cmd.batch
-                        [ Ports.storeAuth updatedUser
-                        , fetchCompetitions model.pbUrl updatedUser.token
-                        ]
-                    )
+                    signedIn updatedUser DashboardPage model
 
                 _ ->
                     ( model, Cmd.none )
@@ -500,14 +514,14 @@ updateModel msg model =
                 form =
                     model.submitForm
             in
-            ( { model | submitForm = { form | title = title } }, Cmd.none )
+            ( { model | submitForm = { form | title = title, draftSaved = False } }, Cmd.none )
 
         EntryDescriptionChanged desc ->
             let
                 form =
                     model.submitForm
             in
-            ( { model | submitForm = { form | description = desc } }, Cmd.none )
+            ( { model | submitForm = { form | description = desc, draftSaved = False } }, Cmd.none )
 
         FilesSelected first rest ->
             let
@@ -525,7 +539,7 @@ updateModel msg model =
                 newFiles =
                     form.selectedFiles ++ List.take remainingSlots (first :: rest)
             in
-            ( { model | submitForm = { form | selectedFiles = newFiles } }, Cmd.none )
+            ( { model | submitForm = { form | selectedFiles = newFiles, draftSaved = False } }, Cmd.none )
 
         RemoveExistingImage filename ->
             let
@@ -536,6 +550,7 @@ updateModel msg model =
                     { form
                         | existingImages = List.filter (\f -> f /= filename) form.existingImages
                         , imagesToRemove = form.imagesToRemove ++ [ filename ]
+                        , draftSaved = False
                     }
             in
             ( { model | submitForm = updated }, Cmd.none )
@@ -553,12 +568,12 @@ updateModel msg model =
                     case ( form.entryId, model.selectedCompetition ) of
                         ( Nothing, Just comp ) ->
                             ( { model | submitForm = updatedForm }
-                            , createDraft model.pbUrl user comp form
+                            , createEntry model.pbUrl user comp form "draft" DraftSaved
                             )
 
                         ( Just entryId, _ ) ->
                             ( { model | submitForm = updatedForm }
-                            , updateDraft model.pbUrl user entryId form
+                            , updateEntry model.pbUrl user entryId form Nothing DraftSaved
                             )
 
                         _ ->
@@ -580,6 +595,7 @@ updateModel msg model =
                         , existingImages = entry.images
                         , selectedFiles = []
                         , imagesToRemove = []
+                        , draftSaved = True
                     }
               }
             , Cmd.none
@@ -600,20 +616,55 @@ updateModel msg model =
                     )
 
         SubmitEntry ->
-            case ( model.auth, model.submitForm.entryId, model.selectedCompetition ) of
-                ( LoggedIn user, Just entryId, Just competition ) ->
+            -- Validate, then ask for confirmation: a submitted entry can no
+            -- longer be edited.
+            case ( model.auth, model.selectedCompetition ) of
+                ( LoggedIn _, Just competition ) ->
                     case validateForm model.lang competition model.submitForm of
                         Err e ->
                             ( { model | authError = Just e }, Cmd.none )
 
                         Ok _ ->
-                            ( model, submitEntryCmd model.pbUrl user.token entryId )
+                            let
+                                form =
+                                    model.submitForm
+                            in
+                            ( { model | authError = Nothing, submitForm = { form | step = ConfirmingSubmit } }, Cmd.none )
 
-                ( LoggedIn _, Just _, Nothing ) ->
+                ( LoggedIn _, Nothing ) ->
                     ( { model | authError = Just (t model.lang I18n.ErrNoCompetitionSelected) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
+
+        ConfirmSubmit ->
+            -- Save the form as it is now and submit it in one request, so
+            -- a new entry needs no draft first and unsaved changes (images
+            -- added after the last draft save) are not lost.
+            case ( model.auth, model.selectedCompetition ) of
+                ( LoggedIn user, Just competition ) ->
+                    let
+                        form =
+                            model.submitForm
+                    in
+                    ( { model | submitForm = { form | step = Uploading } }
+                    , case form.entryId of
+                        Nothing ->
+                            createEntry model.pbUrl user competition form "submitted" EntrySubmitted
+
+                        Just entryId ->
+                            updateEntry model.pbUrl user entryId form (Just "submitted") EntrySubmitted
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CancelSubmit ->
+            let
+                form =
+                    model.submitForm
+            in
+            ( { model | submitForm = { form | step = FillingForm } }, Cmd.none )
 
         EntrySubmitted (Ok _) ->
             let
@@ -825,7 +876,7 @@ updateModel msg model =
 
         EntryStatusChanged entryId newStatus (Ok ()) ->
             let
-                updateEntry re =
+                setStatus re =
                     if re.entry.id == entryId then
                         let
                             e =
@@ -836,7 +887,7 @@ updateModel msg model =
                     else
                         re
             in
-            ( { model | reviewQueue = RemoteData.map (List.map updateEntry) model.reviewQueue }
+            ( { model | reviewQueue = RemoteData.map (List.map setStatus) model.reviewQueue }
             , Cmd.none
             )
 
@@ -1027,21 +1078,40 @@ handleHttpError err model =
 
 
 canSubmitMore : Competition -> List Entry -> Bool
-canSubmitMore competition entries =
-    let
-        myCount =
-            List.length (List.filter (\e -> e.competitionId == competition.id) entries)
-
-        limit =
-            Maybe.withDefault 3 competition.maxEntriesPerUser
-    in
-    limit == 0 || myCount < limit
+canSubmitMore =
+    Scoring.canSubmitMore
 
 
 
 -- ---------------------------------------------------------------------------
 -- HTTP commands
 -- ---------------------------------------------------------------------------
+
+
+{-| Store a signed-in user and show `page` (loading its data).
+-}
+signedIn : AuthUser -> Page -> Model -> ( Model, Cmd Msg )
+signedIn user page model =
+    let
+        ( newModel, cmd ) =
+            enterPage page { model | auth = LoggedIn user, authError = Nothing }
+    in
+    ( newModel, Cmd.batch [ Ports.storeAuth user, cmd ] )
+
+
+{-| Check a restored session with PocketBase and get a fresh token.
+-}
+refreshSession : String -> AuthUser -> Cmd Msg
+refreshSession pbUrl user =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" user.token ]
+        , url = pbUrl ++ "/api/collections/" ++ user.authCollection ++ "/auth-refresh"
+        , body = Http.emptyBody
+        , expect = Http.expectJson SessionRefreshed authResponseDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
 
 
 requestOtp : String -> String -> Cmd Msg
@@ -1129,8 +1199,11 @@ myEntriesUrl pbUrl userId =
         ++ "%22&sort=-created&expand=competition%2Creviews_via_entry"
 
 
-createDraft : String -> AuthUser -> Competition -> SubmitForm -> Cmd Msg
-createDraft pbUrl user comp form =
+{-| Create an entry from the form with the given status ("draft" or
+"submitted").
+-}
+createEntry : String -> AuthUser -> Competition -> SubmitForm -> String -> (Result Http.Error Entry -> Msg) -> Cmd Msg
+createEntry pbUrl user comp form status toMsg =
     Http.request
         { method = "POST"
         , headers = [ Http.header "Authorization" user.token ]
@@ -1141,18 +1214,20 @@ createDraft pbUrl user comp form =
                  , Http.stringPart "submitter" user.profileId
                  , Http.stringPart "title" form.title
                  , Http.stringPart "description" form.description
-                 , Http.stringPart "status" "draft"
+                 , Http.stringPart "status" status
                  ]
                     ++ List.map (Http.filePart "images") form.selectedFiles
                 )
-        , expect = Http.expectJson DraftSaved entryDecoder
+        , expect = Http.expectJson toMsg entryDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
 
 
-updateDraft : String -> AuthUser -> String -> SubmitForm -> Cmd Msg
-updateDraft pbUrl user entryId form =
+{-| Save the form to an existing entry, optionally changing its status.
+-}
+updateEntry : String -> AuthUser -> String -> SubmitForm -> Maybe String -> (Result Http.Error Entry -> Msg) -> Cmd Msg
+updateEntry pbUrl user entryId form status toMsg =
     Http.request
         { method = "PATCH"
         , headers = [ Http.header "Authorization" user.token ]
@@ -1173,23 +1248,15 @@ updateDraft pbUrl user entryId form =
                                 )
                             ]
                        )
+                    ++ (case status of
+                            Just value ->
+                                [ Http.stringPart "status" value ]
+
+                            Nothing ->
+                                []
+                       )
                 )
-        , expect = Http.expectJson DraftSaved entryDecoder
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-submitEntryCmd : String -> String -> String -> Cmd Msg
-submitEntryCmd pbUrl token entryId =
-    Http.request
-        { method = "PATCH"
-        , headers = [ Http.header "Authorization" token ]
-        , url = pbUrl ++ "/api/collections/entries/records/" ++ entryId
-        , body =
-            Http.jsonBody
-                (Encode.object [ ( "status", Encode.string "submitted" ) ])
-        , expect = Http.expectJson EntrySubmitted entryDecoder
+        , expect = Http.expectJson toMsg entryDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -1359,8 +1426,8 @@ entryDecoder =
         publishedReviewsDecoder
 
 
-fetchReviewQueue : String -> String -> Cmd Msg
-fetchReviewQueue pbUrl token =
+fetchReviewQueue : String -> String -> String -> Cmd Msg
+fetchReviewQueue pbUrl token profileId =
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" token ]
@@ -1368,9 +1435,9 @@ fetchReviewQueue pbUrl token =
             pbUrl
                 ++ "/api/collections/entries/records"
                 ++ "?filter=status%3D%22submitted%22||status%3D%22approved%22||status%3D%22rejected%22"
-                ++ "&expand=competition%2Csubmitter&sort=created"
+                ++ "&expand=competition%2Csubmitter%2Creviews_via_entry&sort=created"
         , body = Http.emptyBody
-        , expect = Http.expectJson ReviewQueueLoaded (pbListDecoder reviewableEntryDecoder)
+        , expect = Http.expectJson ReviewQueueLoaded (pbListDecoder (reviewableEntryDecoder profileId))
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -1476,15 +1543,24 @@ reviewDecoder =
             )
 
 
-reviewableEntryDecoder : Decode.Decoder ReviewableEntry
-reviewableEntryDecoder =
+{-| An entry in the review queue, with the review `reviewerId` (a profile)
+has already given it, if any, from `expand.reviews_via_entry`.
+-}
+reviewableEntryDecoder : String -> Decode.Decoder ReviewableEntry
+reviewableEntryDecoder reviewerId =
     Decode.map4 ReviewableEntry
         entryDecoder
         (Decode.at [ "expand", "competition" ] competitionDecoder)
         (Decode.maybe (Decode.at [ "expand", "submitter", "display_name" ] Decode.string)
             |> Decode.map (Maybe.withDefault "")
         )
-        (Decode.succeed Nothing)
+        (Decode.maybe (Decode.at [ "expand", "reviews_via_entry" ] (Decode.list reviewDecoder))
+            |> Decode.map
+                (Maybe.withDefault []
+                    >> List.filter (\review -> review.reviewerId == reviewerId)
+                    >> List.head
+                )
+        )
 
 
 pbListDecoder : Decode.Decoder a -> Decode.Decoder (List a)
