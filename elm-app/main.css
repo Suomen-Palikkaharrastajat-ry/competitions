@@ -10,6 +10,17 @@
   body {
     font-family: var(--font-sans);
   }
+
+  a[href],
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 /* ── Reduced-motion ──────────────────────────────────────────────────────── */

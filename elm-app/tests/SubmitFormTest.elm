@@ -14,7 +14,7 @@ import Json.Encode as Encode
 import Lang exposing (Lang(..))
 import Main exposing (canSubmitMore, update, validateForm)
 import RemoteData
-import Scoring exposing (deadlineUrgency, isDeadlinePassed)
+import Scoring exposing (canEditEntry, deadlineUrgency, isDeadlinePassed)
 import Test exposing (Test, describe, test)
 import TestSite
 import Time
@@ -47,6 +47,7 @@ testCompetition =
     , maxEntriesPerUser = Just 3
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , startDate = "2026-06-01 00:00:00.000Z"
     }
 
 
@@ -73,6 +74,26 @@ testUser =
     , displayName = "Pekka"
     , isReviewer = False
     }
+
+
+beforeDeadline : Time.Posix
+beforeDeadline =
+    Time.millisToPosix 1780272000000
+
+
+afterDeadline : Time.Posix
+afterDeadline =
+    Time.millisToPosix 1798848000000
+
+
+noonOnDeadlineDay : Time.Posix
+noonOnDeadlineDay =
+    Time.millisToPosix 1798718400000
+
+
+editClosedMessage : String
+editClosedMessage =
+    "Muokkaus ei ole enää mahdollista; kilpailun määräaika on umpeutunut."
 
 
 baseModel : Model
@@ -334,13 +355,13 @@ suite =
                     in
                     updated.submitForm.step |> Expect.equal Uploading
             ]
-        , describe "EditDraft"
+        , describe "EditEntry"
             [ test "hydrates form and selected competition from expanded draft" <|
                 \_ ->
                     let
                         ( updated, _ ) =
                             update
-                                (EditDraft testEntry.id)
+                                (EditEntry testEntry.id)
                                 { baseModel
                                     | myEntries = RemoteData.Success [ testEntry ]
                                     , selectedCompetition = Nothing
@@ -353,6 +374,35 @@ suite =
                         , \m -> m.selectedCompetition |> Expect.equal (Just testCompetition)
                         ]
                         updated
+            , test "opens a submitted entry while its competition deadline has not passed" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update
+                                (EditEntry testEntry.id)
+                                { baseModel | myEntries = RemoteData.Success [ { testEntry | status = Submitted } ], now = beforeDeadline }
+                    in
+                    Expect.all
+                        [ \m -> m.submitForm.entryId |> Expect.equal (Just testEntry.id)
+                        , \m -> m.page |> Expect.equal (SubmitEntryPage (Just testEntry.id))
+                        ]
+                        updated
+            , test "refuses a submitted entry once the competition deadline has passed" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update
+                                (EditEntry testEntry.id)
+                                { baseModel
+                                    | myEntries = RemoteData.Success [ { testEntry | status = Submitted } ]
+                                    , now = afterDeadline
+                                }
+                    in
+                    Expect.all
+                        [ \m -> m.submitForm.entryId |> Expect.equal Nothing
+                        , \m -> m.authError |> Expect.equal (Just editClosedMessage)
+                        ]
+                        updated
             , test "reports an error when expanded competition is unavailable" <|
                 \_ ->
                     let
@@ -361,10 +411,105 @@ suite =
 
                         ( updated, _ ) =
                             update
-                                (EditDraft testEntry.id)
+                                (EditEntry testEntry.id)
                                 { baseModel | myEntries = RemoteData.Success [ entryWithoutCompetition ] }
                     in
                     updated.authError |> Expect.equal (Just "Kilpailun tietoja ei voitu ladata")
+            ]
+        , describe "SaveDraft on a submitted entry"
+            [ test "saves the changes without changing the status" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | myEntries = RemoteData.Success [ { testEntry | status = Submitted } ]
+                                , now = beforeDeadline
+                                , submitForm = { emptyForm | entryId = Just testEntry.id, title = "My MOC", existingImages = [ "photo.jpg" ] }
+                            }
+
+                        ( updated, _ ) =
+                            update SaveDraft model
+                    in
+                    updated.submitForm.step |> Expect.equal Uploading
+            , test "is refused when the saved changes would break the image limit" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | myEntries = RemoteData.Success [ { testEntry | status = Submitted, images = [] } ]
+                                , now = beforeDeadline
+                                , submitForm = { emptyForm | entryId = Just testEntry.id, title = "My MOC" }
+                            }
+
+                        ( updated, _ ) =
+                            update SaveDraft model
+                    in
+                    Expect.all
+                        [ \m -> m.submitForm.step |> Expect.equal FillingForm
+                        , \m -> m.authError |> Expect.notEqual Nothing
+                        ]
+                        updated
+            , test "is refused once the competition deadline has passed" <|
+                \_ ->
+                    let
+                        model =
+                            { baseModel
+                                | myEntries = RemoteData.Success [ { testEntry | status = Submitted } ]
+                                , now = afterDeadline
+                                , submitForm = { emptyForm | entryId = Just testEntry.id }
+                            }
+
+                        ( updated, _ ) =
+                            update SaveDraft model
+                    in
+                    Expect.all
+                        [ \m -> m.submitForm.step |> Expect.equal FillingForm
+                        , \m -> m.authError |> Expect.equal (Just editClosedMessage)
+                        ]
+                        updated
+            ]
+        , describe "SelectCompetition"
+            [ test "opens the new entry form without an entry id" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update (SelectCompetition testCompetition) baseModel
+                    in
+                    updated.page |> Expect.equal (SubmitEntryPage Nothing)
+            ]
+        , describe "CancelEdit"
+            [ test "returns to the participation being edited" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update CancelEdit { baseModel | submitForm = { emptyForm | entryId = Just testEntry.id } }
+                    in
+                    updated.page |> Expect.equal (ParticipationPage testEntry.id)
+            ]
+        , describe "canEditEntry"
+            [ test "a draft can be edited after the deadline" <|
+                \_ -> canEditEntry afterDeadline { testEntry | status = Draft } |> Expect.equal True
+            , test "a submitted entry can be edited until the deadline" <|
+                \_ -> canEditEntry beforeDeadline { testEntry | status = Submitted } |> Expect.equal True
+            , test "a submitted entry cannot be edited after the deadline" <|
+                \_ -> canEditEntry afterDeadline { testEntry | status = Submitted } |> Expect.equal False
+            , test "a submitted entry without its competition cannot be edited" <|
+                \_ -> canEditEntry beforeDeadline { testEntry | status = Submitted, competition = Nothing } |> Expect.equal False
+            , test "the deadline is the time of day of end_date, not its midnight" <|
+                \_ ->
+                    let
+                        lateOnDeadlineDay =
+                            { testEntry
+                                | status = Submitted
+                                , competition = Just { testCompetition | endDate = "2026-12-31 23:59:59.000Z" }
+                            }
+                    in
+                    canEditEntry noonOnDeadlineDay lateOnDeadlineDay |> Expect.equal True
+            , test "approved and rejected entries cannot be edited" <|
+                \_ ->
+                    [ Approved, Rejected ]
+                        |> List.map (\status -> canEditEntry beforeDeadline { testEntry | status = status })
+                        |> Expect.equal [ False, False ]
             ]
         , describe "DraftSaved"
             [ test "Ok returns step to FillingForm" <|

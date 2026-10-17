@@ -191,6 +191,9 @@ viewPage user model =
         MyEntriesPage ->
             viewMyEntries user model
 
+        ParticipationPage entryId ->
+            viewParticipation model entryId
+
         SubmitEntryPage _ ->
             viewSubmitForm model
 
@@ -263,7 +266,7 @@ viewCompetitionCard lang pbUrl now canEnter comp =
                 Nothing ->
                     text ""
             , p [ Attr.class ("type-caption mb-4 " ++ (Scoring.deadlineUrgency comp.endDate now |> Maybe.withDefault "text-text-muted")) ]
-                [ text (t lang I18n.EndsPrefix ++ String.left 10 comp.endDate) ]
+                [ text (t lang I18n.EndsPrefix ++ String.left 16 comp.endDate) ]
             , if canEnter then
                 button
                     [ Attr.class "bg-brand-yellow text-brand type-body-small px-4 py-2 rounded hover:opacity-90 motion-safe:transition-opacity"
@@ -317,13 +320,112 @@ viewMyEntries _ model =
         ]
 
 
+viewParticipation : Model -> String -> Html Msg
+viewParticipation model entryId =
+    case model.myEntries of
+        RemoteData.NotAsked ->
+            text ""
+
+        RemoteData.Loading ->
+            viewLoadingSkeleton model.lang
+
+        RemoteData.Failure _ ->
+            p [ Attr.class "text-brand-red" ] [ text (t model.lang I18n.LoadFailed) ]
+
+        RemoteData.Success entries ->
+            case Scoring.findEntry (Just entryId) entries of
+                Just entry ->
+                    viewParticipationDetail model entry
+
+                Nothing ->
+                    p [ Attr.class "text-text-muted" ] [ text (t model.lang I18n.EntryNotFound) ]
+
+
+viewParticipationDetail : Model -> Entry -> Html Msg
+viewParticipationDetail model entry =
+    let
+        lang =
+            model.lang
+
+        description =
+            entry.description
+                |> Maybe.map String.trim
+                |> Maybe.andThen
+                    (\trimmed ->
+                        if String.isEmpty trimmed then
+                            Nothing
+
+                        else
+                            Just trimmed
+                    )
+    in
+    div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-8 max-w-2xl" ]
+        [ button
+            [ Attr.class "type-caption text-brand underline mb-4 focus-visible:ring-2 focus-visible:ring-brand outline-none"
+            , Events.onClick (NavigateTo MyEntriesPage)
+            ]
+            [ text (t lang I18n.MyEntries) ]
+        , h1 [ Attr.class "type-h1 tracking-tight text-brand mb-2" ] [ text entry.title ]
+        , p [ Attr.class "type-caption text-text-muted" ]
+            [ text (entry.competition |> Maybe.map .title |> Maybe.withDefault entry.competitionId) ]
+        , div [ Attr.class "mb-4" ] [ viewCompetitionPeriod lang entry.competition ]
+        , div [ Attr.class "mb-4" ] [ viewStatusBadge lang entry.status ]
+        , viewPublishedScores lang entry.publishedReviews
+        , case description of
+            Just text_ ->
+                p [ Attr.class "text-brand mb-4 whitespace-pre-line" ] [ text text_ ]
+
+            Nothing ->
+                text ""
+        , viewEntryImages model.pbUrl entry
+        , if Scoring.canEditEntry model.now entry then
+            div [ Attr.class "flex flex-wrap items-center gap-4 mt-6" ]
+                [ if entry.status == Submitted then
+                    p [ Attr.class "type-caption text-text-muted" ] [ text (t lang I18n.EditableUntilDeadline) ]
+
+                  else
+                    text ""
+                , button
+                    [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 motion-safe:transition-opacity"
+                    , Events.onClick (EditEntry entry.id)
+                    ]
+                    [ text (t lang I18n.Edit) ]
+                ]
+
+          else
+            text ""
+        ]
+
+
+viewCompetitionPeriod : Lang -> Maybe Competition -> Html msg
+viewCompetitionPeriod lang competition =
+    case competition of
+        Just comp ->
+            p [ Attr.class "type-caption text-text-muted" ]
+                [ text
+                    (t lang I18n.PeriodPrefix
+                        ++ Scoring.formatDate comp.startDate
+                        ++ t lang I18n.PeriodTo
+                        ++ Scoring.formatDate comp.endDate
+                    )
+                ]
+
+        Nothing ->
+            text ""
+
+
 viewEntryRow : Lang -> Entry -> Html Msg
 viewEntryRow lang entry =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
-            [ p [ Attr.class "type-body-small text-brand" ] [ text entry.title ]
+            [ button
+                [ Attr.class "type-body-small text-brand text-left underline focus-visible:ring-2 focus-visible:ring-brand outline-none"
+                , Events.onClick (NavigateTo (ParticipationPage entry.id))
+                ]
+                [ text entry.title ]
             , p [ Attr.class "type-caption text-text-muted" ]
                 [ text (entry.competition |> Maybe.map .title |> Maybe.withDefault entry.competitionId) ]
+            , viewCompetitionPeriod lang entry.competition
             , viewPublishedScores lang entry.publishedReviews
             ]
         , viewStatusBadge lang entry.status
@@ -332,7 +434,7 @@ viewEntryRow lang entry =
                 div [ Attr.class "flex gap-2" ]
                     [ button
                         [ Attr.class "type-caption text-brand underline focus-visible:ring-2 focus-visible:ring-brand outline-none"
-                        , Events.onClick (EditDraft entry.id)
+                        , Events.onClick (EditEntry entry.id)
                         ]
                         [ text (t lang I18n.Edit) ]
                     ]
@@ -434,6 +536,12 @@ viewSubmitForm model =
 
         imageLimitText =
             String.fromInt minImages ++ "-" ++ String.fromInt maxImages
+
+        -- A submitted entry is only saved again; its status does not change.
+        submittedEdit =
+            Scoring.findEntry form.entryId (RemoteData.withDefault [] model.myEntries)
+                |> Maybe.map (\entry -> entry.status == Submitted)
+                |> Maybe.withDefault False
     in
     case form.step of
         SubmitSuccess ->
@@ -516,16 +624,34 @@ viewSubmitForm model =
                     , viewError model.lang model.authError
                     , p [ Attr.attribute "role" "status", Attr.class "type-caption text-brand mb-4" ]
                         [ if form.draftSaved then
-                            text (t model.lang I18n.DraftSavedNotice)
+                            text
+                                (t model.lang
+                                    (if submittedEdit then
+                                        I18n.ChangesSavedNotice
+
+                                     else
+                                        I18n.DraftSavedNotice
+                                    )
+                                )
 
                           else
                             text ""
                         ]
-                    , p [ Attr.class "type-caption text-text-muted mb-4" ]
-                        [ text (t model.lang I18n.NoEditAfterSubmit) ]
+                    , if submittedEdit then
+                        text ""
+
+                      else
+                        p [ Attr.class "type-caption text-text-muted mb-4" ]
+                            [ text (t model.lang I18n.NoEditAfterSubmit) ]
                     , div [ Attr.class "flex gap-3" ]
-                        [ button
-                            [ Attr.class "bg-bg-subtle text-brand type-body-small px-6 py-3 rounded hover:bg-border-default motion-safe:transition-colors"
+                        ([ button
+                            [ Attr.class
+                                (if submittedEdit then
+                                    "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 motion-safe:transition-opacity"
+
+                                 else
+                                    "bg-bg-subtle text-brand type-body-small px-6 py-3 rounded hover:bg-border-default motion-safe:transition-colors"
+                                )
                             , Attr.disabled (form.isCompressing || form.step == Uploading)
                             , Events.onClick SaveDraft
                             ]
@@ -533,17 +659,38 @@ viewSubmitForm model =
                                 (if form.step == Uploading then
                                     t model.lang I18n.Saving
 
+                                 else if submittedEdit then
+                                    t model.lang I18n.SaveChanges
+
                                  else
                                     t model.lang I18n.SaveDraft
                                 )
                             ]
-                        , button
-                            [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 motion-safe:transition-opacity"
-                            , Attr.disabled (form.isCompressing || form.step == Uploading)
-                            , Events.onClick SubmitEntry
-                            ]
-                            [ text (t model.lang I18n.SubmitForReview) ]
-                        ]
+                         ]
+                            ++ (if submittedEdit then
+                                    []
+
+                                else
+                                    [ button
+                                        [ Attr.class "bg-brand-yellow text-brand type-body-small px-6 py-3 rounded hover:opacity-90 motion-safe:transition-opacity"
+                                        , Attr.disabled (form.isCompressing || form.step == Uploading)
+                                        , Events.onClick SubmitEntry
+                                        ]
+                                        [ text (t model.lang I18n.SubmitForReview) ]
+                                    ]
+                               )
+                            ++ (if form.entryId == Nothing then
+                                    []
+
+                                else
+                                    [ button
+                                        [ Attr.class "bg-bg-subtle text-brand type-body-small px-6 py-3 rounded hover:bg-border-default motion-safe:transition-colors"
+                                        , Events.onClick CancelEdit
+                                        ]
+                                        [ text (t model.lang I18n.Cancel) ]
+                                    ]
+                               )
+                        )
                     ]
                 , if form.step == ConfirmingSubmit then
                     viewConfirmSubmit model.lang
@@ -798,7 +945,7 @@ viewReviewFormPanel lang pbUrl rf =
                     ]
                     [ text "×" ]
                 ]
-            , viewReviewImages pbUrl rf.reviewableEntry.entry
+            , viewEntryImages pbUrl rf.reviewableEntry.entry
             , case rf.reviewableEntry.entry.description of
                 Just desc ->
                     p [ Attr.class "type-body text-brand mb-6" ] [ text desc ]
@@ -854,8 +1001,8 @@ viewReviewFormPanel lang pbUrl rf =
         ]
 
 
-viewReviewImages : String -> Entry -> Html Msg
-viewReviewImages pbUrl entry =
+viewEntryImages : String -> Entry -> Html Msg
+viewEntryImages pbUrl entry =
     if List.isEmpty entry.images then
         text ""
 

@@ -1,4 +1,4 @@
-module Scoring exposing (canSubmitMore, deadlineUrgency, entryAverage, isDeadlinePassed, reviewTotal, scoreMax)
+module Scoring exposing (canEditEntry, canSubmitMore, deadlineUrgency, entryAverage, findEntry, formatDate, isDeadlinePassed, reviewTotal, scoreMax)
 
 {-| Canonical score aggregation formula used by both Elm and Haskell gallery.
 
@@ -7,11 +7,12 @@ module Scoring exposing (canSubmitMore, deadlineUrgency, entryAverage, isDeadlin
 
     entry_average = sum(review_totals) / count  (0.0 when no published reviews)
 
-Also contains deadline date helpers used by View and Main.
+Also contains deadline date helpers and the edit rule used by View and Main.
 
 -}
 
 import Time
+import Types exposing (Entry, EntryStatus(..))
 
 
 {-| Sum of the four criteria for a single review. Range 4–20.
@@ -83,16 +84,25 @@ isDeadlinePassed endDate now =
 
 parseDateToMillis : String -> Maybe Int
 parseDateToMillis s =
-    let
-        datePart =
-            String.left 10 s
-    in
-    case List.filterMap String.toInt (String.split "-" datePart) of
+    case List.filterMap String.toInt (String.split "-" (String.left 10 s)) of
         [ y, m, d ] ->
-            Just (calendarToMillis y m d)
+            Just (calendarToMillis y m d + timeOfDayMillis s)
 
         _ ->
             Nothing
+
+
+{-| The time of day in "YYYY-MM-DD HH:MM:SS.mmmZ", in milliseconds from midnight.
+A date without a time counts from midnight.
+-}
+timeOfDayMillis : String -> Int
+timeOfDayMillis s =
+    case List.filterMap String.toInt (String.split ":" (String.slice 11 19 s)) of
+        [ h, mi, sec ] ->
+            ((h * 60 + mi) * 60 + sec) * 1000
+
+        _ ->
+            0
 
 
 calendarToMillis : Int -> Int -> Int -> Int
@@ -176,3 +186,48 @@ canSubmitMore competition entries =
             Maybe.withDefault 3 competition.maxEntriesPerUser
     in
     limit == 0 || myCount < limit
+
+
+{-| A draft can always be edited. A submitted entry can be edited until the
+competition's end date; approved and rejected entries cannot be edited.
+-}
+canEditEntry : Time.Posix -> Entry -> Bool
+canEditEntry now entry =
+    case entry.status of
+        Draft ->
+            True
+
+        Submitted ->
+            case entry.competition of
+                Just competition ->
+                    not (isDeadlinePassed competition.endDate now)
+
+                Nothing ->
+                    False
+
+        Approved ->
+            False
+
+        Rejected ->
+            False
+
+
+{-| The entry with this id, if it is among the loaded entries.
+-}
+findEntry : Maybe String -> List Entry -> Maybe Entry
+findEntry entryId entries =
+    entryId
+        |> Maybe.andThen (\id -> List.filter (\entry -> entry.id == id) entries |> List.head)
+
+
+{-| A date as day.month.year, for example "2026-06-01 00:00:00.000Z" as "1.6.2026".
+Anything that is not a date is returned as it is.
+-}
+formatDate : String -> String
+formatDate s =
+    case String.split "-" (String.left 10 s) of
+        [ y, m, d ] ->
+            String.join "." [ String.fromInt (Maybe.withDefault 0 (String.toInt d)), String.fromInt (Maybe.withDefault 0 (String.toInt m)), y ]
+
+        _ ->
+            s

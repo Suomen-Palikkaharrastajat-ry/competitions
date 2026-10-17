@@ -129,6 +129,13 @@ type MsgKey
     | Cancel
     | MaxEntriesUsed
     | ReviewerCommentPrefix
+    | ChangesSavedNotice
+    | SaveChanges
+    | ErrEditClosed
+    | EntryNotFound
+    | EditableUntilDeadline
+    | PeriodPrefix
+    | PeriodTo
 
 
 {-| The text of a key in the given language.
@@ -337,7 +344,7 @@ fi key =
             "Poista kuva"
 
         NoEditAfterSubmit ->
-            "ℹ Lähettämisen jälkeen muokkaus ei ole mahdollista."
+            "ℹ Lähettämisen jälkeen voit muokata osallistumista määräaikaan asti."
 
         Saving ->
             "Tallennetaan..."
@@ -496,7 +503,7 @@ fi key =
             "Lähetetäänkö arvioitavaksi?"
 
         ConfirmSubmitBody ->
-            "Lähettämisen jälkeen osallistumista ei voi enää muokata."
+            "Lähettämisen jälkeen voit muokata osallistumista määräaikaan asti."
 
         ConfirmSubmitYes ->
             "Lähetä"
@@ -509,6 +516,27 @@ fi key =
 
         ReviewerCommentPrefix ->
             "Arvioijan kommentti: "
+
+        ChangesSavedNotice ->
+            "Muutokset tallennettu."
+
+        SaveChanges ->
+            "Tallenna muutokset"
+
+        ErrEditClosed ->
+            "Muokkaus ei ole enää mahdollista; kilpailun määräaika on umpeutunut."
+
+        EntryNotFound ->
+            "Osallistumista ei löytynyt."
+
+        EditableUntilDeadline ->
+            "Voit muokata osallistumista kilpailun määräaikaan asti."
+
+        PeriodPrefix ->
+            "Kilpailuaika: "
+
+        PeriodTo ->
+            " – "
 
 
 en : MsgKey -> String
@@ -698,7 +726,7 @@ en key =
             "Remove image"
 
         NoEditAfterSubmit ->
-            "ℹ An entry cannot be edited after it has been submitted."
+            "ℹ After submitting, you can edit the entry until the deadline."
 
         Saving ->
             "Saving..."
@@ -857,7 +885,7 @@ en key =
             "Submit for review?"
 
         ConfirmSubmitBody ->
-            "After submitting, the entry can no longer be edited."
+            "After submitting, you can edit the entry until the deadline."
 
         ConfirmSubmitYes ->
             "Submit"
@@ -870,3 +898,24 @@ en key =
 
         ReviewerCommentPrefix ->
             "Reviewer's comment: "
+
+        ChangesSavedNotice ->
+            "Changes saved."
+
+        SaveChanges ->
+            "Save changes"
+
+        ErrEditClosed ->
+            "Editing is no longer possible; the competition deadline has passed."
+
+        EntryNotFound ->
+            "Entry not found."
+
+        EditableUntilDeadline ->
+            "You can edit this entry until the competition deadline."
+
+        PeriodPrefix ->
+            "Competition period: "
+
+        PeriodTo ->
+            " – "

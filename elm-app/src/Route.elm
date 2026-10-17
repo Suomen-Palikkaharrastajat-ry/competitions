@@ -20,7 +20,13 @@ toHash page =
         MyEntriesPage ->
             "#/omat"
 
-        SubmitEntryPage _ ->
+        ParticipationPage entryId ->
+            "#/omat/" ++ entryId
+
+        SubmitEntryPage (Just entryId) ->
+            "#/omat/" ++ entryId ++ "/muokkaa"
+
+        SubmitEntryPage Nothing ->
             "#/osallistu"
 
         ReviewQueuePage ->
@@ -40,7 +46,9 @@ toHash page =
 
 
 {-| The page a hash links to. `#/osallistu` is not linkable: submitting needs
-a competition chosen first.
+a competition chosen first. The edit page's hash opens the participation it
+edits, because the form is filled from the participation list, not from the
+address.
 -}
 fromHash : String -> Maybe Page
 fromHash hash =
@@ -61,4 +69,21 @@ fromHash hash =
             Just ReviewQueuePage
 
         _ ->
-            Nothing
+            case String.split "/" hash of
+                [ "#", "omat", entryId ] ->
+                    participation entryId
+
+                [ "#", "omat", entryId, "muokkaa" ] ->
+                    participation entryId
+
+                _ ->
+                    Nothing
+
+
+participation : String -> Maybe Page
+participation entryId =
+    if String.isEmpty entryId then
+        Nothing
+
+    else
+        Just (ParticipationPage entryId)

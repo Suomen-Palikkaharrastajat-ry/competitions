@@ -231,7 +231,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","theme":"Kaupunki","description":"Kuvaile kaupunkia","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","max_entries_per_user":3,"min_images_per_entry":2,"max_images_per_entry":8}"""
+                            """{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","theme":"Kaupunki","description":"Kuvaile kaupunkia","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","max_entries_per_user":3,"min_images_per_entry":2,"max_images_per_entry":8}"""
 
                         result =
                             Decode.decodeString competitionDecoder json
@@ -255,7 +255,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"id":"c1","title":"T","slug":"t","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
+                            """{"id":"c1","title":"T","slug":"t","start_date":"2025-01-01 00:00:00.000Z","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
 
                         result =
                             Decode.decodeString competitionDecoder json
@@ -270,7 +270,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"id":"c1","title":"T","slug":"t","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
+                            """{"id":"c1","title":"T","slug":"t","start_date":"2025-01-01 00:00:00.000Z","end_date":"2026-01-01 00:00:00.000Z","cover_image":""}"""
 
                         result =
                             Decode.decodeString competitionDecoder json
@@ -351,7 +351,7 @@ suite =
                 \_ ->
                     let
                         json =
-                            """{"id":"e1","competition":"c1","title":"MOC","images":["a.jpg"],"status":"draft","expand":{"competition":{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","min_images_per_entry":2,"max_images_per_entry":8}}}"""
+                            """{"id":"e1","competition":"c1","title":"MOC","images":["a.jpg"],"status":"draft","expand":{"competition":{"id":"c1","title":"Kaupunki 2026","slug":"kaupunki-2026","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z","cover_image":"","min_images_per_entry":2,"max_images_per_entry":8}}}"""
 
                         result =
                             Decode.decodeString entryDecoder json

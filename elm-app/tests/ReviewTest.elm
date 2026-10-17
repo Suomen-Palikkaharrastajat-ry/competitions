@@ -45,6 +45,7 @@ testCompetition =
     , maxEntriesPerUser = Just 3
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , startDate = "2026-06-01 00:00:00.000Z"
     }
 
 
@@ -500,7 +501,7 @@ queueItemJson =
     """
     { "id": "entry1", "competition": "comp1", "title": "MOC", "description": "", "images": ["a.png"], "status": "submitted"
     , "expand":
-        { "competition": { "id": "comp1", "title": "Kaupunki 2026", "slug": "kaupunki-2026", "end_date": "2026-12-31 00:00:00.000Z" }
+        { "competition": { "id": "comp1", "title": "Kaupunki 2026", "slug": "kaupunki-2026", "start_date": "2026-06-01 00:00:00.000Z", "end_date": "2026-12-31 00:00:00.000Z" }
         , "submitter": { "id": "profile9", "display_name": "Aino" }
         , "reviews_via_entry":
             [ { "id": "theirs", "entry": "entry1", "reviewer": "profile2", "score_theme": 1, "score_originality": 1, "score_technique": 1, "score_presentation": 1, "comment": "", "is_published": false }

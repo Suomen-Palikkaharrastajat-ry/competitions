@@ -182,6 +182,11 @@ enterPage page_ model =
             , fetchMyEntries model.pbUrl user.token user.profileId
             )
 
+        ( ParticipationPage _, LoggedIn user ) ->
+            ( { model | page = page, myEntries = RemoteData.Loading }
+            , fetchMyEntries model.pbUrl user.token user.profileId
+            )
+
         ( ReviewQueuePage, LoggedIn user ) ->
             ( { model | page = page, reviewQueue = RemoteData.Loading }
             , fetchReviewQueue model.pbUrl user.token user.profileId
@@ -197,6 +202,42 @@ type HashEffect
     = KeepHash
     | PushHash String
     | ReplaceHash String
+
+
+{-| The reason a submitted entry's changes cannot be saved, if any: a
+submitted entry must still pass the form's checks (for example its image count).
+-}
+submittedEditError : Model -> Maybe String
+submittedEditError model =
+    case Scoring.findEntry model.submitForm.entryId (RemoteData.withDefault [] model.myEntries) of
+        Just entry ->
+            case ( entry.status == Submitted, model.selectedCompetition ) of
+                ( True, Just competition ) ->
+                    case validateForm model.lang competition model.submitForm of
+                        Err err ->
+                            Just err
+
+                        Ok _ ->
+                            Nothing
+
+                _ ->
+                    Nothing
+
+        Nothing ->
+            Nothing
+
+
+{-| True when the entry being edited can no longer be changed, because a
+submitted entry's competition deadline has passed.
+-}
+editingLocked : Model -> Bool
+editingLocked model =
+    case Scoring.findEntry model.submitForm.entryId (RemoteData.withDefault [] model.myEntries) of
+        Just entry ->
+            not (Scoring.canEditEntry model.now entry)
+
+        Nothing ->
+            False
 
 
 {-| Decide how to keep the hash in step with the page. `incoming` is the hash
@@ -532,7 +573,7 @@ updateModelWith msg model =
         SelectCompetition comp ->
             ( { model
                 | selectedCompetition = Just comp
-                , page = SubmitEntryPage (Just comp.id)
+                , page = SubmitEntryPage Nothing
                 , submitForm = emptyForm
               }
             , Cmd.none
@@ -689,8 +730,14 @@ updateModelWith msg model =
             ( { model | submitForm = updated }, Cmd.none )
 
         SaveDraft ->
-            case model.auth of
-                LoggedIn user ->
+            case ( editingLocked model, submittedEditError model, model.auth ) of
+                ( True, _, _ ) ->
+                    ( { model | authError = Just (t model.lang I18n.ErrEditClosed) }, Cmd.none )
+
+                ( False, Just err, _ ) ->
+                    ( { model | authError = Just err }, Cmd.none )
+
+                ( False, Nothing, LoggedIn user ) ->
                     let
                         form =
                             model.submitForm
@@ -832,35 +879,39 @@ updateModelWith msg model =
                 _ ->
                     ( { model | myEntries = RemoteData.Failure err }, Cmd.none )
 
-        EditDraft entryId ->
+        EditEntry entryId ->
             case model.myEntries of
                 RemoteData.Success entries ->
                     case List.filter (\entry -> entry.id == entryId) entries |> List.head of
                         Just entry ->
-                            case entry.competition of
-                                Just competition ->
-                                    ( { model
-                                        | page = SubmitEntryPage (Just entryId)
-                                        , selectedCompetition = Just competition
-                                        , authError = Nothing
-                                        , submitForm =
-                                            { emptyForm
-                                                | entryId = Just entry.id
-                                                , title = entry.title
-                                                , description = Maybe.withDefault "" entry.description
-                                                , existingImages = entry.images
-                                            }
-                                      }
-                                    , Cmd.none
-                                    )
+                            if not (Scoring.canEditEntry model.now entry) then
+                                ( { model | authError = Just (t model.lang I18n.ErrEditClosed) }, Cmd.none )
 
-                                Nothing ->
-                                    ( { model
-                                        | selectedCompetition = Nothing
-                                        , authError = Just (t model.lang I18n.ErrCompetitionLoad)
-                                      }
-                                    , Cmd.none
-                                    )
+                            else
+                                case entry.competition of
+                                    Just competition ->
+                                        ( { model
+                                            | page = SubmitEntryPage (Just entryId)
+                                            , selectedCompetition = Just competition
+                                            , authError = Nothing
+                                            , submitForm =
+                                                { emptyForm
+                                                    | entryId = Just entry.id
+                                                    , title = entry.title
+                                                    , description = Maybe.withDefault "" entry.description
+                                                    , existingImages = entry.images
+                                                }
+                                          }
+                                        , Cmd.none
+                                        )
+
+                                    Nothing ->
+                                        ( { model
+                                            | selectedCompetition = Nothing
+                                            , authError = Just (t model.lang I18n.ErrCompetitionLoad)
+                                          }
+                                        , Cmd.none
+                                        )
 
                         Nothing ->
                             ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
@@ -869,7 +920,12 @@ updateModelWith msg model =
                     ( { model | authError = Just (t model.lang I18n.ErrDraftNotFound) }, Cmd.none )
 
         CancelEdit ->
-            ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
+            case model.submitForm.entryId of
+                Just entryId ->
+                    enterPage (ParticipationPage entryId) { model | submitForm = emptyForm }
+
+                Nothing ->
+                    ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
 
         -- Review queue
         ReviewQueueLoaded (Ok entries) ->
@@ -1304,7 +1360,7 @@ fetchCompetitions pbUrl token =
             pbUrl
                 ++ "/api/collections/competitions/records"
                 ++ "?filter=status%3D%22open%22&sort=end_date"
-                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cend_date%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
+                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cstart_date%2Cend_date%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
         , body = Http.emptyBody
         , expect = Http.expectJson CompetitionsLoaded (pbListDecoder competitionDecoder)
         , timeout = Nothing
@@ -1463,15 +1519,16 @@ authResponseDecoder =
 competitionDecoder : Decode.Decoder Competition
 competitionDecoder =
     Decode.map8
-        (\id title slug theme description endDate coverImage maxEntriesPerUser ->
-            \minImagesPerEntry maxImagesPerEntry ->
-                Competition id title slug theme description endDate coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
+        (\id title slug theme description startDate endDate coverImage ->
+            \maxEntriesPerUser minImagesPerEntry maxImagesPerEntry ->
+                Competition id title slug theme description startDate endDate coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
         )
         (Decode.field "id" Decode.string)
         (Decode.field "title" Decode.string)
         (Decode.field "slug" Decode.string)
         (Decode.maybe (Decode.field "theme" Decode.string))
         (Decode.maybe (Decode.field "description" Decode.string))
+        (Decode.field "start_date" Decode.string)
         (Decode.field "end_date" Decode.string)
         (Decode.maybe (Decode.field "cover_image" Decode.string)
             |> Decode.map
@@ -1485,10 +1542,10 @@ competitionDecoder =
                     )
                 )
         )
-        (Decode.maybe (Decode.field "max_entries_per_user" Decode.int))
         |> Decode.andThen
             (\build ->
-                Decode.map2 build
+                Decode.map3 build
+                    (Decode.maybe (Decode.field "max_entries_per_user" Decode.int))
                     (Decode.maybe (Decode.field "min_images_per_entry" Decode.int))
                     (Decode.maybe (Decode.field "max_images_per_entry" Decode.int))
             )

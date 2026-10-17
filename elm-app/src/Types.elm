@@ -74,6 +74,7 @@ type alias Competition =
     , slug : String
     , theme : Maybe String
     , description : Maybe String
+    , startDate : String
     , endDate : String
     , coverImage : Maybe String
     , maxEntriesPerUser : Maybe Int
@@ -188,6 +189,7 @@ type Page
     | SetDisplayNamePage
     | DashboardPage
     | MyEntriesPage
+    | ParticipationPage String
     | SubmitEntryPage (Maybe String)
     | ReviewQueuePage
     | NotFoundPage
@@ -271,7 +273,7 @@ type Msg
     | EntrySubmitted (Result Http.Error Entry)
       -- My entries
     | MyEntriesLoaded (Result Http.Error (List Entry))
-    | EditDraft String
+    | EditEntry String
     | CancelEdit
       -- Review queue
     | ReviewQueueLoaded (Result Http.Error (List ReviewableEntry))
