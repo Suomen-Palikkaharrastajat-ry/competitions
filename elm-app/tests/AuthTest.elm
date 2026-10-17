@@ -12,6 +12,7 @@ Then Ok or Err is returned according to the validation rules
 
 -}
 
+import Dict
 import Expect
 import Http
 import Lang exposing (Lang(..))
@@ -34,6 +35,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 

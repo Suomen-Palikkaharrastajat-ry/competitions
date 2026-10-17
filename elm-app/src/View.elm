@@ -1,8 +1,9 @@
-module View exposing (starRating, view, viewEntryRow)
+module View exposing (fileKey, starRating, view, viewEntryRow)
 
 {-| View rendering for the competition platform.
 -}
 
+import Dict exposing (Dict)
 import File
 import Html exposing (Html, a, button, div, form, h1, h2, header, img, input, label, main_, nav, p, span, text, textarea)
 import Html.Attributes as Attr
@@ -608,8 +609,8 @@ viewSubmitForm model =
                             text ""
                         , if not (List.isEmpty form.existingImages) || not (List.isEmpty form.selectedFiles) then
                             div [ Attr.class "flex flex-wrap gap-2 mt-2" ]
-                                (List.map (viewImageChip model.lang True) form.existingImages
-                                    ++ List.indexedMap (viewSelectedFileChip model.lang) form.selectedFiles
+                                (List.map (viewImageChip model.lang True (entryImageUrl model.pbUrl (Maybe.withDefault "" form.entryId))) form.existingImages
+                                    ++ List.indexedMap (viewSelectedFileChip model.lang form.previews) form.selectedFiles
                                 )
 
                           else
@@ -745,14 +746,46 @@ formatFileSize bytes =
         String.fromInt (mb10 // 10) ++ "." ++ String.fromInt (modBy 10 mb10) ++ " MB"
 
 
-viewSelectedFileChip : Lang -> Int -> File.File -> Html Msg
-viewSelectedFileChip lang index file =
+{-| Identifies a selected file in the form's previews. The same file chosen
+twice shares one preview.
+-}
+fileKey : File.File -> String
+fileKey file =
+    File.name file ++ "|" ++ String.fromInt (File.size file)
+
+
+{-| A small preview of an image in the entry form, shown while the image is
+not yet uploaded or as a thumbnail of a saved image.
+-}
+viewChipThumbnail : Maybe String -> Html msg
+viewChipThumbnail maybeUrl =
+    case maybeUrl of
+        Just url ->
+            img
+                [ Attr.src url
+                , Attr.alt ""
+                , Attr.class "h-10 w-10 object-cover rounded border border-border-default"
+                ]
+                []
+
+        Nothing ->
+            span [ Attr.class "h-10 w-10 rounded bg-border-default motion-safe:animate-pulse" ] []
+
+
+entryImageUrl : String -> String -> String -> String
+entryImageUrl pbUrl entryId filename =
+    pbUrl ++ "/api/files/entries/" ++ entryId ++ "/" ++ filename ++ "?thumb=400x300"
+
+
+viewSelectedFileChip : Lang -> Dict String String -> Int -> File.File -> Html Msg
+viewSelectedFileChip lang previews index file =
     let
         filename =
             File.name file
     in
-    div [ Attr.class "flex items-center gap-1 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
-        [ text filename
+    div [ Attr.class "flex items-center gap-2 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
+        [ viewChipThumbnail (Dict.get (fileKey file) previews)
+        , text filename
         , span [ Attr.class "text-text-muted type-caption" ]
             [ text (" (" ++ formatFileSize (File.size file) ++ ")") ]
         , button
@@ -765,10 +798,11 @@ viewSelectedFileChip lang index file =
         ]
 
 
-viewImageChip : Lang -> Bool -> String -> Html Msg
-viewImageChip lang removable filename =
-    div [ Attr.class "flex items-center gap-1 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
-        [ text filename
+viewImageChip : Lang -> Bool -> (String -> String) -> String -> Html Msg
+viewImageChip lang removable thumbnailUrl filename =
+    div [ Attr.class "flex items-center gap-2 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
+        [ viewChipThumbnail (Just (thumbnailUrl filename))
+        , text filename
         , if removable then
             button
                 [ Attr.type_ "button"

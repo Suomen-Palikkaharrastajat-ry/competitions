@@ -8,6 +8,7 @@ Then state transitions are correct
 
 -}
 
+import Dict
 import Expect
 import Http
 import Json.Decode as Decode
@@ -101,6 +102,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 

@@ -28,6 +28,7 @@ module Main exposing
 
 import Browser
 import Component.Layout as Layout
+import Dict
 import File
 import Html exposing (Html)
 import Http
@@ -40,6 +41,7 @@ import RemoteData
 import Route
 import Scoring
 import SiteSettings
+import Task
 import Time
 import Types exposing (..)
 import View
@@ -66,6 +68,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 
@@ -260,6 +263,13 @@ hashEffect oldPage newPage incoming =
 
                 else
                     ReplaceHash (Route.toHash newPage)
+
+
+{-| Read a selected image into a data URL, for its preview in the form.
+-}
+previewCmd : File.File -> Cmd Msg
+previewCmd file =
+    Task.perform (PreviewReady (View.fileKey file)) (File.toUrl file)
 
 
 {-| Run `updateModel` and keep the browser's hash in step with the page.
@@ -661,15 +671,19 @@ updateModelWith msg model =
             in
             case Decode.decodeValue (Decode.list File.decoder) jsonValue of
                 Ok decodedFiles ->
+                    let
+                        added =
+                            List.take remainingSlots decodedFiles
+                    in
                     ( { model
                         | submitForm =
                             { form
-                                | selectedFiles = form.selectedFiles ++ List.take remainingSlots decodedFiles
+                                | selectedFiles = form.selectedFiles ++ added
                                 , isCompressing = False
                                 , draftSaved = False
                             }
                       }
-                    , Cmd.none
+                    , Cmd.batch (List.map previewCmd added)
                     )
 
                 Err _ ->
@@ -697,6 +711,13 @@ updateModelWith msg model =
               }
             , Cmd.none
             )
+
+        PreviewReady key url ->
+            let
+                form =
+                    model.submitForm
+            in
+            ( { model | submitForm = { form | previews = Dict.insert key url form.previews } }, Cmd.none )
 
         RemoveSelectedFile index ->
             let

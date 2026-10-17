@@ -22,6 +22,7 @@ module Types exposing
 {-| Core types for the competition platform application.
 -}
 
+import Dict exposing (Dict)
 import File exposing (File)
 import Http
 import Json.Decode as Decode
@@ -136,6 +137,7 @@ type alias SubmitForm =
     , isCompressing : Bool
     , step : SubmitFormStep
     , draftSaved : Bool
+    , previews : Dict String String
     }
 
 
@@ -267,6 +269,7 @@ type Msg
     | RemoveExistingImage String
     | SaveDraft
     | DraftSaved (Result Http.Error Entry)
+    | PreviewReady String String
     | SubmitEntry
     | ConfirmSubmit
     | CancelSubmit

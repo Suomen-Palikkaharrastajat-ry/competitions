@@ -8,6 +8,7 @@ Then the display-name step cannot be skipped and Back stays in the app
 
 -}
 
+import Dict
 import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -48,6 +49,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 

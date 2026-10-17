@@ -8,6 +8,7 @@ Then the correct HTML elements are present
 
 -}
 
+import Dict
 import Expect
 import Html.Attributes
 import Lang exposing (Lang(..))
@@ -45,6 +46,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 
@@ -174,6 +176,22 @@ suite =
                         }
                         |> Query.fromHtml
                         |> Query.hasNot [ tag "button", containing [ text "Muokkaa" ] ]
+            , test "the edit form previews the images already saved on the entry" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn testUser
+                            , page = SubmitEntryPage (Just testEntry.id)
+                            , myEntries = RemoteData.Success [ testEntry ]
+                            , selectedCompetition = Just testCompetition
+                            , submitForm = { emptyForm | entryId = Just testEntry.id, existingImages = [ "photo.jpg" ] }
+                            , now = beforeDeadline
+                        }
+                        |> Query.fromHtml
+                        |> Query.has
+                            [ tag "img"
+                            , attribute (Html.Attributes.src "http://localhost:8090/api/files/entries/entry1/photo.jpg?thumb=400x300")
+                            ]
             , test "editing a submitted entry offers saving changes but not submitting" <|
                 \_ ->
                     View.view

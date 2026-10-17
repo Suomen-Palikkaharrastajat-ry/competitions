@@ -8,6 +8,7 @@ Then state transitions and validation errors are correct
 
 -}
 
+import Dict
 import Expect
 import Http
 import Json.Encode as Encode
@@ -32,6 +33,7 @@ emptyForm =
     , isCompressing = False
     , step = FillingForm
     , draftSaved = False
+    , previews = Dict.empty
     }
 
 
@@ -476,6 +478,16 @@ suite =
                             update (SelectCompetition testCompetition) baseModel
                     in
                     updated.page |> Expect.equal (SubmitEntryPage Nothing)
+            ]
+        , describe "PreviewReady"
+            [ test "stores the preview of a selected file under its key" <|
+                \_ ->
+                    let
+                        ( updated, _ ) =
+                            update (PreviewReady "photo.jpg|1024" "data:image/webp;base64,AAA") baseModel
+                    in
+                    Dict.get "photo.jpg|1024" updated.submitForm.previews
+                        |> Expect.equal (Just "data:image/webp;base64,AAA")
             ]
         , describe "CancelEdit"
             [ test "returns to the participation being edited" <|
