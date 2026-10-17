@@ -247,13 +247,25 @@ run against `http://127.0.0.1:8080/`.
 
 | URL | Service |
 |---|---|
-| `http://127.0.0.1:8080/` | Elm SPA |
-| `http://127.0.0.1:8080/_/` | PocketBase admin UI |
-| `http://127.0.0.1:8080/api/` | PocketBase REST API |
-| `http://127.0.0.1:8080/mailpit/` | Mailpit email UI |
-| `http://127.0.0.1:8080/auth/realms/competitions/` | Keycloak realm |
+| `http://localhost:8080/` | Elm SPA |
+| `http://localhost:8080/_/` | PocketBase admin UI |
+| `http://localhost:8080/api/` | PocketBase REST API |
+| `http://localhost:8080/mailpit/` | Mailpit email UI |
+| `http://localhost:8080/auth/realms/competitions/` | Keycloak realm |
 
 The `devenv` PocketBase process uses the repository-built `competition-pocketbase` binary, applies `pb_migrations/` first and then `pb_migrations_dev/` before serving. That gives local development an open competition, a finished gallery competition, demo local users, Keycloak shadow users, shared profiles, entries in draft/submitted/approved/rejected states, fixture images, reviews, and Mailpit SMTP settings.
+
+### Local stack: host browser access
+
+These settings were needed for the stack to work from a browser on the host. Keep them when changing the local stack.
+
+- **Bind to `0.0.0.0`.** PocketBase (`--http=0.0.0.0:8090`), Keycloak (`http-host = "0.0.0.0"`), Mailpit (`--listen`/`--smtp` on `0.0.0.0`), Vite (`--host 0.0.0.0`) and Caddy (`:8080`) listen on all interfaces. A loopback bind is unreachable through a published sandbox port.
+- **Use `localhost`, not `127.0.0.1`, for public URLs.** Keycloak builds its redirects and login URLs from its `hostname` (`http://localhost:8080/auth`), and the host browser's `127.0.0.1` is the host's own loopback. The auth-session cookie is host-specific, so the login URL, Keycloak `hostname` and `KEYCLOAK_ISSUER_URL` must all use the same host name. Set `KEYCLOAK_ISSUER_URL` in the `shell` profile only; the `ci` profile keeps `127.0.0.1`.
+- **Realm redirects.** `keycloak/competitions-realm.json` accepts both `127.0.0.1:8080` and `localhost:8080` redirect URIs and web origins.
+- **Dev-only provider fix.** `pb_migrations/010` stores the Keycloak provider URLs once, and it never runs again. `pb_migrations_dev/006_keycloak_issuer_localhost.js` re-applies them from `KEYCLOAK_ISSUER_URL`. To re-run it, delete its row from `_migrations` in `.devenv/state/pocketbase/data/data.db`. This is local state only.
+- **Start with `devenv up --strict-ports`.** Without it, devenv moves a port that is still in use, for example Keycloak's 8081 while the previous JVM is still shutting down. It then keeps the new port (8082), and Caddy returns 502 on `/auth/`. Stop the old `devenv up` and wait for the ports to free before starting again.
+- **Mailpit UI is under `/mailpit/` only.** Its `--webroot /mailpit` makes `http://localhost:8025/` return 404 by design. Use `http://localhost:8025/mailpit/` or the Caddy URL.
+- **Publish the port to the host.** The sandbox must be launched with the Caddy port published (`[ports] caddy = 8080`). `AGENT_SANDBOX_HOST_PORTS` shows what is published. The host browser connects through CDP on 9222.
 
 Domain ownership must go through `profiles`. `entries.submitter` and `reviews.reviewer` relate to profiles, while `local_users` and `keycloak_users` are only authentication records. `pb_migrations_dev/` is local-only fixture data and must never be used for production.
 
@@ -264,7 +276,7 @@ Domain ownership must go through `profiles`. `entries.submitter` and `reviews.re
 ```toml agent-sandbox
 [network]
 allowed_hosts = [
-    "packages.elm.org:443",
+    "package.elm-lang.org:443",
     "proxy.golang.org:443",
     "storage.googleapis.com:443",
     "*.nixos.org:443",

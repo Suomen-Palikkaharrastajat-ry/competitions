@@ -17,10 +17,12 @@
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://127.0.0.1:8080/api/oauth2-redirect"
+        "http://127.0.0.1:8080/api/oauth2-redirect",
+        "http://localhost:8080/api/oauth2-redirect"
       ],
       "webOrigins": [
-        "http://127.0.0.1:8080"
+        "http://127.0.0.1:8080",
+        "http://localhost:8080"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"

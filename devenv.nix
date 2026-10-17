@@ -66,7 +66,7 @@ let
       dotenv.enable = true;
 
       env.NODE_PATH = "${npmTools}/lib/node_modules";
-      env.KEYCLOAK_ISSUER_URL = "http://127.0.0.1:8080/auth/realms/competitions";
+      env.KEYCLOAK_ISSUER_URL = "http://localhost:8080/auth/realms/competitions";
       env.KEYCLOAK_CLIENT_ID = "competitions";
       env.KEYCLOAK_CLIENT_SECRET = "competitions-dev-secret";
       env.KEYCLOAK_PROVIDER_NAME = "oidc";
@@ -116,7 +116,7 @@ let
         http-host = "0.0.0.0";
         http-port = 8081;
         http-relative-path = "/auth";
-        hostname = "http://127.0.0.1:8080/auth";
+        hostname = "http://localhost:8080/auth";
         hostname-strict = false;
         proxy-headers = "xforwarded";
         features = "scripts";
