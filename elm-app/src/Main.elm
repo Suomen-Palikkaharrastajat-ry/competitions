@@ -724,13 +724,20 @@ updateModelWith msg model =
                 form =
                     model.submitForm
 
+                remaining =
+                    form.selectedFiles
+                        |> List.indexedMap Tuple.pair
+                        |> List.filter (\( i, _ ) -> i /= index)
+                        |> List.map Tuple.second
+
+                -- Keep only the previews of files still selected.
+                previews =
+                    Dict.filter (\key _ -> List.any (\file -> View.fileKey file == key) remaining) form.previews
+
                 updated =
                     { form
-                        | selectedFiles =
-                            form.selectedFiles
-                                |> List.indexedMap Tuple.pair
-                                |> List.filter (\( i, _ ) -> i /= index)
-                                |> List.map Tuple.second
+                        | selectedFiles = remaining
+                        , previews = previews
                         , draftSaved = False
                     }
             in

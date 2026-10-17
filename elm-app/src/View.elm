@@ -609,8 +609,8 @@ viewSubmitForm model =
                             text ""
                         , if not (List.isEmpty form.existingImages) || not (List.isEmpty form.selectedFiles) then
                             div [ Attr.class "flex flex-wrap gap-2 mt-2" ]
-                                (List.map (viewImageChip model.lang True (entryImageUrl model.pbUrl (Maybe.withDefault "" form.entryId))) form.existingImages
-                                    ++ List.indexedMap (viewSelectedFileChip model.lang form.previews) form.selectedFiles
+                                (List.map (viewExistingImageTile model.lang (entryImageUrl model.pbUrl (Maybe.withDefault "" form.entryId))) form.existingImages
+                                    ++ List.indexedMap (viewSelectedFileTile model.lang form.previews) form.selectedFiles
                                 )
 
                           else
@@ -754,22 +754,35 @@ fileKey file =
     File.name file ++ "|" ++ String.fromInt (File.size file)
 
 
-{-| A small preview of an image in the entry form, shown while the image is
-not yet uploaded or as a thumbnail of a saved image.
+{-| An image in the entry form: a large preview with the file name only as its
+tooltip and accessible name, and a button to remove it. Without a preview yet,
+a placeholder keeps the tile's size.
 -}
-viewChipThumbnail : Maybe String -> Html msg
-viewChipThumbnail maybeUrl =
-    case maybeUrl of
-        Just url ->
-            img
-                [ Attr.src url
-                , Attr.alt ""
-                , Attr.class "h-10 w-10 object-cover rounded border border-border-default"
-                ]
-                []
+viewImageTile : Lang -> String -> String -> Maybe String -> Msg -> Html Msg
+viewImageTile lang tooltip filename maybeUrl onRemove =
+    div
+        [ Attr.class "relative h-40 w-full max-w-52 overflow-hidden rounded-lg border border-border-default bg-bg-subtle"
+        , Attr.title tooltip
+        ]
+        [ case maybeUrl of
+            Just url ->
+                img
+                    [ Attr.src url
+                    , Attr.alt filename
+                    , Attr.class "h-full w-full object-cover"
+                    ]
+                    []
 
-        Nothing ->
-            span [ Attr.class "h-10 w-10 rounded bg-border-default motion-safe:animate-pulse" ] []
+            Nothing ->
+                span [ Attr.class "block h-full w-full bg-border-default motion-safe:animate-pulse" ] []
+        , button
+            [ Attr.type_ "button"
+            , Attr.attribute "aria-label" (t lang I18n.RemoveFile ++ ": " ++ filename)
+            , Attr.class "absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand text-text-on-dark outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand-yellow focus-visible:ring-offset-2"
+            , Events.onClick onRemove
+            ]
+            [ span [ Attr.attribute "aria-hidden" "true" ] [ text "×" ] ]
+        ]
 
 
 entryImageUrl : String -> String -> String -> String
@@ -777,44 +790,22 @@ entryImageUrl pbUrl entryId filename =
     pbUrl ++ "/api/files/entries/" ++ entryId ++ "/" ++ filename ++ "?thumb=400x300"
 
 
-viewSelectedFileChip : Lang -> Dict String String -> Int -> File.File -> Html Msg
-viewSelectedFileChip lang previews index file =
+viewSelectedFileTile : Lang -> Dict String String -> Int -> File.File -> Html Msg
+viewSelectedFileTile lang previews index file =
     let
         filename =
             File.name file
     in
-    div [ Attr.class "flex items-center gap-2 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
-        [ viewChipThumbnail (Dict.get (fileKey file) previews)
-        , text filename
-        , span [ Attr.class "text-text-muted type-caption" ]
-            [ text (" (" ++ formatFileSize (File.size file) ++ ")") ]
-        , button
-            [ Attr.type_ "button"
-            , Attr.attribute "aria-label" (t lang I18n.RemoveFile ++ ": " ++ filename)
-            , Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
-            , Events.onClick (RemoveSelectedFile index)
-            ]
-            [ span [ Attr.attribute "aria-hidden" "true" ] [ text "×" ] ]
-        ]
+    viewImageTile lang
+        (filename ++ " (" ++ formatFileSize (File.size file) ++ ")")
+        filename
+        (Dict.get (fileKey file) previews)
+        (RemoveSelectedFile index)
 
 
-viewImageChip : Lang -> Bool -> (String -> String) -> String -> Html Msg
-viewImageChip lang removable thumbnailUrl filename =
-    div [ Attr.class "flex items-center gap-2 bg-bg-subtle rounded px-2 py-1 type-caption text-brand" ]
-        [ viewChipThumbnail (Just (thumbnailUrl filename))
-        , text filename
-        , if removable then
-            button
-                [ Attr.type_ "button"
-                , Attr.attribute "aria-label" (t lang I18n.RemoveFile ++ ": " ++ filename)
-                , Attr.class "ml-1 text-text-muted hover:text-brand-red focus-visible:ring-2 focus-visible:ring-brand outline-none"
-                , Events.onClick (RemoveExistingImage filename)
-                ]
-                [ span [ Attr.attribute "aria-hidden" "true" ] [ text "×" ] ]
-
-          else
-            text ""
-        ]
+viewExistingImageTile : Lang -> (String -> String) -> String -> Html Msg
+viewExistingImageTile lang thumbnailUrl filename =
+    viewImageTile lang filename filename (Just (thumbnailUrl filename)) (RemoveExistingImage filename)
 
 
 rawFilesOnChange : (Decode.Value -> msg) -> Html.Attribute msg

@@ -192,6 +192,39 @@ suite =
                             [ tag "img"
                             , attribute (Html.Attributes.src "http://localhost:8090/api/files/entries/entry1/photo.jpg?thumb=400x300")
                             ]
+            , test "removing a saved image sends its file name" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn testUser
+                            , page = SubmitEntryPage (Just testEntry.id)
+                            , myEntries = RemoteData.Success [ testEntry ]
+                            , selectedCompetition = Just testCompetition
+                            , submitForm = { emptyForm | entryId = Just testEntry.id, existingImages = [ "photo.jpg" ] }
+                            , now = beforeDeadline
+                        }
+                        |> Query.fromHtml
+                        |> Query.find [ tag "button", attribute (Html.Attributes.attribute "aria-label" "Poista kuva: photo.jpg") ]
+                        |> Event.simulate Event.click
+                        |> Event.expect (RemoveExistingImage "photo.jpg")
+            , test "image previews hide the file name, which is a tooltip and the accessible name" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn testUser
+                            , page = SubmitEntryPage (Just testEntry.id)
+                            , myEntries = RemoteData.Success [ testEntry ]
+                            , selectedCompetition = Just testCompetition
+                            , submitForm = { emptyForm | entryId = Just testEntry.id, existingImages = [ "photo.jpg" ] }
+                            , now = beforeDeadline
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ attribute (Html.Attributes.title "photo.jpg") ]
+                            , Query.has [ tag "img", attribute (Html.Attributes.alt "photo.jpg") ]
+                            , Query.has [ tag "button", attribute (Html.Attributes.attribute "aria-label" "Poista kuva: photo.jpg") ]
+                            , Query.hasNot [ text "photo.jpg" ]
+                            ]
             , test "editing a submitted entry offers saving changes but not submitting" <|
                 \_ ->
                     View.view
