@@ -34,7 +34,7 @@ This document defines the canonical terminology for the **Palikkakilpailu** (LEG
 
 - **Participant** (`osallistuja`): Any authenticated user. Can submit entries to open competitions.
 - **Reviewer** (`arvostelija`): User with `is_reviewer = true`. Can see all submitted entries and create/edit reviews.
-- **Admin** (`ylläpitäjä`): PocketBase superuser or collection admin. Manages competitions, approves/rejects entries, publishes reviews.
+- **Admin** (`ylläpitäjä`): A reviewer, in the app's admin area (`#/admin`, ADR-0004). Manages competitions, approves/rejects/resets entries. A superuser (PocketBase admin UI) also deletes competitions and manages roles.
 
 ---
 
