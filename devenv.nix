@@ -98,7 +98,7 @@ let
         env GOFLAGS=-mod=mod PB_MIGRATIONS_DIR="$DEVENV_ROOT/pb_migrations_dev" go run "$DEVENV_ROOT/cmd/competition-pocketbase" migrate up --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" &&
         env GOFLAGS=-mod=mod PB_MIGRATIONS_DIR="$DEVENV_ROOT/pb_migrations" PB_HOOKS_DIR="$DEVENV_ROOT/pb_hooks" go run "$DEVENV_ROOT/cmd/competition-pocketbase" serve \
           --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" \
-          --http=127.0.0.1:8090 \
+          --http=0.0.0.0:8090 \
           --dev
       '';
 
@@ -113,7 +113,7 @@ let
       };
       services.keycloak.settings = {
         http-enabled = true;
-        http-host = "127.0.0.1";
+        http-host = "0.0.0.0";
         http-port = 8081;
         http-relative-path = "/auth";
         hostname = "http://127.0.0.1:8080/auth";
@@ -128,7 +128,7 @@ let
 
       # ── Mailpit (local SMTP + web UI) ────────────────────────────────────────────
       processes.mailpit.exec =
-        "mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025 --webroot /mailpit";
+        "mailpit --smtp 0.0.0.0:1025 --listen 0.0.0.0:8025 --webroot /mailpit";
 
       # ── Caddy reverse proxy ──────────────────────────────────────────────────────
       processes.caddy.exec =

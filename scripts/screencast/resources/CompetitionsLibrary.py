@@ -145,6 +145,31 @@ class CompetitionsLibrary:
             "POST", "/api/collections/entries/records", fields, files=[("images", p) for p in images]
         )
 
+    @keyword
+    def approve_entry(self, title):
+        """Set the status of an entry to 'approved'."""
+        for record in self._all("entries", f"title = {json.dumps(title)}"):
+            self._request("PATCH", f"/api/collections/entries/records/{record['id']}", {"status": "approved"})
+
+    @keyword
+    def create_published_review(
+        self, entry_title, reviewer_email, theme=5, originality=5, technique=5, presentation=5, comment=""
+    ):
+        """Create a published review for an entry as reviewer_email."""
+        entry = self._all("entries", f"title = {json.dumps(entry_title)}")[0]
+        reviewer = self._all("profiles", f"email = {json.dumps(reviewer_email)}")[0]
+        fields = {
+            "entry": entry["id"],
+            "reviewer": reviewer["id"],
+            "score_theme": int(theme),
+            "score_originality": int(originality),
+            "score_technique": int(technique),
+            "score_presentation": int(presentation),
+            "comment": comment,
+            "is_published": True,
+        }
+        self._request("POST", "/api/collections/reviews/records", fields)
+
     # -- Browser helpers --------------------------------------------------
 
     def _page(self):

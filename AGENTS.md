@@ -259,15 +259,25 @@ Domain ownership must go through `profiles`. `entries.submitter` and `reviews.re
 
 ---
 
-## 8. TODO Execution Order
+## Agent Sandbox
 
-Work on TODOs in numerical order. Each TODO has its own acceptance criteria. Do not start a later TODO until all acceptance criteria of the previous TODO are met.
+```toml agent-sandbox
+[network]
+allowed_hosts = [
+    "packages.elm.org:443",
+    "proxy.golang.org:443",
+    "storage.googleapis.com:443",
+    "*.nixos.org:443",
+    "*.cachix.org:443",
+    "*.github.com:443",
+    "*.github.io:443",
+    "*.gitlab.com:443",
+]
 
+[ports]
+caddy = 8080
+vite = 5173
+pocketbase = 8090
+keycloak = 8081
+mailpit = 8025
 ```
-TODO-00 → TODO-01 → TODO-02 → TODO-03 → TODO-04 → TODO-05 → TODO-06 → TODO-07 → TODO-08
-cleanup    schema     auth      submit    review    gallery   devenv    polish     fixes
-```
-
-> TODO-05 (gallery) and TODO-06 (devenv) can be worked on in parallel with TODO-03/04 if the PocketBase schema (TODO-01) is complete.
-> TODO-07 must come before TODO-08 — it depends on all prior TODOs being complete.
-> TODO-08 must come last — it addresses security, quality, and test gaps introduced in prior steps.

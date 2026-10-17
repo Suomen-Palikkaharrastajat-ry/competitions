@@ -125,6 +125,11 @@ make dev-proxy-test  # smoke-test local reverse proxy config
 make pb-seed          # apply local-only fixture migrations to pb_data/
 ```
 
+## Documentation
+
+- [Kilpailun järjestäjän ja arvostelijan opas (Organizer & Reviewer Guide)](docs/organizer-guide.md)
+- [Kilpailijan ja osallistujan opas (Participant Guide)](docs/participant-guide.md)
+
 ## Architecture Rules
 
 PocketBase is the data source of truth. The Elm app and Haskell gallery both use the PocketBase REST API; they do not call each other. Schema changes belong in `pb_migrations/`. Local fixture data belongs in `pb_migrations_dev/` and must not be deployed to production. Hooks for the custom backend live in `pb_hooks/`.

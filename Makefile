@@ -37,6 +37,7 @@ shell: ## Enter devenv shell
 
 # Vite must not write its temp config into the read-only node_modules.
 VITE_FLAGS ?= --configLoader runner
+VITE_DEV_FLAGS ?= --host 0.0.0.0 --port 5173
 
 # The shared targets `site-config` and `site-config-check` come from the hub.
 SITE_CONFIG_I18N := elm-app/src elm-app/main.js statics/src statics/app
@@ -45,7 +46,7 @@ SITE_CONFIG_I18N := elm-app/src elm-app/main.js statics/src statics/app
 
 .PHONY: elm-dev
 elm-dev: ## Start Elm + Vite dev server (hot reload)
-	cd elm-app && vite $(VITE_FLAGS)
+	cd elm-app && vite $(VITE_FLAGS) $(VITE_DEV_FLAGS)
 
 ELM_APP_SOURCES := $(shell find elm-app/src -name '*.elm')
 ELM_PACKAGE_SOURCES := $(shell find vendor/master-builder/packages -name '*.elm' -o -name '*.css' 2>/dev/null)
