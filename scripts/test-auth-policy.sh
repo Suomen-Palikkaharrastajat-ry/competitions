@@ -13,6 +13,8 @@ SMTP_PORT="${SMTP_PORT:-11025}"
 cleanup() {
   rm -f "/tmp/keycloak-required-body.$$" "/tmp/local-otp-body.$$"
   if [ -n "${PB_PID:-}" ]; then
+    # `go run` starts the server as a child process; stop it too.
+    pkill -P "$PB_PID" >/dev/null 2>&1 || true
     kill "$PB_PID" >/dev/null 2>&1 || true
     wait "$PB_PID" >/dev/null 2>&1 || true
   fi

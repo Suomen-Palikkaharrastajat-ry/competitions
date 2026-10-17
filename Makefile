@@ -159,6 +159,7 @@ quality: haskell-check cabal-check ## Run strict non-browser quality gates for C
 	$(MAKE) pb-test-migrate
 	$(MAKE) pb-test-fixture
 	$(MAKE) pb-test-entry-edit-policy
+	$(MAKE) pb-test-admin-policy
 	$(MAKE) dev-proxy-test
 
 .PHONY: test
@@ -257,6 +258,10 @@ pb-test-auth-policy: ## Smoke-test Keycloak-first OTP policy hooks
 .PHONY: pb-test-entry-limits
 pb-test-entry-limits: ## Smoke-test the entry image limit hooks
 	@POCKETBASE='$(POCKETBASE)' ./scripts/test-entry-limits.sh
+
+.PHONY: pb-test-admin-policy
+pb-test-admin-policy: ## Smoke-test who may manage competitions, entries and reviews in the admin
+	@POCKETBASE='$(POCKETBASE)' ./scripts/test-admin-policy.sh
 
 .PHONY: pb-test-entry-edit-policy
 pb-test-entry-edit-policy: ## Smoke-test who may edit an entry before and after the competition deadline
