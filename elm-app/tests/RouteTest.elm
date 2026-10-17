@@ -44,4 +44,28 @@ suite =
                     |> Expect.equal (Just (ParticipationPage "entry1"))
         , test "a participation hash without an entry id is ignored" <|
             \_ -> Expect.equal Nothing (Route.fromHash "#/omat/")
+        , test "the admin pages have hashes of their own" <|
+            \_ ->
+                [ AdminPage
+                , AdminCompetitionPage Nothing
+                , AdminCompetitionPage (Just "c1")
+                , AdminEntriesPage "c1"
+                ]
+                    |> List.map Route.toHash
+                    |> Expect.equal [ "#/admin", "#/admin/kilpailut/uusi", "#/admin/kilpailut/c1", "#/admin/osallistumiset/c1" ]
+        , test "the admin pages round-trip" <|
+            \_ ->
+                [ AdminPage
+                , AdminCompetitionPage Nothing
+                , AdminCompetitionPage (Just "c1")
+                , AdminEntriesPage "c1"
+                ]
+                    |> List.map (\page -> Route.fromHash (Route.toHash page))
+                    |> Expect.equal [ Just AdminPage, Just (AdminCompetitionPage Nothing), Just (AdminCompetitionPage (Just "c1")), Just (AdminEntriesPage "c1") ]
+        , test "every admin page belongs to the admin area" <|
+            \_ ->
+                ( Route.isAdminPage AdminPage, Route.isAdminPage (AdminEntriesPage "c1"), Route.isAdminPage DashboardPage )
+                    |> Expect.equal ( True, True, False )
+        , test "an admin competition hash without an id is ignored" <|
+            \_ -> Expect.equal Nothing (Route.fromHash "#/admin/kilpailut/")
         ]

@@ -16,6 +16,7 @@ module Main exposing
     , myEntriesUrl
     , otpResponseDecoder
     , requestOtpUrl
+    , reviewQueueUrl
     , reviewableEntryDecoder
     , update
     , validateEmail
@@ -26,6 +27,7 @@ module Main exposing
 {-| Entry point for the Palikkakilpailu competition platform application.
 -}
 
+import Admin
 import Browser
 import Component.Layout as Layout
 import Dict
@@ -114,6 +116,10 @@ init flags =
                 , reviewQueue = RemoteData.NotAsked
                 , activeReview = Nothing
                 , reviewFilter = AllEntries
+                , adminCompetitions = RemoteData.NotAsked
+                , adminForm = Nothing
+                , adminFormErrors = []
+                , adminEntries = RemoteData.NotAsked
                 }
 
         -- A deep link the app does not keep (unknown, or not allowed for the
@@ -150,7 +156,7 @@ init flags =
 -}
 allowedPage : AuthUser -> Page -> Page
 allowedPage user page =
-    if page == ReviewQueuePage && not user.isReviewer then
+    if (page == ReviewQueuePage || Route.isAdminPage page) && not user.isReviewer then
         DashboardPage
 
     else
@@ -188,6 +194,29 @@ enterPage page_ model =
         ( ParticipationPage _, LoggedIn user ) ->
             ( { model | page = page, myEntries = RemoteData.Loading }
             , fetchMyEntries model.pbUrl user.token user.profileId
+            )
+
+        ( AdminPage, LoggedIn user ) ->
+            ( { model | page = page, adminCompetitions = RemoteData.Loading }
+            , fetchAdminCompetitions model.pbUrl user.token
+            )
+
+        ( AdminEntriesPage competitionId, LoggedIn user ) ->
+            ( { model | page = page, adminEntries = RemoteData.Loading }
+            , Cmd.batch
+                [ fetchAdminEntries model.pbUrl user.token competitionId
+                , fetchAdminCompetitions model.pbUrl user.token
+                ]
+            )
+
+        ( AdminCompetitionPage Nothing, LoggedIn _ ) ->
+            ( { model | page = page, adminForm = Just Admin.emptyCompetitionForm, adminFormErrors = [] }
+            , Cmd.none
+            )
+
+        ( AdminCompetitionPage (Just _), LoggedIn user ) ->
+            ( { model | page = page, adminForm = Nothing, adminFormErrors = [], adminCompetitions = RemoteData.Loading }
+            , fetchAdminCompetitions model.pbUrl user.token
             )
 
         ( ReviewQueuePage, LoggedIn user ) ->
@@ -956,6 +985,118 @@ updateModelWith msg model =
                     ( { model | page = MyEntriesPage, submitForm = emptyForm }, Cmd.none )
 
         -- Review queue
+        AdminCompetitionsLoaded (Ok competitions) ->
+            let
+                -- Opening a competition's page fills its form from the list, once:
+                -- a later load must not overwrite what the admin is typing.
+                form =
+                    case ( model.page, model.adminForm ) of
+                        ( AdminCompetitionPage (Just competitionId), Nothing ) ->
+                            competitions
+                                |> List.filter (\competition -> competition.id == competitionId)
+                                |> List.head
+                                |> Maybe.map Admin.formFromCompetition
+
+                        _ ->
+                            model.adminForm
+            in
+            ( { model | adminCompetitions = RemoteData.Success competitions, adminForm = form }, Cmd.none )
+
+        AdminCompetitionsLoaded (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | adminCompetitions = RemoteData.Failure err }, Cmd.none )
+
+        AdminEntriesLoaded (Ok entries) ->
+            ( { model | adminEntries = RemoteData.Success entries }, Cmd.none )
+
+        AdminEntriesLoaded (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | adminEntries = RemoteData.Failure err }, Cmd.none )
+
+        AdminFieldChanged field value ->
+            ( { model | adminForm = Maybe.map (Admin.updateField field value) model.adminForm }, Cmd.none )
+
+        SaveCompetition ->
+            case ( model.adminForm, model.auth ) of
+                ( Just form, LoggedIn user ) ->
+                    case Admin.validateCompetitionForm form of
+                        [] ->
+                            let
+                                target =
+                                    adminCompetitionTarget model
+                            in
+                            ( { model | adminFormErrors = [] }
+                            , saveCompetitionCmd model.pbUrl user.token target (Maybe.andThen (adminCompetitionById model) target) form
+                            )
+
+                        errors ->
+                            ( { model | adminFormErrors = errors }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CompetitionStatusSaved (Ok competition) ->
+            -- A status change stays on the page: the rest of the form is kept.
+            ( { model
+                | adminForm = Maybe.map (\form -> { form | status = competition.status }) model.adminForm
+                , adminCompetitions =
+                    RemoteData.map
+                        (List.map
+                            (\c ->
+                                if c.id == competition.id then
+                                    competition
+
+                                else
+                                    c
+                            )
+                        )
+                        model.adminCompetitions
+              }
+            , Cmd.none
+            )
+
+        CompetitionStatusSaved (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | adminFormErrors = [ ServerRejected ] }, Cmd.none )
+
+        SetCompetitionStatus status ->
+            case ( adminCompetitionTarget model, model.auth ) of
+                ( Just competitionId, LoggedIn user ) ->
+                    ( model, setCompetitionStatusCmd model.pbUrl user.token competitionId status )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CompetitionSaved (Ok _) ->
+            case model.auth of
+                LoggedIn user ->
+                    ( { model | page = AdminPage, adminForm = Nothing, adminFormErrors = [], adminCompetitions = RemoteData.Loading }
+                    , fetchAdminCompetitions model.pbUrl user.token
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CompetitionSaved (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    ( { model | adminFormErrors = [ ServerRejected ] }, Cmd.none )
+
         ReviewQueueLoaded (Ok entries) ->
             ( { model | reviewQueue = RemoteData.Success entries }, Cmd.none )
 
@@ -1091,6 +1232,14 @@ updateModelWith msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        ResetEntry entryId ->
+            case model.auth of
+                LoggedIn user ->
+                    ( model, changeEntryStatus model.pbUrl user.token entryId "submitted" Submitted )
+
+                _ ->
+                    ( model, Cmd.none )
+
         EntryStatusChanged entryId newStatus (Ok ()) ->
             let
                 setStatus re =
@@ -1104,7 +1253,10 @@ updateModelWith msg model =
                     else
                         re
             in
-            ( { model | reviewQueue = RemoteData.map (List.map setStatus) model.reviewQueue }
+            ( { model
+                | reviewQueue = RemoteData.map (List.map setStatus) model.reviewQueue
+                , adminEntries = RemoteData.map (List.map setStatus) model.adminEntries
+              }
             , Cmd.none
             )
 
@@ -1388,9 +1540,116 @@ fetchCompetitions pbUrl token =
             pbUrl
                 ++ "/api/collections/competitions/records"
                 ++ "?filter=status%3D%22open%22&sort=end_date"
-                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cstart_date%2Cend_date%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
+                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cstart_date%2Cend_date%2Cjudging_end_date%2Cstatus%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
         , body = Http.emptyBody
         , expect = Http.expectJson CompetitionsLoaded (pbListDecoder competitionDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Every competition, whatever its status, newest first.
+-}
+fetchAdminCompetitions : String -> String -> Cmd Msg
+fetchAdminCompetitions pbUrl token =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url = pbUrl ++ "/api/collections/competitions/records?sort=-start_date&perPage=200"
+        , body = Http.emptyBody
+        , expect = Http.expectJson AdminCompetitionsLoaded (pbListDecoder competitionDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| The loaded competition with this id, if the list has it.
+-}
+adminCompetitionById : Model -> String -> Maybe Competition
+adminCompetitionById model competitionId =
+    case model.adminCompetitions of
+        RemoteData.Success competitions ->
+            competitions
+                |> List.filter (\competition -> competition.id == competitionId)
+                |> List.head
+
+        _ ->
+            Nothing
+
+
+{-| The competition an admin page is about: Nothing for a new one.
+-}
+adminCompetitionTarget : Model -> Maybe String
+adminCompetitionTarget model =
+    case model.page of
+        AdminCompetitionPage target ->
+            target
+
+        _ ->
+            Nothing
+
+
+{-| Create a competition (POST) or change an existing one (PATCH).
+-}
+saveCompetitionCmd : String -> String -> Maybe String -> Maybe Competition -> CompetitionForm -> Cmd Msg
+saveCompetitionCmd pbUrl token target original form =
+    let
+        url =
+            pbUrl ++ "/api/collections/competitions/records"
+    in
+    Http.request
+        { method =
+            case target of
+                Just _ ->
+                    "PATCH"
+
+                Nothing ->
+                    "POST"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            case target of
+                Just competitionId ->
+                    url ++ "/" ++ competitionId
+
+                Nothing ->
+                    url
+        , body = Http.jsonBody (Admin.encodeCompetition original form)
+        , expect = Http.expectJson CompetitionSaved competitionDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Change only the status of a competition.
+-}
+setCompetitionStatusCmd : String -> String -> String -> CompetitionStatus -> Cmd Msg
+setCompetitionStatusCmd pbUrl token competitionId status =
+    Http.request
+        { method = "PATCH"
+        , headers = [ Http.header "Authorization" token ]
+        , url = pbUrl ++ "/api/collections/competitions/records/" ++ competitionId
+        , body = Http.jsonBody (Encode.object [ ( "status", Encode.string (Admin.statusToString status) ) ])
+        , expect = Http.expectJson CompetitionStatusSaved competitionDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Every entry of a competition, drafts included, with its submitter and reviews.
+-}
+fetchAdminEntries : String -> String -> String -> Cmd Msg
+fetchAdminEntries pbUrl token competitionId =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            pbUrl
+                ++ "/api/collections/entries/records"
+                ++ "?filter=competition%3D%22"
+                ++ competitionId
+                ++ "%22&expand=competition%2Csubmitter%2Creviews_via_entry&sort=-created&perPage=200"
+        , body = Http.emptyBody
+        , expect = Http.expectJson AdminEntriesLoaded (pbListDecoder (reviewableEntryDecoder ""))
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -1548,8 +1807,8 @@ competitionDecoder : Decode.Decoder Competition
 competitionDecoder =
     Decode.map8
         (\id title slug theme description startDate endDate coverImage ->
-            \maxEntriesPerUser minImagesPerEntry maxImagesPerEntry ->
-                Competition id title slug theme description startDate endDate coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
+            \maxEntriesPerUser minImagesPerEntry maxImagesPerEntry judgingEndDate status ->
+                Competition id title slug theme description startDate endDate judgingEndDate status coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
         )
         (Decode.field "id" Decode.string)
         (Decode.field "title" Decode.string)
@@ -1572,10 +1831,35 @@ competitionDecoder =
         )
         |> Decode.andThen
             (\build ->
-                Decode.map3 build
+                Decode.map5 build
                     (Decode.maybe (Decode.field "max_entries_per_user" Decode.int))
                     (Decode.maybe (Decode.field "min_images_per_entry" Decode.int))
                     (Decode.maybe (Decode.field "max_images_per_entry" Decode.int))
+                    (Decode.maybe (Decode.field "judging_end_date" Decode.string))
+                    (Decode.map (Maybe.withDefault CDraft) (Decode.maybe (Decode.field "status" competitionStatusDecoder)))
+            )
+
+
+competitionStatusDecoder : Decode.Decoder CompetitionStatus
+competitionStatusDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\value ->
+                case value of
+                    "open" ->
+                        Decode.succeed COpen
+
+                    "closed" ->
+                        Decode.succeed CClosed
+
+                    "judging" ->
+                        Decode.succeed CJudging
+
+                    "finished" ->
+                        Decode.succeed CFinished
+
+                    _ ->
+                        Decode.succeed CDraft
             )
 
 
@@ -1651,16 +1935,23 @@ fetchReviewQueue pbUrl token profileId =
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" token ]
-        , url =
-            pbUrl
-                ++ "/api/collections/entries/records"
-                ++ "?filter=status%3D%22submitted%22||status%3D%22approved%22||status%3D%22rejected%22"
-                ++ "&expand=competition%2Csubmitter%2Creviews_via_entry&sort=created"
+        , url = reviewQueueUrl pbUrl
         , body = Http.emptyBody
         , expect = Http.expectJson ReviewQueueLoaded (pbListDecoder (reviewableEntryDecoder profileId))
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+{-| The review queue: every submitted, approved or rejected entry. PocketBase
+returns 30 records per page unless asked for more.
+-}
+reviewQueueUrl : String -> String
+reviewQueueUrl pbUrl =
+    pbUrl
+        ++ "/api/collections/entries/records"
+        ++ "?filter=status%3D%22submitted%22||status%3D%22approved%22||status%3D%22rejected%22"
+        ++ "&expand=competition%2Csubmitter%2Creviews_via_entry&sort=created&perPage=200"
 
 
 {-| Save the open review form; `isPublished` decides whether the submitter

@@ -11,6 +11,7 @@ Then the correct HTML elements are present
 import Dict
 import Expect
 import Html.Attributes
+import Http
 import Lang exposing (Lang(..))
 import RemoteData
 import Test exposing (Test, describe, test)
@@ -70,6 +71,10 @@ loggedOutModel =
     , reviewQueue = RemoteData.NotAsked
     , activeReview = Nothing
     , reviewFilter = AllEntries
+    , adminCompetitions = RemoteData.NotAsked
+    , adminForm = Nothing
+    , adminFormErrors = []
+    , adminEntries = RemoteData.NotAsked
     }
 
 
@@ -86,6 +91,8 @@ testCompetition =
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
     , startDate = "2026-06-01 00:00:00.000Z"
+    , judgingEndDate = Nothing
+    , status = COpen
     }
 
 
@@ -129,6 +136,172 @@ suite =
                         |> Expect.all
                             [ Query.has [ text "Olet käyttänyt kaikki osallistumispaikkasi tässä kilpailussa." ]
                             , Query.findAll [ tag "button", containing [ text "Osallistu" ] ] >> Query.count (Expect.equal 0)
+                            ]
+            ]
+        , describe "Admin competition form (US-009)"
+            [ test "the form shows what is wrong with role=alert" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminCompetitionPage Nothing
+                            , adminForm = Just { title = "", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", status = CDraft }
+                            , adminFormErrors = [ TitleRequired ]
+                        }
+                        |> Query.fromHtml
+                        |> Query.has [ attribute (Html.Attributes.attribute "role" "alert") ]
+            ]
+        , describe "Admin status control (US-009)"
+            [ test "offers only the next and the previous status" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminCompetitionPage (Just "c1")
+                            , adminCompetitions = RemoteData.Success [ { testCompetition | status = COpen } ]
+                            , adminForm = Just { title = "Kevat", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", status = COpen }
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ tag "button", text "Siirrä tilaan: Suljettu" ]
+                            , Query.has [ tag "button", text "Siirrä tilaan: Luonnos" ]
+                            , Query.hasNot [ tag "button", text "Siirrä tilaan: Päättynyt" ]
+                            ]
+            ]
+        , describe "Admin entries (US-010)"
+            [ test "lists each entry with its submitter, status, images and published reviews" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries = RemoteData.Success [ { entry = testEntry, competition = testCompetition, submitterName = "Aino", myReview = Nothing } ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ text "Aino" ]
+                            , Query.has [ text "Lähetetty" ]
+                            , Query.has [ text "Kuvia: 1" ]
+                            , Query.has [ text "Julkaistuja arvioita: 0" ]
+                            ]
+            ]
+        , describe "Admin entry actions (US-010)"
+            [ test "a submitted entry can be approved or rejected" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries = RemoteData.Success [ { entry = testEntry, competition = testCompetition, submitterName = "Aino", myReview = Nothing } ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ tag "button", text "Hyväksy" ]
+                            , Query.has [ tag "button", text "Hylkää" ]
+                            , Query.hasNot [ tag "button", text "Palauta lähetetyksi" ]
+                            ]
+            , test "an entry shows its description and every image" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries =
+                                RemoteData.Success
+                                    [ { entry = { testEntry | description = Just "Upea MOC", images = [ "a.jpg", "b.jpg" ] }
+                                      , competition = testCompetition
+                                      , submitterName = "Aino"
+                                      , myReview = Nothing
+                                      }
+                                    ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ text "Upea MOC" ]
+                            , Query.has [ tag "img", attribute (Html.Attributes.src "http://localhost:8090/api/files/entries/entry1/a.jpg?thumb=400x300") ]
+                            , Query.has [ tag "img", attribute (Html.Attributes.src "http://localhost:8090/api/files/entries/entry1/b.jpg?thumb=400x300") ]
+                            ]
+            , test "a rejected entry can be reset to submitted" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries = RemoteData.Success [ { entry = { testEntry | status = Rejected }, competition = testCompetition, submitterName = "Aino", myReview = Nothing } ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ tag "button", text "Palauta lähetetyksi" ]
+                            , Query.hasNot [ tag "button", text "Hylkää" ]
+                            ]
+            ]
+        , describe "Admin load failures"
+            [ test "the admin home says when the competitions did not load" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminPage
+                            , adminCompetitions = RemoteData.Failure Http.NetworkError
+                        }
+                        |> Query.fromHtml
+                        |> Query.has [ text "Lataus epäonnistui." ]
+            , test "the entries page says when the entries did not load" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries = RemoteData.Failure Http.NetworkError
+                        }
+                        |> Query.fromHtml
+                        |> Query.has [ text "Lataus epäonnistui." ]
+            , test "an edit page for a competition that is not in the list says so" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminCompetitionPage (Just "missing")
+                            , adminCompetitions = RemoteData.Success []
+                        }
+                        |> Query.fromHtml
+                        |> Query.has [ text "Kilpailua ei löytynyt." ]
+            ]
+        , describe "Approved entry actions (US-010)"
+            [ test "an approved entry can be reset to submitted or rejected" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminEntriesPage "comp1"
+                            , adminEntries = RemoteData.Success [ { entry = { testEntry | status = Approved }, competition = testCompetition, submitterName = "Aino", myReview = Nothing } ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ tag "button", text "Palauta lähetetyksi" ]
+                            , Query.has [ tag "button", text "Hylkää" ]
+                            , Query.hasNot [ tag "button", text "Hyväksy" ]
+                            ]
+            ]
+        , describe "Admin home (US-009)"
+            [ test "lists the competitions of every status, each with its status" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminPage
+                            , adminCompetitions =
+                                RemoteData.Success
+                                    [ { testCompetition | title = "Kevat", status = COpen }
+                                    , { testCompetition | title = "Syksy", status = CDraft }
+                                    ]
+                        }
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ text "Kevat" ]
+                            , Query.has [ text "Syksy" ]
+                            , Query.has [ text "Avoin" ]
+                            , Query.has [ text "Luonnos" ]
                             ]
             ]
         , describe "Participations (US-007)"
@@ -261,19 +434,23 @@ suite =
                             , Query.has [ text "Arvioijan kommentti: Upea!" ]
                             ]
             ]
-        , describe "dashboard — admin UI link"
-            [ test "reviewer sees Admin UI link" <|
+        , describe "admin home — PocketBase link (US-009)"
+            [ test "the dashboard has no link to the PocketBase admin" <|
                 \_ ->
                     View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }
                         |> Query.fromHtml
-                        |> Query.findAll [ tag "a", containing [ text "Admin UI" ] ]
-                        |> Query.count (Expect.equal 1)
-            , test "non-reviewer does NOT see Admin UI link" <|
-                \_ ->
-                    View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = False }, page = DashboardPage }
-                        |> Query.fromHtml
-                        |> Query.findAll [ tag "a", containing [ text "Admin UI" ] ]
+                        |> Query.findAll [ tag "a", attribute (Html.Attributes.href "http://localhost:8090/_/") ]
                         |> Query.count (Expect.equal 0)
+            , test "the admin home links to the PocketBase admin for superuser tasks" <|
+                \_ ->
+                    View.view
+                        { loggedOutModel
+                            | auth = LoggedIn { testUser | isReviewer = True }
+                            , page = AdminPage
+                            , adminCompetitions = RemoteData.Success []
+                        }
+                        |> Query.fromHtml
+                        |> Query.has [ tag "a", attribute (Html.Attributes.href "http://localhost:8090/_/") ]
             ]
         , describe "competition card — end date"
             [ test "shows the end date with its time (to the minute)" <|
@@ -288,7 +465,18 @@ suite =
                         |> Query.has [ text "Päättyy: 2026-12-31 23:59" ]
             ]
         , describe "layout — navigation"
-            [ test "reviewer's navigation links to the review queue" <|
+            [ test "reviewer's navigation links to the admin home" <|
+                \_ ->
+                    View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }
+                        |> Query.fromHtml
+                        |> Query.has [ tag "a", attribute (Html.Attributes.href "#/admin") ]
+            , test "non-reviewer's navigation has no link to the admin home" <|
+                \_ ->
+                    View.view { loggedOutModel | auth = LoggedIn testUser, page = DashboardPage }
+                        |> Query.fromHtml
+                        |> Query.findAll [ tag "a", attribute (Html.Attributes.href "#/admin") ]
+                        |> Query.count (Expect.equal 0)
+            , test "reviewer's navigation links to the review queue" <|
                 \_ ->
                     View.view { loggedOutModel | auth = LoggedIn { testUser | isReviewer = True }, page = DashboardPage }
                         |> Query.fromHtml

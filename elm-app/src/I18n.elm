@@ -34,8 +34,8 @@ type MsgKey
     | DisplayNameTitle
     | DisplayNameLabel
     | Save
-    | AdminLinkLabel
-    | AdminLinkText
+    | NavAdmin
+    | AdminPocketBaseLink
     | NoAccess
     | PageNotFound
     | OpenCompetitions
@@ -136,6 +136,44 @@ type MsgKey
     | EditableUntilDeadline
     | PeriodPrefix
     | PeriodTo
+    | AdminHeading
+    | AdminNewCompetition
+    | AdminEntries
+    | AdminNoCompetitions
+    | CompetitionStatusDraft
+    | CompetitionStatusOpen
+    | CompetitionStatusClosed
+    | CompetitionStatusJudging
+    | CompetitionStatusFinished
+    | AdminFormNew
+    | AdminFormEdit
+    | AdminFieldTitle
+    | AdminFieldSlug
+    | AdminFieldTheme
+    | AdminFieldDescription
+    | AdminFieldStart
+    | AdminFieldEnd
+    | AdminFieldJudging
+    | AdminFieldMaxEntries
+    | AdminFieldMinImages
+    | AdminFieldMaxImages
+    | AdminFieldStatus
+    | AdminSave
+    | AdminSaving
+    | AdminErrTitle
+    | AdminErrSlug
+    | AdminErrDate
+    | AdminErrEndBeforeStart
+    | AdminErrMaxEntries
+    | AdminErrImageLimits
+    | AdminErrServer
+    | AdminMoveTo
+    | AdminNotFound
+    | AdminImagesCount
+    | AdminPublishedReviews
+    | AdminApprove
+    | AdminReject
+    | AdminReset
 
 
 {-| The text of a key in the given language.
@@ -232,11 +270,11 @@ fi key =
         Save ->
             "Tallenna"
 
-        AdminLinkLabel ->
-            "Kilpailujen hallinta: "
+        NavAdmin ->
+            "Ylläpito"
 
-        AdminLinkText ->
-            "Admin UI →"
+        AdminPocketBaseLink ->
+            "PocketBase-hallinta (pääkäyttäjät) →"
 
         NoAccess ->
             "Ei oikeutta."
@@ -538,6 +576,120 @@ fi key =
         PeriodTo ->
             " – "
 
+        AdminHeading ->
+            "Ylläpito"
+
+        AdminNewCompetition ->
+            "+ Uusi kilpailu"
+
+        AdminEntries ->
+            "Osallistumiset"
+
+        AdminNoCompetitions ->
+            "Ei kilpailuja."
+
+        CompetitionStatusDraft ->
+            "Luonnos"
+
+        CompetitionStatusOpen ->
+            "Avoin"
+
+        CompetitionStatusClosed ->
+            "Suljettu"
+
+        CompetitionStatusJudging ->
+            "Arvostelussa"
+
+        CompetitionStatusFinished ->
+            "Päättynyt"
+
+        AdminFormNew ->
+            "Uusi kilpailu"
+
+        AdminFormEdit ->
+            "Muokkaa kilpailua"
+
+        AdminFieldTitle ->
+            "Nimi"
+
+        AdminFieldSlug ->
+            "Tunniste (osoitteeseen)"
+
+        AdminFieldTheme ->
+            "Teema"
+
+        AdminFieldDescription ->
+            "Kuvaus"
+
+        AdminFieldStart ->
+            "Alkaa"
+
+        AdminFieldEnd ->
+            "Osallistumisen päättyy"
+
+        AdminFieldJudging ->
+            "Arvostelun päättyy"
+
+        AdminFieldMaxEntries ->
+            "Osallistumisia per osallistuja (tyhjä = oletus)"
+
+        AdminFieldMinImages ->
+            "Kuvia vähintään"
+
+        AdminFieldMaxImages ->
+            "Kuvia enintään"
+
+        AdminFieldStatus ->
+            "Tila"
+
+        AdminSave ->
+            "Tallenna"
+
+        AdminSaving ->
+            "Tallennetaan…"
+
+        AdminErrTitle ->
+            "Nimi on pakollinen."
+
+        AdminErrSlug ->
+            "Tunniste saa sisältää vain pieniä kirjaimia, numeroita ja väliviivoja."
+
+        AdminErrDate ->
+            "Päivämäärät muodossa VVVV-KK-PP."
+
+        AdminErrEndBeforeStart ->
+            "Päättymispäivän on oltava alkamispäivän jälkeen."
+
+        AdminErrMaxEntries ->
+            "Osallistumisten määrän on oltava nolla tai enemmän."
+
+        AdminErrImageLimits ->
+            "Kuvarajat: vähintään ≤ enintään, molemmat välillä 0–10."
+
+        AdminErrServer ->
+            "Tallennus ei onnistunut. Tarkista tiedot; tunniste ei saa olla käytössä."
+
+        AdminMoveTo ->
+            "Siirrä tilaan: "
+
+        AdminNotFound ->
+            "Kilpailua ei löytynyt."
+
+        AdminImagesCount ->
+            "Kuvia: "
+
+        AdminPublishedReviews ->
+            "Julkaistuja arvioita: "
+
+        AdminApprove ->
+            "Hyväksy"
+
+        AdminReject ->
+            "Hylkää"
+
+        AdminReset ->
+            "Palauta lähetetyksi"
+
 
 en : MsgKey -> String
 en key =
@@ -614,11 +766,11 @@ en key =
         Save ->
             "Save"
 
-        AdminLinkLabel ->
-            "Competition management: "
+        NavAdmin ->
+            "Administration"
 
-        AdminLinkText ->
-            "Admin UI →"
+        AdminPocketBaseLink ->
+            "PocketBase admin (superusers) →"
 
         NoAccess ->
             "No access."
@@ -919,3 +1071,117 @@ en key =
 
         PeriodTo ->
             " – "
+
+        AdminHeading ->
+            "Administration"
+
+        AdminNewCompetition ->
+            "+ New competition"
+
+        AdminEntries ->
+            "Entries"
+
+        AdminNoCompetitions ->
+            "No competitions."
+
+        CompetitionStatusDraft ->
+            "Draft"
+
+        CompetitionStatusOpen ->
+            "Open"
+
+        CompetitionStatusClosed ->
+            "Closed"
+
+        CompetitionStatusJudging ->
+            "Judging"
+
+        CompetitionStatusFinished ->
+            "Finished"
+
+        AdminFormNew ->
+            "New competition"
+
+        AdminFormEdit ->
+            "Edit competition"
+
+        AdminFieldTitle ->
+            "Name"
+
+        AdminFieldSlug ->
+            "Address name (slug)"
+
+        AdminFieldTheme ->
+            "Theme"
+
+        AdminFieldDescription ->
+            "Description"
+
+        AdminFieldStart ->
+            "Starts"
+
+        AdminFieldEnd ->
+            "Entries close"
+
+        AdminFieldJudging ->
+            "Judging ends"
+
+        AdminFieldMaxEntries ->
+            "Entries per participant (empty = default)"
+
+        AdminFieldMinImages ->
+            "Images at least"
+
+        AdminFieldMaxImages ->
+            "Images at most"
+
+        AdminFieldStatus ->
+            "Status"
+
+        AdminSave ->
+            "Save"
+
+        AdminSaving ->
+            "Saving…"
+
+        AdminErrTitle ->
+            "Name is required."
+
+        AdminErrSlug ->
+            "The address name may only contain lowercase letters, digits and dashes."
+
+        AdminErrDate ->
+            "Dates must be in the form YYYY-MM-DD."
+
+        AdminErrEndBeforeStart ->
+            "The end date must be after the start date."
+
+        AdminErrMaxEntries ->
+            "The number of entries must be zero or more."
+
+        AdminErrImageLimits ->
+            "Image limits: min ≤ max, both between 0 and 10."
+
+        AdminErrServer ->
+            "Saving failed. Check the details; the address name must not be in use."
+
+        AdminMoveTo ->
+            "Move to: "
+
+        AdminNotFound ->
+            "Competition not found."
+
+        AdminImagesCount ->
+            "Images: "
+
+        AdminPublishedReviews ->
+            "Published reviews: "
+
+        AdminApprove ->
+            "Approve"
+
+        AdminReject ->
+            "Reject"
+
+        AdminReset ->
+            "Reset to submitted"

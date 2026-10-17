@@ -59,6 +59,10 @@ baseModel =
     , reviewQueue = RemoteData.NotAsked
     , activeReview = Nothing
     , reviewFilter = AllEntries
+    , adminCompetitions = RemoteData.NotAsked
+    , adminForm = Nothing
+    , adminFormErrors = []
+    , adminEntries = RemoteData.NotAsked
     }
 
 

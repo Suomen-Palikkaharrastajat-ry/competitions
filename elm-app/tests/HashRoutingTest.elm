@@ -73,6 +73,10 @@ loggedOut =
     , reviewQueue = RemoteData.NotAsked
     , activeReview = Nothing
     , reviewFilter = AllEntries
+    , adminCompetitions = RemoteData.NotAsked
+    , adminForm = Nothing
+    , adminFormErrors = []
+    , adminEntries = RemoteData.NotAsked
     }
 
 
@@ -129,6 +133,26 @@ suite =
                 { loggedOut | auth = LoggedIn user, page = DashboardPage }
                     |> pageAfter [ HashChanged "#/omat" ]
                     |> Expect.equal MyEntriesPage
+        , describe "Admin access"
+            [ test "a non-reviewer deep link to #/admin opens the dashboard" <|
+                \_ ->
+                    Main.init (flags (Just user) "#/admin")
+                        |> Tuple.first
+                        |> .page
+                        |> Expect.equal DashboardPage
+            , test "a reviewer deep link to #/admin opens the admin home" <|
+                \_ ->
+                    Main.init (flags (Just { user | isReviewer = True }) "#/admin")
+                        |> Tuple.first
+                        |> .page
+                        |> Expect.equal AdminPage
+            , test "a reviewer reload on the entries of a competition opens them" <|
+                \_ ->
+                    Main.init (flags (Just { user | isReviewer = True }) "#/admin/osallistumiset/c1")
+                        |> Tuple.first
+                        |> .page
+                        |> Expect.equal (AdminEntriesPage "c1")
+            ]
         , test "a non-reviewer is sent to the dashboard from #/arvostelu without a fetch" <|
             \_ ->
                 let

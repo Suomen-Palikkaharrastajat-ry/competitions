@@ -47,6 +47,8 @@ testCompetition =
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
     , startDate = "2026-06-01 00:00:00.000Z"
+    , judgingEndDate = Nothing
+    , status = COpen
     }
 
 
@@ -126,6 +128,10 @@ baseModel =
     , reviewQueue = RemoteData.NotAsked
     , activeReview = Nothing
     , reviewFilter = AllEntries
+    , adminCompetitions = RemoteData.NotAsked
+    , adminForm = Nothing
+    , adminFormErrors = []
+    , adminEntries = RemoteData.NotAsked
     }
 
 

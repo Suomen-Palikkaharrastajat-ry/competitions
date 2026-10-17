@@ -12,9 +12,9 @@ These decoders are implemented in Main.elm and cover competitions, entries, and 
 
 import Expect
 import Json.Decode as Decode
-import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, myEntriesUrl, otpResponseDecoder)
+import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, myEntriesUrl, otpResponseDecoder, reviewQueueUrl)
 import Test exposing (Test, describe, test)
-import Types exposing (EntryStatus(..))
+import Types exposing (CompetitionStatus(..), EntryStatus(..))
 
 
 
@@ -150,6 +150,31 @@ suite =
                     myEntriesUrl "http://127.0.0.1:8080" "profile123"
                         |> Expect.equal
                             "http://127.0.0.1:8080/api/collections/entries/records?filter=submitter%3D%22profile123%22&sort=-created&expand=competition%2Creviews_via_entry"
+            , test "builds the review queue URL asking for up to 200 entries, not the default 30" <|
+                \_ ->
+                    reviewQueueUrl "http://127.0.0.1:8080"
+                        |> Expect.equal
+                            "http://127.0.0.1:8080/api/collections/entries/records?filter=status%3D%22submitted%22||status%3D%22approved%22||status%3D%22rejected%22&expand=competition%2Csubmitter%2Creviews_via_entry&sort=created&perPage=200"
+            ]
+        , describe "Competition status"
+            [ test "competitionDecoder reads status and judging_end_date" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","status":"judging","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z","judging_end_date":"2026-07-01 00:00:00.000Z"}"""
+                    in
+                    Decode.decodeString competitionDecoder json
+                        |> Result.map (\c -> ( c.status, c.judgingEndDate ))
+                        |> Expect.equal (Ok ( CJudging, Just "2026-07-01 00:00:00.000Z" ))
+            , test "a missing status is a draft" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z"}"""
+                    in
+                    Decode.decodeString competitionDecoder json
+                        |> Result.map .status
+                        |> Expect.equal (Ok CDraft)
             ]
         , describe "Auth decoders"
             [ test "otpResponseDecoder decodes otpId" <|

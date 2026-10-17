@@ -15,6 +15,7 @@ import RemoteData
 import Scoring
 import Time
 import Types exposing (..)
+import View.Admin exposing (viewAdminCompetition, viewAdminEntries, viewAdminHome)
 import View.Layout
 
 
@@ -159,24 +160,6 @@ viewSetDisplayName model =
         ]
 
 
-viewAdminLink : Lang -> AuthUser -> String -> Html Msg
-viewAdminLink lang user pbUrl =
-    if user.isReviewer then
-        p [ Attr.class "mb-6 type-caption text-text-muted" ]
-            [ text (t lang I18n.AdminLinkLabel)
-            , a
-                [ Attr.href (pbUrl ++ "/_/")
-                , Attr.class "text-brand hover:underline"
-                , Attr.target "_blank"
-                , Attr.rel "noopener"
-                ]
-                [ text (t lang I18n.AdminLinkText) ]
-            ]
-
-    else
-        text ""
-
-
 viewPage : AuthUser -> Model -> Html Msg
 viewPage user model =
     case model.page of
@@ -205,6 +188,15 @@ viewPage user model =
             else
                 div [] [ text (t model.lang I18n.NoAccess) ]
 
+        AdminPage ->
+            viewAdminHome model
+
+        AdminCompetitionPage target ->
+            viewAdminCompetition model target
+
+        AdminEntriesPage competitionId ->
+            viewAdminEntries model competitionId
+
         NotFoundPage ->
             div [] [ text (t model.lang I18n.PageNotFound) ]
 
@@ -212,8 +204,7 @@ viewPage user model =
 viewDashboard : AuthUser -> Model -> Html Msg
 viewDashboard user model =
     div []
-        [ viewAdminLink model.lang user model.pbUrl
-        , h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text (t model.lang I18n.OpenCompetitions) ]
+        [ h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text (t model.lang I18n.OpenCompetitions) ]
         , case model.competitions of
             RemoteData.NotAsked ->
                 text ""

@@ -1,4 +1,4 @@
-module Route exposing (fromHash, toHash)
+module Route exposing (fromHash, isAdminPage, toHash)
 
 {-| Location hashes of the application's pages.
 
@@ -31,6 +31,18 @@ toHash page =
 
         ReviewQueuePage ->
             "#/arvostelu"
+
+        AdminPage ->
+            "#/admin"
+
+        AdminCompetitionPage Nothing ->
+            "#/admin/kilpailut/uusi"
+
+        AdminCompetitionPage (Just competitionId) ->
+            "#/admin/kilpailut/" ++ competitionId
+
+        AdminEntriesPage competitionId ->
+            "#/admin/osallistumiset/" ++ competitionId
 
         LoginPage ->
             "#/"
@@ -76,8 +88,29 @@ fromHash hash =
                 [ "#", "omat", entryId, "muokkaa" ] ->
                     participation entryId
 
+                [ "#", "admin" ] ->
+                    Just AdminPage
+
+                [ "#", "admin", "kilpailut", "uusi" ] ->
+                    Just (AdminCompetitionPage Nothing)
+
+                [ "#", "admin", "kilpailut", competitionId ] ->
+                    nonEmpty competitionId (\id -> AdminCompetitionPage (Just id))
+
+                [ "#", "admin", "osallistumiset", competitionId ] ->
+                    nonEmpty competitionId AdminEntriesPage
+
                 _ ->
                     Nothing
+
+
+nonEmpty : String -> (String -> Page) -> Maybe Page
+nonEmpty value toPage =
+    if String.isEmpty value then
+        Nothing
+
+    else
+        Just (toPage value)
 
 
 participation : String -> Maybe Page
@@ -87,3 +120,21 @@ participation entryId =
 
     else
         Just (ParticipationPage entryId)
+
+
+{-| The pages of the admin area, which only reviewers may open.
+-}
+isAdminPage : Page -> Bool
+isAdminPage page =
+    case page of
+        AdminPage ->
+            True
+
+        AdminCompetitionPage _ ->
+            True
+
+        AdminEntriesPage _ ->
+            True
+
+        _ ->
+            False

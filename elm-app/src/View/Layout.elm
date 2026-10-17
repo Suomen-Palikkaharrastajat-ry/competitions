@@ -43,7 +43,12 @@ view config =
             { label = label
             , href = Route.toHash page
             , mobileOnly = False
-            , isActive = model.page == page
+            , isActive =
+                if page == AdminPage then
+                    Route.isAdminPage model.page
+
+                else
+                    model.page == page
             }
     in
     Layout.view
@@ -91,7 +96,9 @@ links lang link user =
     , link MyEntriesPage (t lang I18n.MyEntries)
     ]
         ++ (if user.isReviewer then
-                [ link ReviewQueuePage (t lang I18n.NavReview) ]
+                [ link ReviewQueuePage (t lang I18n.NavReview)
+                , link AdminPage (t lang I18n.NavAdmin)
+                ]
 
             else
                 []

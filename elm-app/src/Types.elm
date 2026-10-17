@@ -1,11 +1,15 @@
 module Types exposing
-    ( AuthResponse
+    ( AdminField(..)
+    , AuthResponse
     , AuthState(..)
     , AuthUser
     , Competition
+    , CompetitionForm
+    , CompetitionStatus(..)
     , Entry
     , EntryStatus(..)
     , Flags
+    , FormError(..)
     , Model
     , Msg(..)
     , OtpResponse
@@ -67,6 +71,62 @@ type AuthState
     | LoggedIn AuthUser
 
 
+{-| A field of the competition form.
+-}
+type AdminField
+    = FieldTitle
+    | FieldSlug
+    | FieldTheme
+    | FieldDescription
+    | FieldStartDate
+    | FieldEndDate
+    | FieldJudgingEndDate
+    | FieldMaxEntries
+    | FieldMinImages
+    | FieldMaxImages
+
+
+{-| Why a competition form cannot be saved.
+-}
+type FormError
+    = TitleRequired
+    | SlugInvalid
+    | DateInvalid
+    | EndBeforeStart
+    | MaxEntriesInvalid
+    | ImageLimitsInvalid
+    | ServerRejected
+
+
+{-| A competition as the admin edits it. Every field is text, as typed; dates
+are "YYYY-MM-DD" and empty optional numbers mean "not set".
+-}
+type alias CompetitionForm =
+    { title : String
+    , slug : String
+    , theme : String
+    , description : String
+    , startDate : String
+    , endDate : String
+    , judgingEndDate : String
+    , maxEntriesPerUser : String
+    , minImagesPerEntry : String
+    , maxImagesPerEntry : String
+    , status : CompetitionStatus
+    }
+
+
+{-| The lifecycle of a competition: draft, open for entries, closed for entries,
+being judged, finished. The app lists only open competitions.
+-}
+type CompetitionStatus
+    = CDraft
+    | COpen
+    | CClosed
+    | CJudging
+    | CFinished
+
+
 {-| A competition event from PocketBase.
 -}
 type alias Competition =
@@ -77,6 +137,8 @@ type alias Competition =
     , description : Maybe String
     , startDate : String
     , endDate : String
+    , judgingEndDate : Maybe String
+    , status : CompetitionStatus
     , coverImage : Maybe String
     , maxEntriesPerUser : Maybe Int
     , minImagesPerEntry : Maybe Int
@@ -194,6 +256,9 @@ type Page
     | ParticipationPage String
     | SubmitEntryPage (Maybe String)
     | ReviewQueuePage
+    | AdminPage
+    | AdminCompetitionPage (Maybe String)
+    | AdminEntriesPage String
     | NotFoundPage
 
 
@@ -229,6 +294,10 @@ type alias Model =
     , reviewQueue : RemoteData Http.Error (List ReviewableEntry)
     , activeReview : Maybe ReviewForm
     , reviewFilter : ReviewFilter
+    , adminCompetitions : RemoteData Http.Error (List Competition)
+    , adminForm : Maybe CompetitionForm
+    , adminFormErrors : List FormError
+    , adminEntries : RemoteData Http.Error (List ReviewableEntry)
     }
 
 
@@ -280,6 +349,13 @@ type Msg
     | CancelEdit
       -- Review queue
     | ReviewQueueLoaded (Result Http.Error (List ReviewableEntry))
+    | AdminCompetitionsLoaded (Result Http.Error (List Competition))
+    | AdminEntriesLoaded (Result Http.Error (List ReviewableEntry))
+    | AdminFieldChanged AdminField String
+    | SaveCompetition
+    | SetCompetitionStatus CompetitionStatus
+    | CompetitionSaved (Result Http.Error Competition)
+    | CompetitionStatusSaved (Result Http.Error Competition)
     | ReviewFilterChanged ReviewFilter
     | OpenReviewForm ReviewableEntry
     | CloseReviewForm
@@ -295,6 +371,7 @@ type Msg
     | ReviewSaved (Result Http.Error Review)
     | ApproveEntry String
     | RejectEntry String
+    | ResetEntry String
     | EntryStatusChanged String EntryStatus (Result Http.Error ())
       -- Time
     | Tick Time.Posix
