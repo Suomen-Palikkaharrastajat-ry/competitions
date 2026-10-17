@@ -33,16 +33,6 @@ shell: ## Enter devenv shell
 .env: ## Generate local .env with a working PocketBase superuser API key
 	POCKETBASE='$(POCKETBASE)' bash scripts/generate-env.sh
 
-.PHONY: develop
-develop: devenv.local.nix devenv.local.yaml ## Bootstrap opinionated development environment
-	devenv shell --profile=devcontainer -- code .
-
-devenv.local.nix:
-	cp devenv.local.nix.example devenv.local.nix
-
-devenv.local.yaml:
-	cp devenv.local.yaml.example devenv.local.yaml
-
 # ── Elm frontend ──────────────────────────────────────────────────────────────
 
 # Vite must not write its temp config into the read-only node_modules.
