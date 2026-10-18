@@ -29,7 +29,9 @@ module Main exposing
 
 import Admin
 import Browser
+import Browser.Events
 import Component.Layout as Layout
+import Criteria exposing (Criterion)
 import Dict
 import File
 import Html exposing (Html)
@@ -80,6 +82,20 @@ init flags =
         settings =
             SiteSettings.fromFlags flags.requestedLang flags.siteConfig
 
+        criteriaResult =
+            Decode.decodeValue (SiteSettings.appDecoder settings.lang Criteria.decoder) flags.siteConfig
+
+        configError =
+            case ( settings.error, criteriaResult ) of
+                ( Just problem, _ ) ->
+                    Just problem
+
+                ( Nothing, Err problem ) ->
+                    Just ("The review criteria could not be read: " ++ Decode.errorToString problem)
+
+                ( Nothing, Ok _ ) ->
+                    Nothing
+
         ( auth, page ) =
             case flags.restoredAuth of
                 Just user ->
@@ -120,6 +136,7 @@ init flags =
                 , adminForm = Nothing
                 , adminFormErrors = []
                 , adminEntries = RemoteData.NotAsked
+                , criteria = Result.withDefault [] criteriaResult
                 }
 
         -- A deep link the app does not keep (unknown, or not allowed for the
@@ -142,7 +159,7 @@ init flags =
 
             Nothing ->
                 Cmd.none
-        , case settings.error of
+        , case configError of
             Just problem ->
                 Ports.reportError problem
 
@@ -903,6 +920,18 @@ updateModelWith msg model =
             in
             ( { model | submitForm = { form | step = FillingForm } }, Cmd.none )
 
+        EscapePressed ->
+            -- Escape closes the open modal: the submit confirmation first,
+            -- then the review form. Other keys never reach here.
+            if model.submitForm.step == ConfirmingSubmit then
+                update CancelSubmit model
+
+            else if model.activeReview /= Nothing then
+                update CloseReviewForm model
+
+            else
+                ( model, Cmd.none )
+
         EntrySubmitted (Ok _) ->
             let
                 form =
@@ -1116,15 +1145,15 @@ updateModelWith msg model =
                 draft =
                     case reviewableEntry.myReview of
                         Just existing ->
-                            existing
+                            { existing | scores = Dict.union existing.scores (defaultScores model.criteria) }
 
                         Nothing ->
                             case model.auth of
                                 LoggedIn user ->
-                                    emptyReview reviewableEntry.entry.id user.profileId
+                                    emptyReview model.criteria reviewableEntry.entry.id user.profileId
 
                                 _ ->
-                                    emptyReview reviewableEntry.entry.id ""
+                                    emptyReview model.criteria reviewableEntry.entry.id ""
             in
             ( { model
                 | activeReview =
@@ -1142,17 +1171,8 @@ updateModelWith msg model =
             ( { model | activeReview = Nothing }, Cmd.none )
 
         -- Scoring
-        ScoreThemeChanged n ->
-            updateDraftScore (\r -> { r | scoreTheme = n }) model
-
-        ScoreOriginalityChanged n ->
-            updateDraftScore (\r -> { r | scoreOriginality = n }) model
-
-        ScoreTechniqueChanged n ->
-            updateDraftScore (\r -> { r | scoreTechnique = n }) model
-
-        ScorePresentationChanged n ->
-            updateDraftScore (\r -> { r | scorePresentation = n }) model
+        ScoreChanged criterionId n ->
+            updateDraftScore (\r -> { r | scores = Dict.insert criterionId n r.scores }) model
 
         ReviewCommentChanged comment ->
             updateDraftScore (\r -> { r | comment = comment }) model
@@ -1283,11 +1303,34 @@ subscriptions model =
         [ Time.every 60000 Tick
         , Ports.hashChanged HashChanged
         , Layout.subscriptions { isOpen = model.menuOpen, onClose = CloseMenu }
+        , modalSubscriptions model
         , Ports.keycloakLoginSucceeded KeycloakLoginCompleted
         , Ports.keycloakLoginFailed KeycloakLoginFailed
         , Ports.imagesCompressed ImagesCompressed
         , Ports.compressionFailed CompressionFailed
         ]
+
+
+{-| Listens for Escape while a modal dialog is open. The mobile menu has its
+own listener in `Layout.subscriptions`.
+-}
+modalSubscriptions : Model -> Sub Msg
+modalSubscriptions model =
+    if model.submitForm.step == ConfirmingSubmit || model.activeReview /= Nothing then
+        Browser.Events.onKeyDown
+            (Decode.field "key" Decode.string
+                |> Decode.andThen
+                    (\key ->
+                        if key == "Escape" then
+                            Decode.succeed EscapePressed
+
+                        else
+                            Decode.fail "not Escape"
+                    )
+            )
+
+    else
+        Sub.none
 
 
 
@@ -1370,18 +1413,22 @@ validateForm lang competition form =
         Ok form
 
 
-emptyReview : String -> String -> Review
-emptyReview entryId reviewerId =
+emptyReview : List Criterion -> String -> String -> Review
+emptyReview criteria entryId reviewerId =
     { id = Nothing
     , entryId = entryId
     , reviewerId = reviewerId
-    , scoreTheme = 3
-    , scoreOriginality = 3
-    , scoreTechnique = 3
-    , scorePresentation = 3
+    , scores = defaultScores criteria
     , comment = ""
     , isPublished = False
     }
+
+
+{-| The starting score of each criterion: the middle of the 1–5 scale.
+-}
+defaultScores : List Criterion -> Dict.Dict String Int
+defaultScores criteria =
+    Dict.fromList (List.map (\criterion -> ( criterion.id, 3 )) criteria)
 
 
 filteredReviewQueue : ReviewFilter -> List ReviewableEntry -> List ReviewableEntry
@@ -1904,11 +1951,8 @@ publishedReviewsDecoder =
                         Nothing
                 )
                 (Decode.field "is_published" Decode.bool)
-                (Decode.map4 (\t o tc p -> t + o + tc + p)
-                    (Decode.field "score_theme" Decode.int)
-                    (Decode.field "score_originality" Decode.int)
-                    (Decode.field "score_technique" Decode.int)
-                    (Decode.field "score_presentation" Decode.int)
+                (Decode.field "scores" (Decode.dict Decode.int)
+                    |> Decode.map (Dict.values >> List.sum)
                 )
                 (Decode.maybe (Decode.field "comment" Decode.string))
     in
@@ -1984,10 +2028,7 @@ saveReviewCmd pbUrl token review =
                 (Encode.object
                     [ ( "entry", Encode.string review.entryId )
                     , ( "reviewer", Encode.string review.reviewerId )
-                    , ( "score_theme", Encode.int review.scoreTheme )
-                    , ( "score_originality", Encode.int review.scoreOriginality )
-                    , ( "score_technique", Encode.int review.scoreTechnique )
-                    , ( "score_presentation", Encode.int review.scorePresentation )
+                    , ( "scores", Encode.dict identity Encode.int review.scores )
                     , ( "comment", Encode.string review.comment )
                     , ( "is_published", Encode.bool review.isPublished )
                     ]
@@ -2037,14 +2078,11 @@ reviewDecoder =
     Decode.field "id" Decode.string
         |> Decode.andThen
             (\id ->
-                Decode.map8
+                Decode.map5
                     (Review (Just id))
                     (Decode.field "entry" Decode.string)
                     (Decode.field "reviewer" Decode.string)
-                    (Decode.field "score_theme" Decode.int)
-                    (Decode.field "score_originality" Decode.int)
-                    (Decode.field "score_technique" Decode.int)
-                    (Decode.field "score_presentation" Decode.int)
+                    (Decode.field "scores" (Decode.dict Decode.int))
                     (Decode.maybe (Decode.field "comment" Decode.string)
                         |> Decode.map (Maybe.withDefault "")
                     )

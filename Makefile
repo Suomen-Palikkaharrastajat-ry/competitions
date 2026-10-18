@@ -160,6 +160,7 @@ quality: haskell-check cabal-check ## Run strict non-browser quality gates for C
 	$(MAKE) pb-test-fixture
 	$(MAKE) pb-test-entry-edit-policy
 	$(MAKE) pb-test-admin-policy
+	$(MAKE) pb-test-review-scores
 	$(MAKE) dev-proxy-test
 
 .PHONY: test
@@ -262,6 +263,10 @@ pb-test-entry-limits: ## Smoke-test the entry image limit hooks
 .PHONY: pb-test-admin-policy
 pb-test-admin-policy: ## Smoke-test who may manage competitions, entries and reviews in the admin
 	@POCKETBASE='$(POCKETBASE)' ./scripts/test-admin-policy.sh
+
+.PHONY: pb-test-review-scores
+pb-test-review-scores: ## Smoke-test the review score validation (whole numbers 1-5 per criterion)
+	@POCKETBASE='$(POCKETBASE)' ./scripts/test-review-scores.sh
 
 .PHONY: pb-test-entry-edit-policy
 pb-test-entry-edit-policy: ## Smoke-test who may edit an entry before and after the competition deadline

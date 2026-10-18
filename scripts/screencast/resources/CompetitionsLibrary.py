@@ -161,10 +161,12 @@ class CompetitionsLibrary:
         fields = {
             "entry": entry["id"],
             "reviewer": reviewer["id"],
-            "score_theme": int(theme),
-            "score_originality": int(originality),
-            "score_technique": int(technique),
-            "score_presentation": int(presentation),
+            "scores": {
+                "theme": int(theme),
+                "originality": int(originality),
+                "technique": int(technique),
+                "presentation": int(presentation),
+            },
             "comment": comment,
             "is_published": True,
         }

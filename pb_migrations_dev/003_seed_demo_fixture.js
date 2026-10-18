@@ -141,10 +141,7 @@ function createReview(app, entry, reviewer, data) {
   return createRecord(app, "reviews", {
     entry: entry.id,
     reviewer: reviewer.id,
-    score_theme: data.score_theme,
-    score_originality: data.score_originality,
-    score_technique: data.score_technique,
-    score_presentation: data.score_presentation,
+    scores: data.scores,
     comment: data.comment,
     is_published: data.is_published
   });
@@ -234,19 +231,13 @@ migrate(
     });
 
     createReview(app, approvedEntry, reviewer, {
-      score_theme: 5,
-      score_originality: 4,
-      score_technique: 5,
-      score_presentation: 4,
+      scores: { theme: 5, originality: 4, technique: 5, presentation: 4 },
       comment: "Vahva tunnelma ja selkea esittely.",
       is_published: true
     });
 
     createReview(app, submittedEntry, reviewer, {
-      score_theme: 3,
-      score_originality: 3,
-      score_technique: 3,
-      score_presentation: 3,
+      scores: { theme: 3, originality: 3, technique: 3, presentation: 3 },
       comment: "Tallennettu mutta ei julkaistu demoarvio.",
       is_published: false
     });

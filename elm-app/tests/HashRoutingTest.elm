@@ -17,6 +17,7 @@ import Main
 import RemoteData
 import SiteFixture
 import Test exposing (Test, describe, test)
+import TestSite
 import Time
 import Types exposing (..)
 
@@ -77,6 +78,7 @@ loggedOut =
     , adminForm = Nothing
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = TestSite.criteria Fi
     }
 
 

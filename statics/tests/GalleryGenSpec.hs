@@ -28,7 +28,7 @@ import I18n
 testConfig :: Config
 testConfig =
     Config
-        { configTitle = "Palikkakilpailu"
+        { configTitle = "Palikkakilpailut"
         , configLocale = Fi
         , configTimezone = "Europe/Helsinki"
         , configPbUrl = Just "http://localhost:8090"
@@ -73,10 +73,7 @@ testReview =
         { reviewId = "rev1"
         , reviewEntry = "entry1"
         , reviewReviewer = "reviewer1"
-        , reviewScoreTheme = 5
-        , reviewScoreOriginality = 4
-        , reviewScoreTechnique = 4
-        , reviewScorePresentation = 5
+        , reviewScores = Map.fromList [("theme", 5), ("originality", 4), ("technique", 4), ("presentation", 5)]
         , reviewComment = Nothing
         , reviewIsPublished = True
         }

@@ -24,7 +24,7 @@ parseConfig content = do
         Left err -> Left $ T.pack $ show err
         Right t -> Right t
 
-    let title = fromMaybe (T.pack "Palikkakilpailu") $ HM.lookup (T.pack "title") toml >>= extractText
+    let title = fromMaybe (T.pack "Palikkakilpailut") $ HM.lookup (T.pack "title") toml >>= extractText
     let locale = parseLocale $ fromMaybe (T.pack "fi") $ HM.lookup (T.pack "locale") toml >>= extractText
     let timezone = fromMaybe (T.pack "Europe/Helsinki") $ HM.lookup (T.pack "timezone") toml >>= extractText
     let pbUrl = HM.lookup (T.pack "pocketbase_url") toml >>= extractText

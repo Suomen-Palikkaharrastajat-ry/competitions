@@ -86,10 +86,6 @@ type MsgKey
     | Reject
     | ReviewPrefix
     | CloseReviewForm
-    | ScoreTheme
-    | ScoreOriginality
-    | ScoreTechnique
-    | ScorePresentation
     | TotalScore
     | CommentLabel
     | SaveAndPublish
@@ -425,18 +421,6 @@ fi key =
 
         CloseReviewForm ->
             "Sulje arvostelulomake"
-
-        ScoreTheme ->
-            "Teema-vastaavuus"
-
-        ScoreOriginality ->
-            "Omaperäisyys"
-
-        ScoreTechnique ->
-            "Rakennustekniikka"
-
-        ScorePresentation ->
-            "Esitys (kuvat)"
 
         TotalScore ->
             "Kokonaispisteet: "
@@ -921,18 +905,6 @@ en key =
 
         CloseReviewForm ->
             "Close the review form"
-
-        ScoreTheme ->
-            "Fit to the theme"
-
-        ScoreOriginality ->
-            "Originality"
-
-        ScoreTechnique ->
-            "Building technique"
-
-        ScorePresentation ->
-            "Presentation (images)"
 
         TotalScore ->
             "Total score: "

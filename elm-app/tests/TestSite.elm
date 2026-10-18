@@ -1,8 +1,9 @@
-module TestSite exposing (site)
+module TestSite exposing (criteria, site)
 
 {-| This app's `config.toml`, resolved and decoded for the tests.
 -}
 
+import Criteria exposing (Criterion)
 import Json.Decode as Decode
 import Lang exposing (Lang)
 import SiteFixture
@@ -23,3 +24,11 @@ site lang =
                 |> Result.toMaybe
                 |> Maybe.andThen (SiteSettings.forLang lang)
                 |> Maybe.withDefault (SiteSettings.placeholder lang)
+
+
+{-| The review criteria of this app's config.toml, in a language.
+-}
+criteria : Lang -> List Criterion
+criteria lang =
+    Decode.decodeString (SiteSettings.appDecoder lang Criteria.decoder) SiteFixture.json
+        |> Result.withDefault []

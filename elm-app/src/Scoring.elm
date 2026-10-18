@@ -2,8 +2,8 @@ module Scoring exposing (canEditEntry, canSubmitMore, deadlineUrgency, entryAver
 
 {-| Canonical score aggregation formula used by both Elm and Haskell gallery.
 
-    review_total = score_theme + score_originality + score_technique + score_presentation
-    range: 4–20 per review (each criterion 1–5)
+    review_total = sum of the review's scores, one per criterion (each 1–5)
+    score_max    = 5 × number of criteria (20 for the four current criteria)
 
     entry_average = sum(review_totals) / count  (0.0 when no published reviews)
 
@@ -11,22 +11,17 @@ Also contains deadline date helpers and the edit rule used by View and Main.
 
 -}
 
+import Criteria exposing (Criterion)
+import Dict exposing (Dict)
 import Time
 import Types exposing (Entry, EntryStatus(..))
 
 
-{-| Sum of the four criteria for a single review. Range 4–20.
+{-| Sum of the scores of a single review, one per criterion.
 -}
-reviewTotal :
-    { a
-        | scoreTheme : Int
-        , scoreOriginality : Int
-        , scoreTechnique : Int
-        , scorePresentation : Int
-    }
-    -> Int
+reviewTotal : { a | scores : Dict String Int } -> Int
 reviewTotal r =
-    r.scoreTheme + r.scoreOriginality + r.scoreTechnique + r.scorePresentation
+    Dict.foldl (\_ score total -> total + score) 0 r.scores
 
 
 {-| Average total score across a list of per-review totals. Returns 0.0 when empty.
@@ -41,11 +36,12 @@ entryAverage totals =
             toFloat (List.sum totals) / toFloat (List.length totals)
 
 
-{-| Maximum possible score for a single review.
+{-| Maximum possible score for a single review: the top of the 1–5 scale for
+each of the criteria.
 -}
-scoreMax : Int
-scoreMax =
-    20
+scoreMax : List Criterion -> Int
+scoreMax criteria =
+    5 * List.length criteria
 
 
 {-| Return Just "text-brand-red" when the competition ends within 7 days, Nothing otherwise.

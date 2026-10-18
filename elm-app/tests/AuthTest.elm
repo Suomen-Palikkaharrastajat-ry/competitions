@@ -63,6 +63,7 @@ baseModel =
     , adminForm = Nothing
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = TestSite.criteria Fi
     }
 
 

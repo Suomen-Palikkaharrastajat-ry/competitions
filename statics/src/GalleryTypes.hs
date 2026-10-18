@@ -22,6 +22,7 @@ import Data.Aeson (
     (.:?),
  )
 import Data.List (sortBy)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
@@ -123,10 +124,7 @@ data Review = Review
     { reviewId :: Text
     , reviewEntry :: Text -- entry id
     , reviewReviewer :: Text -- user id
-    , reviewScoreTheme :: Int
-    , reviewScoreOriginality :: Int
-    , reviewScoreTechnique :: Int
-    , reviewScorePresentation :: Int
+    , reviewScores :: Map.Map Text Int -- criterion id -> score (1-5)
     , reviewComment :: Maybe Text
     , reviewIsPublished :: Bool
     }
@@ -138,10 +136,7 @@ instance FromJSON Review where
             <$> o .: "id"
             <*> o .: "entry"
             <*> o .: "reviewer"
-            <*> o .: "score_theme"
-            <*> o .: "score_originality"
-            <*> o .: "score_technique"
-            <*> o .: "score_presentation"
+            <*> o .: "scores"
             <*> o .:? "comment"
             <*> (fromMaybe False <$> o .:? "is_published")
 
@@ -173,8 +168,4 @@ rankEntries pairs =
             total = sum $ map reviewTotal published
          in RankedEntry e rs total 0
 
-    reviewTotal r =
-        reviewScoreTheme r
-            + reviewScoreOriginality r
-            + reviewScoreTechnique r
-            + reviewScorePresentation r
+    reviewTotal = sum . Map.elems . reviewScores

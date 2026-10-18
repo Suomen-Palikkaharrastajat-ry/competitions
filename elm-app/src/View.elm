@@ -3,6 +3,7 @@ module View exposing (fileKey, starRating, view, viewEntryRow)
 {-| View rendering for the competition platform.
 -}
 
+import Criteria exposing (Criterion)
 import Dict exposing (Dict)
 import File
 import Html exposing (Html, a, button, div, form, h1, h2, header, img, input, label, main_, nav, p, span, text, textarea)
@@ -302,7 +303,7 @@ viewMyEntries _ model =
 
                       else
                         div [ Attr.class "border border-border-default rounded-lg divide-y divide-border-default mb-4" ]
-                            (List.map (viewEntryRow model.lang) entries)
+                            (List.map (viewEntryRow model.lang model.criteria) entries)
                     , button
                         [ Attr.class "bg-brand-yellow text-brand type-body-small px-4 py-2 rounded hover:opacity-90 motion-safe:transition-opacity"
                         , Events.onClick (NavigateTo DashboardPage)
@@ -362,7 +363,7 @@ viewParticipationDetail model entry =
             [ text (entry.competition |> Maybe.map .title |> Maybe.withDefault entry.competitionId) ]
         , div [ Attr.class "mb-4" ] [ viewCompetitionPeriod lang entry.competition ]
         , div [ Attr.class "mb-4" ] [ viewStatusBadge lang entry.status ]
-        , viewPublishedScores lang entry.publishedReviews
+        , viewPublishedScores lang model.criteria entry.publishedReviews
         , case description of
             Just text_ ->
                 p [ Attr.class "text-brand mb-4 whitespace-pre-line" ] [ text text_ ]
@@ -406,8 +407,8 @@ viewCompetitionPeriod lang competition =
             text ""
 
 
-viewEntryRow : Lang -> Entry -> Html Msg
-viewEntryRow lang entry =
+viewEntryRow : Lang -> List Criterion -> Entry -> Html Msg
+viewEntryRow lang criteria entry =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
             [ button
@@ -418,7 +419,7 @@ viewEntryRow lang entry =
             , p [ Attr.class "type-caption text-text-muted" ]
                 [ text (entry.competition |> Maybe.map .title |> Maybe.withDefault entry.competitionId) ]
             , viewCompetitionPeriod lang entry.competition
-            , viewPublishedScores lang entry.publishedReviews
+            , viewPublishedScores lang criteria entry.publishedReviews
             ]
         , viewStatusBadge lang entry.status
         , case entry.status of
@@ -436,8 +437,8 @@ viewEntryRow lang entry =
         ]
 
 
-viewPublishedScores : Lang -> List ReviewSummary -> Html msg
-viewPublishedScores lang reviews =
+viewPublishedScores : Lang -> List Criterion -> List ReviewSummary -> Html msg
+viewPublishedScores lang criteria reviews =
     if List.isEmpty reviews then
         text ""
 
@@ -458,7 +459,7 @@ viewPublishedScores lang reviews =
         in
         div []
             (p [ Attr.class "type-caption text-text-muted mt-1" ]
-                [ text (t lang I18n.ScorePrefix ++ avgStr ++ " / " ++ String.fromInt Scoring.scoreMax) ]
+                [ text (t lang I18n.ScorePrefix ++ avgStr ++ " / " ++ String.fromInt (Scoring.scoreMax criteria)) ]
                 :: List.filterMap
                     (\review ->
                         review.comment
@@ -856,11 +857,11 @@ viewReviewQueue _ model =
 
                       else
                         div [ Attr.class "border border-border-default rounded-lg divide-y divide-border-default" ]
-                            (List.map (viewReviewQueueRow model.lang) entries)
+                            (List.map (viewReviewQueueRow model.lang model.criteria) entries)
                     ]
         , case model.activeReview of
             Just rf ->
-                viewReviewFormPanel model.lang model.pbUrl rf
+                viewReviewFormPanel model.lang model.criteria model.pbUrl rf
 
             Nothing ->
                 text ""
@@ -882,8 +883,8 @@ filterBtn target current label =
         [ text label ]
 
 
-viewReviewQueueRow : Lang -> ReviewableEntry -> Html Msg
-viewReviewQueueRow lang re =
+viewReviewQueueRow : Lang -> List Criterion -> ReviewableEntry -> Html Msg
+viewReviewQueueRow lang criteria re =
     div [ Attr.class "flex items-center gap-4 p-4" ]
         [ div [ Attr.class "flex-1" ]
             [ p [ Attr.class "type-body-small text-brand" ] [ text re.entry.title ]
@@ -896,7 +897,7 @@ viewReviewQueueRow lang re =
                             (t lang I18n.ScorePrefix
                                 ++ String.fromInt (Scoring.reviewTotal review)
                                 ++ "/"
-                                ++ String.fromInt Scoring.scoreMax
+                                ++ String.fromInt (Scoring.scoreMax criteria)
                             )
                         ]
 
@@ -932,8 +933,8 @@ viewReviewQueueRow lang re =
         ]
 
 
-viewReviewFormPanel : Lang -> String -> ReviewForm -> Html Msg
-viewReviewFormPanel lang pbUrl rf =
+viewReviewFormPanel : Lang -> List Criterion -> String -> ReviewForm -> Html Msg
+viewReviewFormPanel lang criteria pbUrl rf =
     let
         r =
             rf.draftReview
@@ -969,13 +970,15 @@ viewReviewFormPanel lang pbUrl rf =
                 Nothing ->
                     text ""
             , div [ Attr.class "mb-6" ]
-                [ viewScoreRow lang (t lang I18n.ScoreTheme) r.scoreTheme ScoreThemeChanged
-                , viewScoreRow lang (t lang I18n.ScoreOriginality) r.scoreOriginality ScoreOriginalityChanged
-                , viewScoreRow lang (t lang I18n.ScoreTechnique) r.scoreTechnique ScoreTechniqueChanged
-                , viewScoreRow lang (t lang I18n.ScorePresentation) r.scorePresentation ScorePresentationChanged
-                , p [ Attr.class "type-h4 text-brand mt-4" ]
-                    [ text (t lang I18n.TotalScore ++ String.fromInt total ++ "/" ++ String.fromInt Scoring.scoreMax) ]
-                ]
+                (List.map
+                    (\criterion ->
+                        viewScoreRow lang criterion.label (Dict.get criterion.id r.scores |> Maybe.withDefault 3) (ScoreChanged criterion.id)
+                    )
+                    criteria
+                    ++ [ p [ Attr.class "type-h4 text-brand mt-4" ]
+                            [ text (t lang I18n.TotalScore ++ String.fromInt total ++ "/" ++ String.fromInt (Scoring.scoreMax criteria)) ]
+                       ]
+                )
             , label [ Attr.class "block mb-1 type-body-small text-brand", Attr.for "review-comment" ]
                 [ text (t lang I18n.CommentLabel) ]
             , textarea

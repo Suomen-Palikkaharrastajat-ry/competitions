@@ -75,6 +75,7 @@ loggedOutModel =
     , adminForm = Nothing
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = TestSite.criteria Fi
     }
 
 
@@ -504,7 +505,7 @@ suite =
         , describe "viewEntryRow — published review scores"
             [ test "entry with no published reviews shows no score" <|
                 \_ ->
-                    View.viewEntryRow Fi testEntry
+                    View.viewEntryRow Fi (TestSite.criteria Fi) testEntry
                         |> Query.fromHtml
                         |> Query.findAll [ containing [ text "Pisteet:" ] ]
                         |> Query.count (Expect.equal 0)
@@ -520,7 +521,7 @@ suite =
                                     ]
                             }
                     in
-                    View.viewEntryRow Fi entryWithReviews
+                    View.viewEntryRow Fi (TestSite.criteria Fi) entryWithReviews
                         |> Query.fromHtml
                         |> Query.findAll [ containing [ text "Pisteet: 17.0 / 20" ] ]
                         |> Query.count (Expect.equal 1)
@@ -550,10 +551,7 @@ suite =
                                             { id = Nothing
                                             , entryId = "entry1"
                                             , reviewerId = "profile1"
-                                            , scoreTheme = 3
-                                            , scoreOriginality = 3
-                                            , scoreTechnique = 3
-                                            , scorePresentation = 3
+                                            , scores = Dict.fromList [ ( "theme", 3 ), ( "originality", 3 ), ( "technique", 3 ), ( "presentation", 3 ) ]
                                             , comment = ""
                                             , isPublished = False
                                             }

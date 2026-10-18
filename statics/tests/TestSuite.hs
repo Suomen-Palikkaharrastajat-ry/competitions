@@ -48,13 +48,13 @@ configTests =
         [ testCase "parseConfig valid competition.toml" $ do
             let toml =
                     T.unlines
-                        [ "title = \"Palikkakilpailu\""
+                        [ "title = \"Palikkakilpailut\""
                         , "locale = \"fi\""
                         , "timezone = \"Europe/Helsinki\""
                         ]
             case parseConfig toml of
                 Right config -> do
-                    configTitle config @?= T.pack "Palikkakilpailu"
+                    configTitle config @?= T.pack "Palikkakilpailut"
                     configLocale config @?= Fi
                     configTimezone config @?= T.pack "Europe/Helsinki"
                     configPbUrl config @?= Nothing
@@ -63,7 +63,7 @@ configTests =
             let toml = T.pack ""
             case parseConfig toml of
                 Right config -> do
-                    configTitle config @?= T.pack "Palikkakilpailu"
+                    configTitle config @?= T.pack "Palikkakilpailut"
                     configLocale config @?= Fi
                     configTimezone config @?= T.pack "Europe/Helsinki"
                 Left err -> assertFailure $ "Parse failed: " ++ T.unpack err

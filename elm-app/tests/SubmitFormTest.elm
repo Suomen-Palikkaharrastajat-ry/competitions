@@ -124,6 +124,7 @@ baseModel =
     , adminForm = Nothing
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = TestSite.criteria Fi
     }
 
 
@@ -160,6 +161,16 @@ suite =
                     let
                         ( model, _ ) =
                             update CancelSubmit { baseModel | submitForm = { emptyForm | step = ConfirmingSubmit } }
+                    in
+                    model.submitForm.step |> Expect.equal FillingForm
+            , test "Escape cancels the confirmation dialog" <|
+                -- Given the confirmation dialog is open
+                -- When the user presses Escape
+                -- Then the form is shown again without uploading
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update EscapePressed { baseModel | submitForm = { emptyForm | title = "MOC", step = ConfirmingSubmit } }
                     in
                     model.submitForm.step |> Expect.equal FillingForm
             ]

@@ -1,13 +1,23 @@
-# Site configuration for Palikkakilpailu.
+# Site configuration for Palikkakilpailut.
 #
 # Layered on the family defaults in
 # vendor/master-builder/packages/site-config/family.toml, which supply the
 # icons, branding and footer. See vendor/master-builder/docs/site-config.md.
 
+[i18n]
+default   = "fi"
+languages = ["fi", "en"]
+# English is translated and checked, but not offered to visitors yet.
+hidden    = ["en"]
+
 [site]
 url         = "https://kilpailut.palikkaharrastajat.fi"
-title       = "Palikkakilpailu"
+title       = "Palikkakilpailut"
 description = "Suomen Palikkaharrastajat ry:n rakennuskilpailut"
+
+[site.en]
+title       = "Brick Competitions"
+description = "Building competitions of Suomen Palikkaharrastajat ry"
 
 [navbar]
 variant = "app"
@@ -15,3 +25,25 @@ variant = "app"
 [metadata]
 # The app is login-gated: keep it out of search indexes.
 robots = "noindex, nofollow"
+locale = "fi"
+
+[metadata.en]
+locale = "en"
+
+[app]
+# The review criteria, in the order they are shown. Each is a 1–5 Likert item.
+# An id is stored with every review, so do not rename one once reviews use it.
+# Its label is in [app.strings] as criterion_<id>, in every declared language.
+criteria = ["theme", "originality", "technique", "presentation"]
+
+[app.strings]
+criterion_theme        = "Teema-vastaavuus"
+criterion_originality  = "Omaperäisyys"
+criterion_technique    = "Rakennustekniikka"
+criterion_presentation = "Esitys (kuvat)"
+
+[app.en.strings]
+criterion_theme        = "Fit to the theme"
+criterion_originality  = "Originality"
+criterion_technique    = "Building technique"
+criterion_presentation = "Presentation (images)"

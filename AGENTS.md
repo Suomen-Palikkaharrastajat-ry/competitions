@@ -276,6 +276,7 @@ Domain ownership must go through `profiles`. `entries.submitter` and `reviews.re
 ```toml agent-sandbox
 [network]
 allowed_hosts = [
+    "hackage.haskell.org:80,443",
     "package.elm-lang.org:443",
     "proxy.golang.org:443",
     "storage.googleapis.com:443",

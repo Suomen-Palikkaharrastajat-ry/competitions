@@ -102,6 +102,7 @@ editing =
     , adminForm = Just validForm
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = TestSite.criteria Fi
     }
 
 

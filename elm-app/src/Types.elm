@@ -26,6 +26,7 @@ module Types exposing
 {-| Core types for the competition platform application.
 -}
 
+import Criteria exposing (Criterion)
 import Dict exposing (Dict)
 import File exposing (File)
 import Http
@@ -203,16 +204,14 @@ type alias SubmitForm =
     }
 
 
-{-| A reviewer's score for one entry (4 criteria, 1–5 each).
+{-| A reviewer's score for one entry: one 1–5 score per review criterion, keyed
+by the criterion's id.
 -}
 type alias Review =
     { id : Maybe String
     , entryId : String
     , reviewerId : String
-    , scoreTheme : Int
-    , scoreOriginality : Int
-    , scoreTechnique : Int
-    , scorePresentation : Int
+    , scores : Dict String Int
     , comment : String
     , isPublished : Bool
     }
@@ -298,6 +297,7 @@ type alias Model =
     , adminForm : Maybe CompetitionForm
     , adminFormErrors : List FormError
     , adminEntries : RemoteData Http.Error (List ReviewableEntry)
+    , criteria : List Criterion
     }
 
 
@@ -324,6 +324,7 @@ type Msg
     | HashChanged String
     | ToggleMenu
     | CloseMenu
+    | EscapePressed
     | NoOp
       -- Competitions
     | CompetitionsLoaded (Result Http.Error (List Competition))
@@ -360,10 +361,7 @@ type Msg
     | OpenReviewForm ReviewableEntry
     | CloseReviewForm
       -- Scoring
-    | ScoreThemeChanged Int
-    | ScoreOriginalityChanged Int
-    | ScoreTechniqueChanged Int
-    | ScorePresentationChanged Int
+    | ScoreChanged String Int
     | ReviewCommentChanged String
       -- Review actions
     | SaveReview

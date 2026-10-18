@@ -8,6 +8,7 @@ Then state transitions are correct
 
 -}
 
+import Criteria exposing (Criterion)
 import Dict
 import Expect
 import Http
@@ -15,7 +16,7 @@ import Json.Decode as Decode
 import Lang exposing (Lang(..))
 import Main exposing (emptyReview, filteredReviewQueue, reviewableEntryDecoder, update)
 import RemoteData
-import Scoring exposing (entryAverage, reviewTotal)
+import Scoring exposing (entryAverage, reviewTotal, scoreMax)
 import Test exposing (Test, describe, test)
 import TestSite
 import Time
@@ -70,13 +71,17 @@ testReview =
     { id = Just "rev1"
     , entryId = "entry1"
     , reviewerId = "reviewer1"
-    , scoreTheme = 4
-    , scoreOriginality = 3
-    , scoreTechnique = 5
-    , scorePresentation = 4
+    , scores = Dict.fromList [ ( "theme", 4 ), ( "originality", 3 ), ( "technique", 5 ), ( "presentation", 4 ) ]
     , comment = "Great MOC"
     , isPublished = True
     }
+
+
+{-| The review criteria of the app's config.toml, in Finnish.
+-}
+testCriteria : List Criterion
+testCriteria =
+    TestSite.criteria Fi
 
 
 testReviewableEntry : ReviewableEntry
@@ -132,6 +137,7 @@ baseModel =
     , adminForm = Nothing
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
+    , criteria = testCriteria
     }
 
 
@@ -157,26 +163,38 @@ suite =
                     Decode.decodeString (reviewableEntryDecoder "profile1") queueItemJson
                         |> Result.map .submitterName
                         |> Expect.equal (Ok "Aino")
+            , test "totals only the published reviews, from their scores" <|
+                \_ ->
+                    Decode.decodeString (reviewableEntryDecoder "profile1") queueItemJson
+                        |> Result.map (.entry >> .publishedReviews >> List.map .total)
+                        |> Expect.equal (Ok [ 18 ])
             ]
         , describe "Scoring.reviewTotal"
             [ test "all 3s gives 12" <|
                 \_ ->
                     reviewTotal
-                        { scoreTheme = 3
-                        , scoreOriginality = 3
-                        , scoreTechnique = 3
-                        , scorePresentation = 3
-                        }
+                        { scores = Dict.fromList [ ( "theme", 3 ), ( "originality", 3 ), ( "technique", 3 ), ( "presentation", 3 ) ] }
                         |> Expect.equal 12
             , test "mixed scores" <|
                 \_ ->
                     reviewTotal
-                        { scoreTheme = 4
-                        , scoreOriginality = 3
-                        , scoreTechnique = 5
-                        , scorePresentation = 4
-                        }
+                        { scores = Dict.fromList [ ( "theme", 4 ), ( "originality", 3 ), ( "technique", 5 ), ( "presentation", 4 ) ] }
                         |> Expect.equal 16
+            , test "sums however many criteria the review has" <|
+                \_ ->
+                    reviewTotal
+                        { scores = Dict.fromList [ ( "clarity", 5 ), ( "humour", 2 ) ] }
+                        |> Expect.equal 7
+            ]
+        , describe "Scoring.scoreMax"
+            [ test "five per configured criterion" <|
+                \_ ->
+                    scoreMax testCriteria
+                        |> Expect.equal 20
+            , test "follows the number of criteria" <|
+                \_ ->
+                    scoreMax [ { id = "clarity", label = "Clarity" }, { id = "humour", label = "Humour" } ]
+                        |> Expect.equal 10
             ]
         , describe "Scoring.entryAverage"
             [ test "three review totals" <|
@@ -197,18 +215,23 @@ suite =
                 \_ ->
                     let
                         r =
-                            emptyReview "entry1" "reviewer1"
+                            emptyReview testCriteria "entry1" "reviewer1"
                     in
                     Expect.all
                         [ \_ -> Expect.equal Nothing r.id
                         , \_ -> Expect.equal "entry1" r.entryId
-                        , \_ -> Expect.equal 3 r.scoreTheme
-                        , \_ -> Expect.equal 3 r.scoreOriginality
-                        , \_ -> Expect.equal 3 r.scoreTechnique
-                        , \_ -> Expect.equal 3 r.scorePresentation
+                        , \_ -> Expect.equal (Just 3) (Dict.get "theme" r.scores)
+                        , \_ -> Expect.equal (Just 3) (Dict.get "originality" r.scores)
+                        , \_ -> Expect.equal (Just 3) (Dict.get "technique" r.scores)
+                        , \_ -> Expect.equal (Just 3) (Dict.get "presentation" r.scores)
                         , \_ -> Expect.equal False r.isPublished
                         ]
                         ()
+            , test "has one score per configured criterion, and no others" <|
+                \_ ->
+                    emptyReview [ { id = "clarity", label = "Clarity" } ] "entry1" "reviewer1"
+                        |> .scores
+                        |> Expect.equal (Dict.fromList [ ( "clarity", 3 ) ])
             ]
         , describe "ReviewQueueLoaded"
             [ test "Ok stores entries in reviewQueue" <|
@@ -292,10 +315,22 @@ suite =
                     in
                     case model.activeReview of
                         Just reviewForm ->
-                            reviewForm.draftReview.scoreTheme |> Expect.equal 4
+                            Dict.get "theme" reviewForm.draftReview.scores |> Expect.equal (Just 4)
 
                         Nothing ->
                             Expect.fail "Expected activeReview to be set"
+            ]
+        , describe "EscapePressed"
+            -- Given the review form is open
+            -- When the user presses Escape
+            -- Then the review form closes
+            [ test "closes an open review form" <|
+                \_ ->
+                    let
+                        ( model, _ ) =
+                            update EscapePressed (withReviewForm (emptyReview testCriteria "entry1" "reviewer1"))
+                    in
+                    model.activeReview |> Expect.equal Nothing
             ]
         , describe "CloseReviewForm"
             [ test "clears activeReview" <|
@@ -306,7 +341,7 @@ suite =
                                 | activeReview =
                                     Just
                                         { reviewableEntry = testReviewableEntry
-                                        , draftReview = emptyReview "entry1" "reviewer1"
+                                        , draftReview = emptyReview testCriteria "entry1" "reviewer1"
                                         , saving = False
                                         , saveError = Nothing
                                         }
@@ -325,7 +360,7 @@ suite =
                 \_ ->
                     let
                         published =
-                            emptyReview "entry1" "reviewer1"
+                            emptyReview testCriteria "entry1" "reviewer1"
 
                         ( model, _ ) =
                             update SaveReview (withReviewForm { published | isPublished = True })
@@ -340,7 +375,7 @@ suite =
                 \_ ->
                     let
                         ( model, _ ) =
-                            update SaveAndPublishReview (withReviewForm (emptyReview "entry1" "reviewer1"))
+                            update SaveAndPublishReview (withReviewForm (emptyReview testCriteria "entry1" "reviewer1"))
                     in
                     case model.activeReview of
                         Just rf ->
@@ -350,7 +385,7 @@ suite =
                             Expect.fail "Expected activeReview"
             ]
         , describe "Score changes"
-            [ test "ScoreThemeChanged updates draftReview.scoreTheme" <|
+            [ test "ScoreChanged updates that criterion's score in draftReview" <|
                 \_ ->
                     let
                         modelWithReview =
@@ -358,18 +393,18 @@ suite =
                                 | activeReview =
                                     Just
                                         { reviewableEntry = testReviewableEntry
-                                        , draftReview = emptyReview "entry1" "reviewer1"
+                                        , draftReview = emptyReview testCriteria "entry1" "reviewer1"
                                         , saving = False
                                         , saveError = Nothing
                                         }
                             }
 
                         ( model, _ ) =
-                            update (ScoreThemeChanged 5) modelWithReview
+                            update (ScoreChanged "theme" 5) modelWithReview
                     in
                     case model.activeReview of
                         Just rf ->
-                            rf.draftReview.scoreTheme |> Expect.equal 5
+                            Dict.get "theme" rf.draftReview.scores |> Expect.equal (Just 5)
 
                         Nothing ->
                             Expect.fail "Expected activeReview"
@@ -381,7 +416,7 @@ suite =
                                 | activeReview =
                                     Just
                                         { reviewableEntry = testReviewableEntry
-                                        , draftReview = emptyReview "entry1" "reviewer1"
+                                        , draftReview = emptyReview testCriteria "entry1" "reviewer1"
                                         , saving = False
                                         , saveError = Nothing
                                         }
@@ -406,7 +441,7 @@ suite =
                                 | activeReview =
                                     Just
                                         { reviewableEntry = testReviewableEntry
-                                        , draftReview = emptyReview "entry1" "reviewer1"
+                                        , draftReview = emptyReview testCriteria "entry1" "reviewer1"
                                         , saving = False
                                         , saveError = Nothing
                                         }
@@ -445,7 +480,7 @@ suite =
                                 , activeReview =
                                     Just
                                         { reviewableEntry = testReviewableEntry
-                                        , draftReview = emptyReview "entry1" "reviewer1"
+                                        , draftReview = emptyReview testCriteria "entry1" "reviewer1"
                                         , saving = True
                                         , saveError = Nothing
                                         }
@@ -512,8 +547,8 @@ queueItemJson =
         { "competition": { "id": "comp1", "title": "Kaupunki 2026", "slug": "kaupunki-2026", "start_date": "2026-06-01 00:00:00.000Z", "end_date": "2026-12-31 00:00:00.000Z" }
         , "submitter": { "id": "profile9", "display_name": "Aino" }
         , "reviews_via_entry":
-            [ { "id": "theirs", "entry": "entry1", "reviewer": "profile2", "score_theme": 1, "score_originality": 1, "score_technique": 1, "score_presentation": 1, "comment": "", "is_published": false }
-            , { "id": "mine", "entry": "entry1", "reviewer": "profile1", "score_theme": 5, "score_originality": 4, "score_technique": 4, "score_presentation": 5, "comment": "Hieno", "is_published": true }
+            [ { "id": "theirs", "entry": "entry1", "reviewer": "profile2", "scores": { "theme": 1, "originality": 1, "technique": 1, "presentation": 1 }, "comment": "", "is_published": false }
+            , { "id": "mine", "entry": "entry1", "reviewer": "profile1", "scores": { "theme": 5, "originality": 4, "technique": 4, "presentation": 5 }, "comment": "Hieno", "is_published": true }
             ]
         }
     }

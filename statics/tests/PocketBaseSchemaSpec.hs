@@ -19,6 +19,7 @@ import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Data.Char (isDigit)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -490,6 +491,16 @@ createTestEntryWithImages cfg profileId cid status imageCount = do
                     _ -> fail "createTestEntryWithImages: no id in response"
         _ -> fail $ "createTestEntryWithImages failed with HTTP " <> show code <> ": " <> show respBody
 
+-- | Scores for the four criteria of config.toml, by criterion id.
+fourScores :: Int -> Int -> Int -> Int -> Map.Map T.Text Int
+fourScores theme originality technique presentation =
+    Map.fromList
+        [ ("theme", theme)
+        , ("originality", originality)
+        , ("technique", technique)
+        , ("presentation", presentation)
+        ]
+
 -- | Create a published review for an entry via admin API; returns review id.
 createPublishedReview :: PbConfig -> T.Text -> T.Text -> IO T.Text
 createPublishedReview cfg reviewerProfileId reviewedEntryId = do
@@ -497,10 +508,13 @@ createPublishedReview cfg reviewerProfileId reviewedEntryId = do
             A.object
                 [ "entry" A..= reviewedEntryId
                 , "reviewer" A..= reviewerProfileId
-                , "score_theme" A..= (5 :: Int)
-                , "score_originality" A..= (4 :: Int)
-                , "score_technique" A..= (5 :: Int)
-                , "score_presentation" A..= (4 :: Int)
+                , "scores"
+                    A..= A.object
+                        [ "theme" A..= (5 :: Int)
+                        , "originality" A..= (4 :: Int)
+                        , "technique" A..= (5 :: Int)
+                        , "presentation" A..= (4 :: Int)
+                        ]
                 , "comment" A..= ("Published feedback" :: T.Text)
                 , "is_published" A..= True
                 ]
@@ -719,33 +733,40 @@ tests =
                         [ "id" A..= ("rev1" :: T.Text)
                         , "entry" A..= ("entry1" :: T.Text)
                         , "reviewer" A..= ("user2" :: T.Text)
-                        , "score_theme" A..= (4 :: Int)
-                        , "score_originality" A..= (5 :: Int)
-                        , "score_technique" A..= (3 :: Int)
-                        , "score_presentation" A..= (4 :: Int)
+                        , "scores"
+                            A..= A.object
+                                [ "theme" A..= (4 :: Int)
+                                , "originality" A..= (5 :: Int)
+                                , "technique" A..= (3 :: Int)
+                                , "presentation" A..= (4 :: Int)
+                                ]
                         , "is_published" A..= True
                         ]
             case A.fromJSON json of
                 A.Error err -> assertFailure $ "Decode failed: " <> err
                 A.Success (review :: Review) -> do
                     reviewId review @?= "rev1"
-                    reviewScoreTheme review @?= 4
-                    reviewScoreOriginality review @?= 5
+                    reviewScores review @?= fourScores 4 5 3 4
                     reviewIsPublished review @?= True
         , testCase "GalleryTypes: rankEntries computes scores" $ do
             let entry1 = Entry "e1" "comp" "user1" "MOC A" Nothing ["img.jpg"] 0 Approved
                 entry2 = Entry "e2" "comp" "user2" "MOC B" Nothing ["img.jpg"] 0 Approved
-                rev1 = Review "r1" "e1" "reviewer" 5 5 5 5 Nothing True
-                rev2 = Review "r2" "e2" "reviewer" 3 3 3 3 Nothing True
+                rev1 = Review "r1" "e1" "reviewer" (fourScores 5 5 5 5) Nothing True
+                rev2 = Review "r2" "e2" "reviewer" (fourScores 3 3 3 3) Nothing True
                 ranked = rankEntries [(entry1, [rev1]), (entry2, [rev2])]
             length ranked @?= 2
             rankedRank (head ranked) @?= 1
             rankedTotalScore (head ranked) @?= 20 -- 5+5+5+5
             rankedTotalScore (ranked !! 1) @?= 12 -- 3+3+3+3
+        , testCase "GalleryTypes: total sums however many criteria a review scores" $ do
+            let entry = Entry "e1" "comp" "user1" "MOC" Nothing ["img.jpg"] 0 Approved
+                review = Review "r1" "e1" "rev1" (Map.fromList [("clarity", 5), ("humour", 2)]) Nothing True
+                ranked = rankEntries [(entry, [review])]
+            rankedTotalScore (head ranked) @?= 7
         , testCase "GalleryTypes: unpublished reviews excluded from score" $ do
             let entry = Entry "e1" "comp" "user1" "MOC" Nothing ["img.jpg"] 0 Approved
-                published = Review "r1" "e1" "rev1" 5 5 5 5 Nothing True
-                unpublished = Review "r2" "e1" "rev2" 1 1 1 1 Nothing False
+                published = Review "r1" "e1" "rev1" (fourScores 5 5 5 5) Nothing True
+                unpublished = Review "r2" "e1" "rev2" (fourScores 1 1 1 1) Nothing False
                 ranked = rankEntries [(entry, [published, unpublished])]
             rankedTotalScore (head ranked) @?= 20 -- only published counts
         , -- -----------------------------------------------------------------------

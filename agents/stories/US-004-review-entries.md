@@ -18,7 +18,7 @@
 
 ## Notes
 
-- Scores: all four criteria are required before saving. Default score: 3.
+- Scores: every configured criterion is scored before saving. The criteria are configured in `config.toml` (`[app] criteria`, ADR-0005); the current four are theme fit, originality, technique and presentation. Default score: 3.
 - Unpublished reviews (`is_published = false`) are visible only to the reviewer who wrote them.
 - Published reviews are visible to the submitter on their "Omat osallistumiset" page.
 - A reviewer may update their review after publishing (re-saves with PATCH).

@@ -149,7 +149,7 @@ status="$(request "$PARTICIPANT_TOKEN" entries PATCH "/$ENTRY" '{"status":"appro
 expect "participant approves own entry" "400" "$status"
 
 # Reviews: a reviewer writes their own review and cannot change another's.
-status="$(request "$REVIEWER_TOKEN" reviews POST "" "{\"entry\":\"$ENTRY\",\"reviewer\":\"$REVIEWER_PROFILE\",\"score_theme\":3,\"score_originality\":3,\"score_technique\":3,\"score_presentation\":3,\"comment\":\"ok\",\"is_published\":false}")"
+status="$(request "$REVIEWER_TOKEN" reviews POST "" "{\"entry\":\"$ENTRY\",\"reviewer\":\"$REVIEWER_PROFILE\",\"scores\":{\"theme\":3,\"originality\":3,\"technique\":3,\"presentation\":3},\"comment\":\"ok\",\"is_published\":false}")"
 expect "reviewer writes own review" 200 "$status"
 REVIEW="$(json '["id"]' <"$WORK/body")"
 
@@ -168,12 +168,14 @@ status="$(
 )"
 expect "superuser deletes competition" 204 "$status"
 
-# The down migration of 014 gives reviewers the delete rule back. The server
-# re-applies pending migrations when it starts, so check the database after
-# reverting instead of restarting the server. The CLI asks for confirmation on
-# a terminal, so give it one.
+# The down migration of 015 turns the review scores back into number fields
+# (with the reviews above in the database), then the down migration of 014
+# gives reviewers the delete rule back. The server re-applies pending migrations
+# when it starts, so check the database after reverting instead of restarting
+# the server. The CLI asks for confirmation on a terminal, so give it one.
 stop_pb
-printf 'y\n' | script -qec "PB_MIGRATIONS_DIR=./pb_migrations ${PB_BIN[*]} migrate down 1 --dir $PB_DIR" /dev/null >"$WORK/revert.log" 2>&1 || true
+printf 'y\n' | script -qec "PB_MIGRATIONS_DIR=./pb_migrations ${PB_BIN[*]} migrate down 2 --dir $PB_DIR" /dev/null >"$WORK/revert.log" 2>&1 || true
+grep -q "Reverted 015_review_scores_json.js" "$WORK/revert.log" || fail "Expected migration 015 to revert, got: $(tail -3 "$WORK/revert.log")"
 grep -q "Reverted 014_admin_policy.js" "$WORK/revert.log" || fail "Expected migration 014 to revert, got: $(tail -3 "$WORK/revert.log")"
 delete_rule="$(python3 -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(\"select deleteRule from _collections where name='competitions'\").fetchone()[0])" "$PB_DIR/data.db")"
 [ "$delete_rule" = '@request.auth.is_reviewer = true' ] ||
