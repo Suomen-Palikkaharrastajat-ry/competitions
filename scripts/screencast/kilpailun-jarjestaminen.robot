@@ -114,8 +114,12 @@ Olli Sulkee Osallistumisen
     ...    eyebrow=Palikkakilpailun järjestäminen · 4 / 7
     ...    title=Osallistuminen päättyy
     ...    subtitle=Kilpailu siirretään arviointivaiheeseen
-    Change Competition Status    ${COMPETITION}    judging
+    Sign In As Member    keycloak-reviewer@example.test    reviewer
+    Open Competition Edit In App Admin    ${COMPETITION}
+    Transition In-App Status    Suljettu
+    Transition In-App Status    Arvostelussa
     Caption    Arviointivaiheessa kilpailu ei enää näy avoimena eikä uusia töitä voi lähettää.
+    Human Click    role=button[name="Kirjaudu ulos"]
     [Teardown]    End Actor Turn
 
 Olli Arvioi Työt
@@ -165,8 +169,11 @@ Olli Julkaisee Gallerian
     ...    eyebrow=Palikkakilpailun järjestäminen · 7 / 7
     ...    title=Tulokset ja galleria
     ...    subtitle=Kilpailu merkitään valmiiksi ja galleria julkaistaan
-    Change Competition Status    ${COMPETITION}    finished
+    Sign In As Member    keycloak-reviewer@example.test    reviewer
+    Open Competition Edit In App Admin    ${COMPETITION}
+    Transition In-App Status    Päättynyt
     Caption    Valmiin kilpailun hyväksytyt työt ja pisteet päätyvät julkiseen galleriaan.
+    Human Click    role=button[name="Kirjaudu ulos"]
     [Teardown]    End Actor Turn
 
 Galleria Päivittyy
@@ -194,7 +201,7 @@ Galleria
 Lopuksi
     Refresh Admin List
     Chapter    Palikkakilpailu    Kiitos!
-    ...    Kilpailut: kilpailut.palikkaharrastajat.fi · Ylläpito: /_/
+    ...    Kilpailut: kilpailut.palikkaharrastajat.fi · Ylläpito: #/admin
     Hold    3
     End Observer
 

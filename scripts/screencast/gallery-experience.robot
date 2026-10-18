@@ -45,6 +45,9 @@ Valmistele Galleria
     Approve Entry    ${SILVER_ENTRY}
     Create Published Review    ${GOLD_ENTRY}    keycloak-reviewer@example.test    5    5    5    5    Mestarillinen toteutus!
     Create Published Review    ${SILVER_ENTRY}    keycloak-reviewer@example.test    4    4    4    4    Hieno tunnelma ja yksityiskohdat.
+    Enable Competition Voting    ${COMPETITION}    start=2026-10-01 00:00:00.000Z    end=2026-10-15 00:00:00.000Z
+    Create Vote Ballot    ${COMPETITION}    keycloak-reviewer@example.test    ${GOLD_ENTRY}    ${SILVER_ENTRY}
+    Create Vote Ballot    ${COMPETITION}    janedoe@example.com    ${GOLD_ENTRY}
     Build Gallery    ${builder}
     ${url}=    Serve Gallery
     Save State    gallery_url    ${url}
@@ -60,6 +63,9 @@ Selaa Tuloksia Ja Galleriaa
     Caption    Staattinen galleria latautuu salamannopeasti ilman tietokantakuormaa.
     Human Move    css=.podium-list
     Caption    Kolme parasta teosta korostetaan näyttävästi palkintopallilla.
+    Wait Until Visible    css=.vote-results
+    Human Move    css=.vote-results
+    Caption    Julkisessa tulosgalleriassa näkyy myös yleisöäänestyksen tulos ja pisteet.
     Human Click    css=img.podium-img[alt^="${GOLD_ENTRY}"]
     Wait Until Visible    role=dialog
     Caption    Kuvaa klikkaamalla avautuu täysikokoinen esteetön Lightbox-kuvakatselin.

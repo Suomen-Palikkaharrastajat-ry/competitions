@@ -173,6 +173,26 @@ class CompetitionsLibrary:
         )
 
     @keyword
+    def create_vote_ballot(self, competition_title, voter_email, *ranked_entry_titles):
+        """Cast a ballot for voter_email ranking entries by title."""
+        comp = self._all("competitions", f"title = {_quote(competition_title)}")[0]
+        voter = self._all("profiles", f"email = {_quote(voter_email)}")[0]
+        ranking = []
+        for title in ranked_entry_titles:
+            entries = self._all("entries", f"title = {_quote(title)} && competition = '{comp['id']}'")
+            if entries:
+                ranking.append(entries[0]["id"])
+        self._request(
+            "POST",
+            "/api/collections/votes/records",
+            {
+                "competition": comp["id"],
+                "voter": voter["id"],
+                "ranking": ranking,
+            },
+        )
+
+    @keyword
     def create_published_review(
         self, entry_title, reviewer_email, theme=5, originality=5, technique=5, presentation=5, comment=""
     ):

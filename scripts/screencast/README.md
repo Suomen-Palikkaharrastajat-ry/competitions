@@ -28,7 +28,7 @@ Keskittyy osallistujan työnkulkuun:
 ### 4. `review-workflow.robot` (Arvostelijan työkalut ja pisteytys)
 Keskittyy arviointiprosessiin:
 - Arvostelijan näkymä ja suodatus ("Ei vielä arvosteltu" vs "Kaikki").
-- Neljä pisteytyskriteeriä (Idea ja luovuus, Rakennustekniikka, Esillepano ja kuvaus, Kokonaisvaikutelma; 1–5 tähteä).
+- Neljä pisteytyskriteeriä (Teema-vastaavuus, Omaperäisyys, Rakennustekniikka, Esitys (kuvat); 1–5 tähteä).
 - Luonnosarvostelu vs julkaistu arvostelu.
 - Töiden hyväksyminen tai hylkääminen.
 

@@ -186,7 +186,7 @@ Enable Ranked Voting On Form
     [Arguments]    ${start}    ${end}    ${required}=${False}
     Human Click    label=Yleisöäänestys käytössä
     Fill Field    label=Äänestys alkaa    ${start}
-    Fill Field    label=Äänestys päättyy    ${end}
+    Fill Field    label=Äänestys suljetaan (päivän alussa)    ${end}
     IF    ${required}
         Human Click    label=Osallistujien on äänestettävä
     END
@@ -211,6 +211,7 @@ Open In-App Admin Entries
     Open In-App Admin
     Human Click    css=li:has(h2:text-is("${title}")) >> role=button[name="Osallistumiset"]
     Wait Until Visible    role=heading[name="Osallistumiset"]
+    Wait Until Visible    css=ul.grid, #vote-result, p:has-text("Ei osallistumisia.")
 
 # ── Voting UI (ADR-0007) ───────────────────────────────────────────────────
 

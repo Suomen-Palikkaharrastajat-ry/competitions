@@ -62,7 +62,7 @@ Kilpailu etenee tilasta toiseen ylläpitolomakkeen painikkeilla **"Siirrä tilaa
 1. **Luonnos (`draft`):** Kilpailu näkyy vain arvostelijoille ja ylläpitäjille.
 2. **Avoin (`open`):** Kilpailu on julkinen ja osallistujat voivat lähettää sekä muokata töitään.
 3. **Suljettu (`closed`):** Osallistumisaika on päättynyt.
-4. **Arvostelu käynnissä (`judging`):** Arvostelijat pisteyttävät töitä. Yleisöäänestys voi olla käynnissä.
+4. **Arvostelussa (`judging`):** Arvostelijat pisteyttävät töitä. Yleisöäänestys voi olla käynnissä.
 5. **Päättynyt (`finished`):** Kilpailu on ratkennut ja valmis julkaistavaksi staattiseen galleriaan.
 
 > [!NOTE]
@@ -96,12 +96,14 @@ Arvostelijat avaavat yläpalkista **Arvosteltavat** (`/#/arvostelu`):
    - **Ei vielä arvosteltu:** Työt, joille et ole vielä antanut julkaistua arviota.
 2. Avaa työ klikkaamalla **"Arvioi"**.
 3. Pisteytä kriteerit asteikolla **1–5 tähteä**:
-   - Arviointikriteerit määritellään tiedostossa `config.toml` (ADR-0005). Oletuksena käytössä on neljä kriteeriä: *Teeman mukaisuus*, *Omaperäisyys*, *Rakennustekniikka* ja *Esillepano*.
+   - Arviointikriteerit määritellään tiedostossa `config.toml` (ADR-0005). Oletuksena käytössä on neljä kriteeriä: *Teema-vastaavuus*, *Omaperäisyys*, *Rakennustekniikka* ja *Esitys (kuvat)*.
 4. Kirjoita sanallinen palaute kohtaan **Kommentti**.
 5. Valitse tallennustapa:
    - **Tallenna:** Tallentaa luonnoksen (`is_published = false`), joka näkyy vain sinulle.
    - **Tallenna ja julkaise:** Julkaisee arvion (`is_published = true`), jolloin pisteet ja palaute tulevat tekijän näkyville ja lasketaan kilpailun kokonaistulokseen.
 6. Hyväksy tai hylkää työ painikkeilla **"Hyväksy"** tai **"Hylkää"**.
+
+![Arviointilomake ja tähtiarvostelu](images/07-review-modal.png)
 
 ---
 
@@ -128,12 +130,10 @@ Kun kilpailu on tilassa `finished` ja äänestysaika on päättynyt, julkaistaan
 
 ### Gallerian asetukset (`competition.toml`)
 ```toml
-title = "Palikkaharrastajat — Kilpailugalleria"
-base_url = "https://kilpailut.palikkaharrastajat.fi"
-output_dir = "dist/galleria"
+title = "Palikkakilpailut"
 locale = "fi"
 timezone = "Europe/Helsinki"
-min_reviews = 1
+output_dir = "dist/galleria"
 ```
 
 ### Gallerian generointi
@@ -142,6 +142,9 @@ Aja paikallisessa kehitysympäristössä tai julkaisuputkessa:
 devenv shell --no-eval-cache -- make gallery-run
 ```
 Komento hakee hyväksytyt työt, julkaistut arvostelut ja äänet PocketBasesta, muodostaa palkintopallin, laskee arvosanojen keskiarvot sekä yleisöäänestyksen pisteet ja kirjoittaa saavutettavan HTML-gallerian hakemistoon `dist/galleria/index.html`.
+
+> [!IMPORTANT]
+> Gallerian luonti tarvitsee superuser-oikeudet (`POCKETBASE_API_KEY` ympäristömuuttujassa, ks. `.env`), jotta pipeline voi lukea salaiset äänestyslipukkeet ja osallistujien näyttönimet yleisöäänestystuloksen laskentaa varten.
 
 ![Julkinen tulosgalleria](images/08-static-gallery.png)
 
