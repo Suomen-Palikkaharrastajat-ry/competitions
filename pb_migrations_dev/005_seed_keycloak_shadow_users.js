@@ -2,17 +2,17 @@
 // DEV SEED - do not run in production.
 // Given local Keycloak fixture users exist in the Keycloak realm
 // When the PocketBase dev fixture is applied
-// Then matching keycloak_users/profile records exist so Keycloak-first OTP blocking is testable.
+// Then matching users (Keycloak members)/profile records exist so Keycloak-first OTP blocking is testable.
 
 function upsertKeycloakUser(app, email, displayName, isReviewer) {
   const normalized = String(email).trim().toLowerCase();
   let user = null;
   try {
-    user = app.findAuthRecordByEmail("keycloak_users", normalized);
+    user = app.findAuthRecordByEmail("users", normalized);
   } catch (_) {}
 
   if (!user) {
-    user = new Record(app.findCollectionByNameOrId("keycloak_users"));
+    user = new Record(app.findCollectionByNameOrId("users"));
     user.set("email", normalized);
     user.setRandomPassword();
   }
@@ -63,7 +63,7 @@ migrate(
         ));
       } catch (_) {}
       try {
-        app.delete(app.findAuthRecordByEmail("keycloak_users", normalized));
+        app.delete(app.findAuthRecordByEmail("users", normalized));
       } catch (_) {}
     });
   }

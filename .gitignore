@@ -48,3 +48,6 @@ TODO*
 
 # Python bytecode (scripts/screencast)
 __pycache__/
+
+# Copy of the production PocketBase (real member data). Never commit it.
+/pocketbase/

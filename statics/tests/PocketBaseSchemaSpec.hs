@@ -834,7 +834,7 @@ tests =
                     deleteTestRecord cfg "local_users" (testAuthId ident)
                     assertBool ("expected 200, got " <> show code) (code >= 200 && code < 300)
         , -- -----------------------------------------------------------------------
-          -- Access control: users cannot self-promote to reviewer (migration 006)
+          -- Access control: users cannot self-promote to reviewer (local_users update rule)
           -- -----------------------------------------------------------------------
 
           -- Given a regular user

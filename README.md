@@ -4,7 +4,7 @@ LEGO crafting competition platform for Suomen Palikkaharrastajat ry.
 
 The project has three moving parts:
 
-- **Custom PocketBase 0.37.5 backend** stores competitions, entries, reviews, shared profiles, local OTP users, Keycloak users, and uploaded entry images.
+- **Stock PocketBase 0.40.5 backend** stores competitions, entries, reviews, shared profiles, local OTP users, Keycloak users, and uploaded entry images. It is the organisation's shared production PocketBase, which also holds the members (`users`), `events` and `locations` (ADR-0006).
 - **Elm 0.19.1 SPA** provides participant and reviewer workflows: Keycloak login, local OTP login, entry submission, own entries, and review tools.
 - **Haskell gallery pipeline** reads approved PocketBase data and writes a static gallery snapshot.
 
@@ -71,11 +71,11 @@ The gallery can run without this key against public data, but submitter display 
 
 Participant and reviewer ownership lives in `profiles`, not directly in an auth collection. `entries.submitter` and `reviews.reviewer` point at profile records.
 
-- `keycloak_users`: Keycloak/OIDC auth only.
+- `users`: the organisation's members, Keycloak/OIDC auth only. Shared with the other apps on the same PocketBase.
 - `local_users`: email OTP auth only.
 - `profiles`: shared identity, normalized email, display name, reviewer flag, and links to auth records.
 
-Keycloak wins for matching emails. If an email already exists in `keycloak_users`, local OTP returns `409 keycloak_required` and no OTP is sent. If Keycloak login later creates a matching `keycloak_users` record, any matching local user is blocked from future OTP login.
+Keycloak wins for matching emails. If an email already exists in `users`, local OTP returns `409 keycloak_required` and no OTP is sent. If Keycloak login later creates a matching `users` record, any matching local user is blocked from future OTP login. The shared `events` and `locations` are for members only: an OTP participant cannot read unpublished ones or write them.
 
 ## Demo Fixture
 
@@ -132,6 +132,6 @@ make pb-seed          # apply local-only fixture migrations to pb_data/
 
 ## Architecture Rules
 
-PocketBase is the data source of truth. The Elm app and Haskell gallery both use the PocketBase REST API; they do not call each other. Schema changes belong in `pb_migrations/`. Local fixture data belongs in `pb_migrations_dev/` and must not be deployed to production. Hooks for the custom backend live in `pb_hooks/`.
+PocketBase is the data source of truth. The Elm app and Haskell gallery both use the PocketBase REST API; they do not call each other. Schema changes belong in `pb_migrations/`. Local fixture data belongs in `pb_migrations_dev/` and must not be deployed to production. Hooks live in `pb_hooks/`, including the production `events`/`locations` hooks. `pb_migrations/` starts from the production collections snapshot; `make pb-test-production-baseline` checks that the competitions migrations apply on it and revert to it.
 
 Agents should start with `AGENTS.md`, then ADRs in `agents/adrs/`, user stories in `agents/stories/`, and finally tests.

@@ -9,14 +9,14 @@
 set -euo pipefail
 
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-read -r -a PB_BIN <<< "${POCKETBASE:-env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase}"
+read -r -a PB_BIN <<< "${POCKETBASE:-pocketbase}"
 PB_DIR="$(mktemp -d)"
 PB_LOG="$(mktemp)"
 WORK="$(mktemp -d)"
 PB_PORT="${PB_PORT:-18096}"
 API="http://127.0.0.1:$PB_PORT/api"
 
-# Stop the server. `go run` starts it as a grandchild, so stop whatever listens
+# Stop the server, and whatever else still listens
 # on the test port as well.
 stop_pb() {
   if [ -n "${PB_PID:-}" ]; then
@@ -38,12 +38,10 @@ trap cleanup EXIT
 
 cd "$ROOT"
 
-PB_MIGRATIONS_DIR=./pb_migrations "${PB_BIN[@]}" migrate up --dir "$PB_DIR" >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DIR" --migrationsDir ./pb_migrations >/dev/null
 "${PB_BIN[@]}" superuser upsert review-scores@example.test review-scores-password-123 --dir "$PB_DIR" >/dev/null
 
-PB_MIGRATIONS_DIR=./pb_migrations \
-PB_HOOKS_DIR=./pb_hooks \
-"${PB_BIN[@]}" serve --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
+"${PB_BIN[@]}" serve --automigrate=false --migrationsDir ./pb_migrations --hooksDir ./pb_hooks --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
 PB_PID=$!
 
 for _ in $(seq 1 80); do

@@ -63,7 +63,7 @@ app.ports.clearAuth.subscribe(function () {
 app.ports.startKeycloakLogin.subscribe(async function (pbUrl) {
   try {
     const pb = new PocketBase(pbUrl);
-    const authData = await pb.collection('keycloak_users').authWithOAuth2({
+    const authData = await pb.collection('users').authWithOAuth2({
       provider: import.meta.env.VITE_KEYCLOAK_PROVIDER_NAME || 'oidc',
     });
     app.ports.keycloakLoginSucceeded.send(keycloakAuthToElmAuthResponse(authData));

@@ -17,4 +17,4 @@
 
 - Dates are days stored at midnight UTC. The slug must be unique.
 - Image limits are 0–10 and min ≤ max; the number of entries per participant may be left empty for the default.
-- Rules: `pb_migrations/014_admin_policy.js`; checked by `scripts/test-admin-policy.sh`.
+- Rules: `pb_migrations/1792266036_competitions_schema.js`; checked by `scripts/test-admin-policy.sh`.

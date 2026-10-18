@@ -39,7 +39,7 @@ wait_for_health() {
 
 start_temp_server() {
   mkdir -p .devenv/state/pocketbase
-  PB_MIGRATIONS_DIR=./pb_migrations PB_HOOKS_DIR=./pb_hooks "${PB_BIN[@]}" serve \
+  "${PB_BIN[@]}" serve --automigrate=false --migrationsDir ./pb_migrations --hooksDir ./pb_hooks \
     --dir "$PB_DATA_DIR" \
     --http "127.0.0.1:$PB_TEMP_PORT" \
     --dev \
@@ -69,8 +69,8 @@ find_server_url() {
 }
 
 mkdir -p "$PB_DATA_DIR"
-PB_MIGRATIONS_DIR=./pb_migrations "${PB_BIN[@]}" migrate up --dir "$PB_DATA_DIR" >/dev/null
-PB_MIGRATIONS_DIR=./pb_migrations_dev "${PB_BIN[@]}" migrate up --dir "$PB_DATA_DIR" >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DATA_DIR" --migrationsDir ./pb_migrations >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DATA_DIR" --migrationsDir ./pb_migrations_dev >/dev/null
 "${PB_BIN[@]}" superuser upsert "$PB_SUPERUSER_EMAIL" "$PB_SUPERUSER_PASSWORD" --dir "$PB_DATA_DIR" >/dev/null
 
 SERVER_URL="$(find_server_url)"

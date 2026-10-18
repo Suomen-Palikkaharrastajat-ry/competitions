@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-read -r -a PB_BIN <<< "${POCKETBASE:-env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase}"
+read -r -a PB_BIN <<< "${POCKETBASE:-pocketbase}"
 PB_DIR="$(mktemp -d)"
 PB_LOG="$(mktemp)"
 WORK="$(mktemp -d)"
@@ -16,7 +16,7 @@ API="http://127.0.0.1:$PB_PORT/api"
 
 cleanup() {
   if [ -n "${PB_PID:-}" ]; then
-    # `go run` starts the server as a child process; stop it too.
+    # Stop any child process of the server too.
     pkill -P "$PB_PID" >/dev/null 2>&1 || true
     kill "$PB_PID" >/dev/null 2>&1 || true
     wait "$PB_PID" >/dev/null 2>&1 || true
@@ -28,13 +28,11 @@ trap cleanup EXIT
 
 cd "$ROOT"
 
-PB_MIGRATIONS_DIR=./pb_migrations "${PB_BIN[@]}" migrate up --dir "$PB_DIR" >/dev/null
-PB_MIGRATIONS_DIR=./pb_migrations_dev "${PB_BIN[@]}" migrate up --dir "$PB_DIR" >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DIR" --migrationsDir ./pb_migrations >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DIR" --migrationsDir ./pb_migrations_dev >/dev/null
 "${PB_BIN[@]}" superuser upsert limits@example.test limits-password-123 --dir "$PB_DIR" >/dev/null
 
-PB_MIGRATIONS_DIR=./pb_migrations \
-PB_HOOKS_DIR=./pb_hooks \
-"${PB_BIN[@]}" serve --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
+"${PB_BIN[@]}" serve --automigrate=false --migrationsDir ./pb_migrations --hooksDir ./pb_hooks --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
 PB_PID=$!
 
 for _ in $(seq 1 80); do

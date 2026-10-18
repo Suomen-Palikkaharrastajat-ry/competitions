@@ -12,6 +12,9 @@ let
       '';
     in
     {
+      # Pin PocketBase to the production backend version. See overlays.nix.
+      overlays = [ (import ./overlays.nix) ];
+
       languages.elm.enable = true;
 
       languages.haskell.enable = true;
@@ -35,8 +38,9 @@ let
         pkgs.cabal-install
         pkgs.caddy
         pkgs.elmPackages.elm-review
-        pkgs.go
+        pkgs.mailpit
         pkgs.nodejs_22
+        pkgs.pocketbase
         hpkgs.hlint
         hpkgs.fourmolu
       ];
@@ -76,7 +80,6 @@ let
         caddy
         entr
         git
-        go
         keycloak
         mailpit
         nodejs_22
@@ -98,10 +101,12 @@ let
       processes.pocketbase.ready.initial_delay = 60;
       processes.pocketbase.ready.period = 3;
       processes.pocketbase.exec = ''
-        env GOFLAGS=-mod=mod PB_MIGRATIONS_DIR="$DEVENV_ROOT/pb_migrations" go run "$DEVENV_ROOT/cmd/competition-pocketbase" migrate up --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" &&
-        env GOFLAGS=-mod=mod PB_MIGRATIONS_DIR="$DEVENV_ROOT/pb_migrations_dev" go run "$DEVENV_ROOT/cmd/competition-pocketbase" migrate up --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" &&
-        env GOFLAGS=-mod=mod PB_MIGRATIONS_DIR="$DEVENV_ROOT/pb_migrations" PB_HOOKS_DIR="$DEVENV_ROOT/pb_hooks" go run "$DEVENV_ROOT/cmd/competition-pocketbase" serve \
+        pocketbase migrate up --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" --migrationsDir="$DEVENV_ROOT/pb_migrations" &&
+        pocketbase migrate up --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" --migrationsDir="$DEVENV_ROOT/pb_migrations_dev" &&
+        pocketbase serve \
           --dir="$DEVENV_ROOT/.devenv/state/pocketbase/data" \
+          --migrationsDir="$DEVENV_ROOT/pb_migrations" \
+          --hooksDir="$DEVENV_ROOT/pb_hooks" \
           --http=0.0.0.0:8090 \
           --dev
       '';

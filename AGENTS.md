@@ -6,7 +6,7 @@ This document defines how LLM coding agents must read, navigate, and safely modi
 
 This repository is a LEGO crafting competition platform for Suomen Palikkaharrastajat ry:
 
-- **Custom PocketBase 0.37.5** is the backend for competitions, entries, reviews, shared profiles, Keycloak/OIDC auth, local OTP auth, and uploaded images.
+- **Stock PocketBase 0.40.5** is the backend for competitions, entries, reviews, shared profiles, Keycloak/OIDC auth, local OTP auth, and uploaded images. It is the organisation's shared production PocketBase (members in `users`, `events`, `locations`); see ADR-0006.
 - **Elm 0.19.1** is the interactive SPA for participants and reviewers.
 - **Haskell** builds the static public gallery from approved PocketBase data.
 
@@ -61,8 +61,7 @@ competitions/
 ├── cabal.project               ← Cabal project: the statics/ package
 ├── Makefile                    ← Build targets
 ├── Caddyfile                   ← Local reverse proxy: app, PocketBase, Mailpit on port 8080
-├── overlays.nix                ← PocketBase 0.37.5 package pin
-├── go.mod / go.sum             ← Custom PocketBase wrapper dependencies
+├── overlays.nix                ← PocketBase 0.40.5 package pin (stock, same as production)
 ├── .env / .env.example         ← POCKETBASE_URL + POCKETBASE_API_KEY
 │
 ├── statics/                    ← Haskell gallery pipeline (package `competition`)
@@ -99,23 +98,20 @@ competitions/
 │   ├── elm.json
 │   └── packages → ../vendor/master-builder/packages
 │
-├── cmd/competition-pocketbase/ ← Go wrapper that registers PB JS migrations/hooks
-├── pb_hooks/                   ← PocketBase JSVM hooks: Keycloak-first auth, entry image limits (helpers in lib/)
+├── pocketbase/                 ← Copy of the production PocketBase (gitignored; real data, never commit or publish)
+├── pb_hooks/                   ← PocketBase JSVM hooks: Keycloak-first auth, entry/review validation, production events/locations (helpers in lib/)
 │
 ├── pb_migrations/              ← PocketBase schema migrations (all environments)
-│   ├── 001_create_competitions.js
-│   ├── 002_create_entries.js
-│   ├── 003_create_reviews.js
-│   ├── 004_extend_users.js
-│   ├── 005_restrict_competitions_write.js
-│   ├── 006_restrict_users_update.js
-│   └── 007_dual_auth_profiles.js
+│   ├── 1792266035_collections_snapshot.js  ← production baseline (users, events, locations); applied there already
+│   ├── 1792266036_competitions_schema.js   ← competitions, entries, reviews, profiles, local_users; users fields
+│   └── 1792266037_members_only_events_locations.js
 ├── pb_migrations_dev/          ← Local-only fixture/settings migrations (never production)
 │   ├── 001_seed_competition.js
 │   ├── 002_configure_mailpit_smtp.js
 │   ├── 003_seed_demo_fixture.js
 │   ├── 004_seed_local_participants.js
-│   └── 005_seed_keycloak_shadow_users.js
+│   ├── 005_seed_keycloak_shadow_users.js
+│   └── 006_keycloak_issuer_localhost.js   ← local Keycloak provider on users
 ├── keycloak/
 │   └── competitions-realm.json ← Local Keycloak realm/client/users fixture
 │
@@ -129,9 +125,12 @@ competitions/
 │       ├── ADR-0000-agent-guidance.md
 │       ├── ADR-0001-pocketbase.md
 │       ├── ADR-0002-competition-architecture.md
-│       └── ADR-0003-dual-auth-keycloak.md
+│       ├── ADR-0003-dual-auth-keycloak.md
+│       ├── ADR-0004-in-app-admin.md
+│       ├── ADR-0005-dynamic-review-criteria.md
+│       └── ADR-0006-shared-production-pocketbase.md
 │
-└── devenv.nix                  ← Nix devenv: GHC, Elm/Vite tools, Go/PocketBase, Caddy, Mailpit, Keycloak
+└── devenv.nix                  ← Nix devenv: GHC, Elm/Vite tools, PocketBase, Caddy, Mailpit, Keycloak
 ```
 
 ---
@@ -231,7 +230,8 @@ devenv shell --no-eval-cache -- make pb-dev             # start PocketBase in de
 devenv shell --no-eval-cache -- make pb-migrate         # apply pending migrations
 devenv shell --no-eval-cache -- make pb-test-migrate    # smoke-test migrations against throwaway dir
 devenv shell --no-eval-cache -- make pb-test-fixture    # smoke-test schema + local fixture migrations
-devenv shell --no-eval-cache -- make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks
+devenv shell --no-eval-cache -- make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks + members-only events
+devenv shell --no-eval-cache -- make pb-test-production-baseline # migrations on the production snapshot (PB_PRODUCTION_COPY=pocketbase/pb_data for a data copy)
 devenv shell --no-eval-cache -- make pb-test-entry-limits # smoke-test entry image limit hooks
 devenv shell --no-eval-cache -- make pb-seed            # apply local-only fixture migrations to pb_data/
 
@@ -253,7 +253,7 @@ run against `http://127.0.0.1:8080/`.
 | `http://localhost:8080/mailpit/` | Mailpit email UI |
 | `http://localhost:8080/auth/realms/competitions/` | Keycloak realm |
 
-The `devenv` PocketBase process uses the repository-built `competition-pocketbase` binary, applies `pb_migrations/` first and then `pb_migrations_dev/` before serving. That gives local development an open competition, a finished gallery competition, demo local users, Keycloak shadow users, shared profiles, entries in draft/submitted/approved/rejected states, fixture images, reviews, and Mailpit SMTP settings.
+The `devenv` PocketBase process uses the stock `pocketbase` binary from `overlays.nix` (the production version), applies `pb_migrations/` first and then `pb_migrations_dev/` before serving. That gives local development an open competition, a finished gallery competition, demo local users, Keycloak shadow users, shared profiles, entries in draft/submitted/approved/rejected states, fixture images, reviews, and Mailpit SMTP settings.
 
 ### Local stack: host browser access
 
@@ -262,12 +262,12 @@ These settings were needed for the stack to work from a browser on the host. Kee
 - **Bind to `0.0.0.0`.** PocketBase (`--http=0.0.0.0:8090`), Keycloak (`http-host = "0.0.0.0"`), Mailpit (`--listen`/`--smtp` on `0.0.0.0`), Vite (`--host 0.0.0.0`) and Caddy (`:8080`) listen on all interfaces. A loopback bind is unreachable through a published sandbox port.
 - **Use `localhost`, not `127.0.0.1`, for public URLs.** Keycloak builds its redirects and login URLs from its `hostname` (`http://localhost:8080/auth`), and the host browser's `127.0.0.1` is the host's own loopback. The auth-session cookie is host-specific, so the login URL, Keycloak `hostname` and `KEYCLOAK_ISSUER_URL` must all use the same host name. Set `KEYCLOAK_ISSUER_URL` in the `shell` profile only; the `ci` profile keeps `127.0.0.1`.
 - **Realm redirects.** `keycloak/competitions-realm.json` accepts both `127.0.0.1:8080` and `localhost:8080` redirect URIs and web origins.
-- **Dev-only provider fix.** `pb_migrations/010` stores the Keycloak provider URLs once, and it never runs again. `pb_migrations_dev/006_keycloak_issuer_localhost.js` re-applies them from `KEYCLOAK_ISSUER_URL`. To re-run it, delete its row from `_migrations` in `.devenv/state/pocketbase/data/data.db`. This is local state only.
+- **Dev-only provider.** Production configures its own Keycloak provider on `users`; no production migration carries one. `pb_migrations_dev/006_keycloak_issuer_localhost.js` sets the local Keycloak from `KEYCLOAK_ISSUER_URL`, once. To re-run it, delete its row from `_migrations` in `.devenv/state/pocketbase/data/data.db`. This is local state only.
 - **Start with `devenv up --strict-ports`.** Without it, devenv moves a port that is still in use, for example Keycloak's 8081 while the previous JVM is still shutting down. It then keeps the new port (8082), and Caddy returns 502 on `/auth/`. Stop the old `devenv up` and wait for the ports to free before starting again.
 - **Mailpit UI is under `/mailpit/` only.** Its `--webroot /mailpit` makes `http://localhost:8025/` return 404 by design. Use `http://localhost:8025/mailpit/` or the Caddy URL.
 - **Publish the port to the host.** The sandbox must be launched with the Caddy port published (`[ports] caddy = 8080`). `AGENT_SANDBOX_HOST_PORTS` shows what is published. The host browser connects through CDP on 9222.
 
-Domain ownership must go through `profiles`. `entries.submitter` and `reviews.reviewer` relate to profiles, while `local_users` and `keycloak_users` are only authentication records. `pb_migrations_dev/` is local-only fixture data and must never be used for production.
+Domain ownership must go through `profiles`. `entries.submitter` and `reviews.reviewer` relate to profiles, while `local_users` (email OTP participants) and `users` (the shared production Keycloak members) are only authentication records. `users`, `events` and `locations` belong to the shared production PocketBase: change them only with a migration that `make pb-test-production-baseline` can revert (ADR-0006). `pb_migrations_dev/` is local-only fixture data and must never be used for production.
 
 ---
 

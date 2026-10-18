@@ -26,12 +26,33 @@ function displayNameFromEmail(email) {
   return String(email || "").split("@")[0] || "";
 }
 
+// Sets the values that differ and saves the record only when one did.
+function saveChanges(record, values) {
+  let changed = false;
+  Object.keys(values).forEach((key) => {
+    if (record.get(key) !== values[key]) {
+      record.set(key, values[key]);
+      changed = true;
+    }
+  });
+  if (changed) {
+    $app.save(record);
+  }
+  return changed;
+}
+
 function syncAuthFromProfile(authRecord, profile) {
-  authRecord.set("profile_id", profile.id);
-  authRecord.set("display_name", profile.get("display_name") || "");
-  authRecord.set("is_reviewer", !!profile.get("is_reviewer"));
-  authRecord.set("verified", true);
-  $app.save(authRecord);
+  const values = {
+    profile_id: profile.id,
+    display_name: profile.get("display_name") || "",
+    is_reviewer: !!profile.get("is_reviewer")
+  };
+  // An OTP login proves the email. A member's `verified` belongs to OAuth2,
+  // which sets it only when the email is the one Keycloak returned.
+  if (authRecord.collection().name === "local_users") {
+    values.verified = true;
+  }
+  saveChanges(authRecord, values);
 }
 
 function ensureLocalUser(email) {
@@ -74,12 +95,36 @@ function ensureLocalProfile(local) {
   return profile;
 }
 
-function ensureKeycloakProfile(record) {
-  const email = normalizeEmail(record.get("email"));
-  let profile = findProfileByEmail(email);
-  const local = findAuthByEmail("local_users", email);
+function memberExists(id) {
+  try {
+    $app.findRecordById("users", id);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
-  if (!profile) {
+// Links a member (the shared `users`) to the profile of their email, or
+// creates one. Returns the profile, or null when the member is not linked.
+function ensureKeycloakProfile(record) {
+  // An unverified member's email was chosen by the client (OAuth2 createData),
+  // not proven by Keycloak: it must not take over that email's profile.
+  if (!record.verified()) {
+    return null;
+  }
+  const email = normalizeEmail(record.get("email"));
+  if (!email) {
+    return null;
+  }
+
+  let profile = findProfileByEmail(email);
+  if (profile) {
+    const linked = profile.get("keycloak_user");
+    if (linked && linked !== record.id && memberExists(linked)) {
+      // Another member's profile: never re-link it.
+      return null;
+    }
+  } else {
     profile = new Record($app.findCollectionByNameOrId("profiles"));
     profile.set("email", email);
     profile.set("normalized_email", email);
@@ -87,21 +132,28 @@ function ensureKeycloakProfile(record) {
     profile.set("is_reviewer", !!record.get("is_reviewer"));
   }
 
-  profile.set("auth_source", "keycloak");
-  profile.set("keycloak_user", record.id);
+  const local = findAuthByEmail("local_users", email);
+  const values = { auth_source: "keycloak", keycloak_user: record.id };
   if (local) {
-    profile.set("local_user", local.id);
-    local.set("keycloak_blocked", true);
-    $app.save(local);
+    values.local_user = local.id;
+    saveChanges(local, { keycloak_blocked: true });
+  }
+  if (profile.isNew()) {
+    Object.keys(values).forEach((key) => profile.set(key, values[key]));
+    $app.save(profile);
+  } else {
+    saveChanges(profile, values);
   }
 
-  $app.save(profile);
   syncAuthFromProfile(record, profile);
   return profile;
 }
 
+// Only a verified member counts: OAuth2 verifies a member whose email is the
+// one Keycloak returned.
 function keycloakExistsForEmail(email) {
-  return !!findAuthByEmail("keycloak_users", normalizeEmail(email));
+  const member = findAuthByEmail("users", normalizeEmail(email));
+  return !!member && member.verified();
 }
 
 module.exports = {

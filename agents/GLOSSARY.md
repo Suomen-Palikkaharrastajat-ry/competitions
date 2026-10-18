@@ -84,7 +84,9 @@ draft  →  open  →  closed  →  judging  →  finished
 | `competitions` | kilpailut | Competition events |
 | `entries` | osallistumiset | MOC submissions |
 | `reviews` | arvostelut | Reviewer scores and comments |
-| `users` | käyttäjät | Auth users (OTP only) |
+| `users` | käyttäjät | Members: the shared production auth collection, Keycloak OIDC only |
+| `local_users` | sähköpostikäyttäjät | Email-only participants, OTP only |
+| `profiles` | profiilit | Shared domain identity of a member or an email participant |
 
 ---
 

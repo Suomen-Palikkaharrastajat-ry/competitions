@@ -19,7 +19,7 @@ Kilpailualusta koostuu kolmesta pääkomponentista:
 ## 2. Kirjautuminen ja käyttöoikeudet
 
 Alustalla on käytössä **kahden kerroksen käyttäjämalli** (ADR-0003):
-- **Kirjautumistilit:** `keycloak_users` (yhdistyksen jäsenet Keycloak SSO -tunnuksella) ja `local_users` (kertakirjautumiskoodi eli OTP sähköpostiin).
+- **Kirjautumistilit:** `users` (yhdistyksen jäsenet Keycloak SSO -tunnuksella; sama jäsentili kuin tapahtumakalenterissa) ja `local_users` (kertakirjautumiskoodi eli OTP sähköpostiin).
 - **Profiili (`profiles`):** Jokaisella käyttäjällä on profiili, joka yhdistää osallistumiset ja arvostelut.
 
 ### Arvostelijan oikeuksien myöntäminen

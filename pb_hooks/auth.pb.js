@@ -38,12 +38,21 @@ onRecordAuthWithOTPRequest((e) => {
   return e.next();
 }, "local_users");
 
-onRecordAuthWithOAuth2Request((e) => {
+// A member (Keycloak OIDC, the shared `users`) gets a linked profile before the
+// auth response is written, so even the first login answers with profile_id.
+// This runs for every auth response (OAuth2, refresh), which also refreshes
+// the reviewer flag from the profile.
+// `users` is the shared members collection of the whole PocketBase (events,
+// locations, ...): a failed competitions profile must not fail the login.
+onRecordAuthRequest((e) => {
   const auth = require(`${__hooks}/lib/auth_helpers.js`);
-  const result = e.next();
-  auth.ensureKeycloakProfile(e.record);
-  return result;
-}, "keycloak_users");
+  try {
+    auth.ensureKeycloakProfile(e.record);
+  } catch (err) {
+    $app.logger().error("competitions profile for a member failed", "user", e.record && e.record.id, "error", String(err));
+  }
+  return e.next();
+}, "users");
 
 onRecordAfterUpdateSuccess((e) => {
   const auth = require(`${__hooks}/lib/auth_helpers.js`);
@@ -59,7 +68,7 @@ onRecordAfterUpdateSuccess((e) => {
 
   if (keycloakId) {
     try {
-      auth.syncAuthFromProfile($app.findRecordById("keycloak_users", keycloakId), profile);
+      auth.syncAuthFromProfile($app.findRecordById("users", keycloakId), profile);
     } catch (_) {}
   }
 }, "profiles");

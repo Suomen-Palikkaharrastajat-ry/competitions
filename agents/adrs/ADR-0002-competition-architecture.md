@@ -68,7 +68,7 @@ The platform is split into three distinct components with clear boundaries:
 ┌─────────────────────────────────────────────────────────────┐
 │                     PocketBase (backend)                    │
 │  Collections: competitions, entries, reviews, profiles      │
-│  Auth: keycloak_users OIDC, local_users OTP                 │
+│  Auth: users OIDC, local_users OTP                          │
 │  Files: entry images, cover images                          │
 │  Admin UI: /_/                                              │
 └──────────────────────┬──────────────────────┬──────────────┘
@@ -99,7 +99,7 @@ The platform is split into three distinct components with clear boundaries:
 
 5. **PocketBase access rules are the security boundary.** The Elm app relies on PocketBase's `listRule`/`viewRule`/`createRule`/`updateRule`/`deleteRule` for authorization. The Haskell pipeline bypasses these rules (superuser key) and must not expose unpublished data.
 
-6. **No password authentication.** Participant/reviewer auth collections must keep password auth disabled. `keycloak_users` uses OIDC; `local_users` uses OTP. Never introduce email+password auth without a new ADR.
+6. **No password authentication.** Participant/reviewer auth collections must keep password auth disabled. `users` (the shared members, ADR-0006) uses OIDC; `local_users` uses OTP. Never introduce email+password auth without a new ADR.
 
 7. **Images are served directly from PocketBase.** Do not proxy, re-upload, or cache images outside PocketBase in the Elm app. In the static gallery, images are linked via PocketBase file URLs (CDN in production).
 

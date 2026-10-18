@@ -119,7 +119,7 @@ class CompetitionsLibrary:
                 self._request("DELETE", f"/api/collections/{collection}/records/{record['id']}")
         for email, name in display_names.items():
             quoted = json.dumps(email)
-            for collection in ("profiles", "keycloak_users", "local_users"):
+            for collection in ("profiles", "users", "local_users"):
                 for record in self._all(collection, f"email = {quoted}"):
                     self._request(
                         "PATCH",

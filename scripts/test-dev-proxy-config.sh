@@ -52,7 +52,14 @@ require_literal keycloak/competitions-realm.json '"http://127.0.0.1:8080/api/oau
 require_literal keycloak/competitions-realm.json '"http://127.0.0.1:8080"'
 reject_literal keycloak/competitions-realm.json '"http://127.0.0.1:8090/api/oauth2-redirect"'
 reject_literal keycloak/competitions-realm.json '"http://127.0.0.1:8090"'
-require_literal pb_migrations/007_dual_auth_profiles.js "http://127.0.0.1:8080/auth/realms/competitions"
-require_literal pb_migrations/010_proxy_keycloak_issuer.js "http://127.0.0.1:8080/auth/realms/competitions"
+require_literal pb_migrations_dev/006_keycloak_issuer_localhost.js "http://localhost:8080/auth/realms/competitions"
+
+# Given production configures its own Keycloak provider on the shared users
+# When inspecting the production migrations
+# Then none of them carries an OAuth2 provider or a client secret.
+for migration in pb_migrations/*.js; do
+  reject_literal "$migration" "clientSecret"
+  reject_literal "$migration" "competitions-dev-secret"
+done
 
 echo "test-dev-proxy-config: PASS"

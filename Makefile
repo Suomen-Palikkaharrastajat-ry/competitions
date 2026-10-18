@@ -2,7 +2,7 @@ HLINT ?= hlint
 FOURMOLU ?= fourmolu
 ELM_REVIEW ?= elm-review
 COMPETITION_NIX ?= competition-nix
-POCKETBASE ?= env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase
+POCKETBASE ?= pocketbase
 
 .PHONY: help
 help: ## Show available targets
@@ -161,6 +161,7 @@ quality: haskell-check cabal-check ## Run strict non-browser quality gates for C
 	$(MAKE) pb-test-entry-edit-policy
 	$(MAKE) pb-test-admin-policy
 	$(MAKE) pb-test-review-scores
+	$(MAKE) pb-test-production-baseline
 	$(MAKE) dev-proxy-test
 
 .PHONY: test
@@ -181,18 +182,18 @@ format: ## Auto-format Haskell and Elm source files
 # ── PocketBase ────────────────────────────────────────────────────────────────
 
 .PHONY: pb-dev
-pb-dev: ## Start a local PocketBase server (data in pb_data/, hot-reload admin UI)
+pb-dev: ## Start a local PocketBase server (data in pb_data/; admin UI changes are written to pb_migrations/)
 	rm -f ./pb_migrations/types.d.ts
-	PB_MIGRATIONS_DIR=./pb_migrations PB_HOOKS_DIR=./pb_hooks $(POCKETBASE) serve --dir ./pb_data --dev
+	$(POCKETBASE) serve --migrationsDir ./pb_migrations --hooksDir ./pb_hooks --dir ./pb_data --dev
 
 .PHONY: pb-migrate
 pb-migrate: ## Apply pending PocketBase migrations against pb_data/
 	rm -f ./pb_migrations/types.d.ts
-	PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir ./pb_data
+	$(POCKETBASE) migrate up --dir ./pb_data --migrationsDir ./pb_migrations
 
 .PHONY: pb-seed
 pb-seed: ## Apply dev seed data against local pb_data/ (never run in production)
-	PB_MIGRATIONS_DIR=./pb_migrations_dev $(POCKETBASE) migrate up --dir ./pb_data
+	$(POCKETBASE) migrate up --dir ./pb_data --migrationsDir ./pb_migrations_dev
 
 .PHONY: pb-configure
 pb-configure: ## Configure PocketBase mailpit SMTP (requires POCKETBASE_URL + POCKETBASE_API_KEY)
@@ -215,7 +216,7 @@ pb-test-migrate: ## Smoke-test all migrations against a throwaway data dir (no s
 	@rm -f ./pb_migrations/types.d.ts && \
 	  PBTEST=$$(mktemp -d) && \
 	  PBLOG=$$(mktemp) && \
-	  if PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	  if $(POCKETBASE) migrate up --dir $$PBTEST --migrationsDir ./pb_migrations > $$PBLOG 2>&1; then \
 	    grep -v DEBUG $$PBLOG || true; \
 	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
 	  else \
@@ -232,7 +233,7 @@ pb-test-fixture: ## Smoke-test schema + dev fixture migrations against a throwaw
 	@rm -f ./pb_migrations/types.d.ts ./pb_migrations_dev/types.d.ts && \
 	  PBTEST=$$(mktemp -d) && \
 	  PBLOG=$$(mktemp) && \
-	  if PB_MIGRATIONS_DIR=./pb_migrations $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	  if $(POCKETBASE) migrate up --dir $$PBTEST --migrationsDir ./pb_migrations > $$PBLOG 2>&1; then \
 	    grep -v DEBUG $$PBLOG || true; \
 	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
 	  else \
@@ -240,7 +241,7 @@ pb-test-fixture: ## Smoke-test schema + dev fixture migrations against a throwaw
 	    rm -rf $$PBTEST $$PBLOG; \
 	    exit 1; \
 	  fi && \
-	  if PB_MIGRATIONS_DIR=./pb_migrations_dev $(POCKETBASE) migrate up --dir $$PBTEST > $$PBLOG 2>&1; then \
+	  if $(POCKETBASE) migrate up --dir $$PBTEST --migrationsDir ./pb_migrations_dev > $$PBLOG 2>&1; then \
 	    grep -v DEBUG $$PBLOG || true; \
 	    if grep -q '^Error:' $$PBLOG; then rm -rf $$PBTEST $$PBLOG; exit 1; fi; \
 	  else \
@@ -252,8 +253,12 @@ pb-test-fixture: ## Smoke-test schema + dev fixture migrations against a throwaw
 	  rm -f $$PBLOG && \
 	  echo "pb-test-fixture: PASS"
 
+.PHONY: pb-test-production-baseline
+pb-test-production-baseline: ## Smoke-test the migrations on the production snapshot (PB_PRODUCTION_COPY=pocketbase/pb_data also checks a data copy)
+	@POCKETBASE='$(POCKETBASE)' ./scripts/test-production-baseline.sh
+
 .PHONY: pb-test-auth-policy
-pb-test-auth-policy: ## Smoke-test Keycloak-first OTP policy hooks
+pb-test-auth-policy: ## Smoke-test Keycloak-first OTP and members-only events/locations
 	@POCKETBASE='$(POCKETBASE)' ./scripts/test-auth-policy.sh
 
 .PHONY: pb-test-entry-limits

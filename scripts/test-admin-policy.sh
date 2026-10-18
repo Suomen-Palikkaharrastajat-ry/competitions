@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-test who may use the in-app admin (pb_migrations/014): reviewers manage
+# Smoke-test who may use the in-app admin (pb_migrations/1792266036_competitions_schema.js): reviewers manage
 # competitions and entries; nobody but a superuser deletes a competition.
 #
 # Given a participant, two reviewers and a superuser
@@ -10,14 +10,14 @@
 set -euo pipefail
 
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-read -r -a PB_BIN <<< "${POCKETBASE:-env GOFLAGS=-mod=mod go run ./cmd/competition-pocketbase}"
+read -r -a PB_BIN <<< "${POCKETBASE:-pocketbase}"
 PB_DIR="$(mktemp -d)"
 PB_LOG="$(mktemp)"
 WORK="$(mktemp -d)"
 PB_PORT="${PB_PORT:-18093}"
 API="http://127.0.0.1:$PB_PORT/api"
 
-# Stop the server. `go run` starts it as a grandchild, so stop whatever listens
+# Stop the server, and whatever else still listens
 # on the test port as well.
 stop_pb() {
   if [ -n "${PB_PID:-}" ]; then
@@ -39,12 +39,10 @@ trap cleanup EXIT
 
 cd "$ROOT"
 
-PB_MIGRATIONS_DIR=./pb_migrations "${PB_BIN[@]}" migrate up --dir "$PB_DIR" >/dev/null
+"${PB_BIN[@]}" migrate up --dir "$PB_DIR" --migrationsDir ./pb_migrations >/dev/null
 "${PB_BIN[@]}" superuser upsert admin-policy@example.test admin-policy-password-123 --dir "$PB_DIR" >/dev/null
 
-PB_MIGRATIONS_DIR=./pb_migrations \
-PB_HOOKS_DIR=./pb_hooks \
-"${PB_BIN[@]}" serve --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
+"${PB_BIN[@]}" serve --automigrate=false --migrationsDir ./pb_migrations --hooksDir ./pb_hooks --dir "$PB_DIR" --http "127.0.0.1:$PB_PORT" >"$PB_LOG" 2>&1 &
 PB_PID=$!
 
 for _ in $(seq 1 80); do
@@ -167,18 +165,5 @@ status="$(
   curl -sS -o "$WORK/body" -w "%{http_code}" "${admin[@]}" -X DELETE "$API/collections/competitions/records/$COMPETITION"
 )"
 expect "superuser deletes competition" 204 "$status"
-
-# The down migration of 015 turns the review scores back into number fields
-# (with the reviews above in the database), then the down migration of 014
-# gives reviewers the delete rule back. The server re-applies pending migrations
-# when it starts, so check the database after reverting instead of restarting
-# the server. The CLI asks for confirmation on a terminal, so give it one.
-stop_pb
-printf 'y\n' | script -qec "PB_MIGRATIONS_DIR=./pb_migrations ${PB_BIN[*]} migrate down 2 --dir $PB_DIR" /dev/null >"$WORK/revert.log" 2>&1 || true
-grep -q "Reverted 015_review_scores_json.js" "$WORK/revert.log" || fail "Expected migration 015 to revert, got: $(tail -3 "$WORK/revert.log")"
-grep -q "Reverted 014_admin_policy.js" "$WORK/revert.log" || fail "Expected migration 014 to revert, got: $(tail -3 "$WORK/revert.log")"
-delete_rule="$(python3 -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(\"select deleteRule from _collections where name='competitions'\").fetchone()[0])" "$PB_DIR/data.db")"
-[ "$delete_rule" = '@request.auth.is_reviewer = true' ] ||
-  fail "Expected the down migration to restore the reviewer delete rule, got: $delete_rule"
 
 echo "pb-test-admin-policy: PASS"

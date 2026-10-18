@@ -6,7 +6,7 @@ export function keycloakAuthToElmAuthResponse(authData) {
     token,
     record: {
       id: record.id || '',
-      authCollection: record.collectionName || 'keycloak_users',
+      authCollection: record.collectionName || 'users',
       profileId: record.profile_id || '',
       email: record.email || '',
       token,

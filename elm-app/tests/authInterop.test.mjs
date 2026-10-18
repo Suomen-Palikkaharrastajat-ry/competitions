@@ -4,12 +4,12 @@ import test from 'node:test';
 import { keycloakAuthToElmAuthResponse } from '../src/authInterop.mjs';
 
 test('maps PocketBase OAuth auth data to the Elm AuthResponse port shape', () => {
-  // Given PocketBase returns a keycloak_users OAuth auth response
+  // Given PocketBase returns an OAuth auth response for a Keycloak member (the shared users collection)
   const authData = {
     token: 'eyJtoken',
     record: {
       id: 'auth1',
-      collectionName: 'keycloak_users',
+      collectionName: 'users',
       profile_id: 'profile1',
       email: 'keycloak-participant@example.test',
       display_name: 'Keycloak Participant',
@@ -25,7 +25,7 @@ test('maps PocketBase OAuth auth data to the Elm AuthResponse port shape', () =>
     token: 'eyJtoken',
     record: {
       id: 'auth1',
-      authCollection: 'keycloak_users',
+      authCollection: 'users',
       profileId: 'profile1',
       email: 'keycloak-participant@example.test',
       token: 'eyJtoken',
