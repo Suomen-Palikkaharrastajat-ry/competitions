@@ -73,6 +73,14 @@ rules =
     , ".podium-entry-title { font-weight: 600; text-align: center; }"
     , ".podium-score { font-size: 0.875rem; color: var(--color-text-muted); }"
     , ".podium-submitter { font-size: 0.875rem; color: var(--color-text-subtle); }"
+    , -- Vote result
+      ".vote-results { background: var(--color-bg-subtle); border-radius: var(--radius);"
+    , "                padding: 1.5rem; margin-bottom: 2rem; }"
+    , ".vote-results-list { list-style: none; display: grid; gap: 0.5rem; }"
+    , ".vote-results-item { display: flex; gap: 1rem; align-items: baseline; }"
+    , ".vote-results-place { font-weight: 700; min-width: 2rem; color: var(--color-brand); }"
+    , ".vote-results-title { flex: 1; font-weight: 600; }"
+    , ".vote-results-points { font-size: 0.875rem; color: var(--color-text-muted); }"
     , -- Entry grid
       ".entry-grid { display: grid;"
     , "              grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));"

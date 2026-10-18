@@ -72,9 +72,9 @@ ever deployed with real data.
   record.
 - Deploying means copying `pb_migrations/` and the competitions hooks to the
   production `pb_migrations/` and `pb_hooks/`. Production's dead
-  `submission.pb.js` and `votes.pb.js` (no such collections; the former uses
-  the removed `$app.dao()`) are not part of the repository and should be
-  removed there.
+  `submission.pb.js` (no such collection; it uses the removed `$app.dao()`) is
+  not part of the repository and should be removed there. Its old dead
+  `votes.pb.js` is replaced by the repository's ballot hook (ADR-0007).
 - The stock binary writes a migration file for every collection change made
   through the API or the admin UI (`--automigrate`, default on). That is kept
   for local development (`make pb-dev`, `devenv up`), where schema changes are

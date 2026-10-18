@@ -12,7 +12,7 @@ These decoders are implemented in Main.elm and cover competitions, entries, and 
 
 import Expect
 import Json.Decode as Decode
-import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, myEntriesUrl, otpResponseDecoder, reviewQueueUrl)
+import Main exposing (authResponseDecoder, competitionDecoder, entryDecoder, myEntriesUrl, otpResponseDecoder, reviewQueueUrl, votingCompetitionsUrl)
 import Test exposing (Test, describe, test)
 import Types exposing (CompetitionStatus(..), EntryStatus(..))
 
@@ -166,6 +166,29 @@ suite =
                     Decode.decodeString competitionDecoder json
                         |> Result.map (\c -> ( c.status, c.judgingEndDate ))
                         |> Expect.equal (Ok ( CJudging, Just "2026-07-01 00:00:00.000Z" ))
+            , test "competitionDecoder reads the voting settings and period" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","status":"closed","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z","voting_enabled":true,"voting_required":true,"voting_start_date":"2026-07-07 00:00:00.000Z","voting_end_date":"2026-07-15 00:00:00.000Z"}"""
+                    in
+                    Decode.decodeString competitionDecoder json
+                        |> Result.map (\c -> ( ( c.votingEnabled, c.votingRequired ), ( c.votingStartDate, c.votingEndDate ) ))
+                        |> Expect.equal (Ok ( ( True, True ), ( Just "2026-07-07 00:00:00.000Z", Just "2026-07-15 00:00:00.000Z" ) ))
+            , test "an unset voting period (empty dates) reads as none, and voting as off" <|
+                \_ ->
+                    let
+                        json =
+                            """{"id":"c1","title":"T","slug":"t","start_date":"2026-01-01 00:00:00.000Z","end_date":"2026-06-01 00:00:00.000Z","voting_start_date":"","voting_end_date":""}"""
+                    in
+                    Decode.decodeString competitionDecoder json
+                        |> Result.map (\c -> ( c.votingEnabled, c.votingStartDate, c.votingEndDate ))
+                        |> Expect.equal (Ok ( False, Nothing, Nothing ))
+            , test "the dashboard asks PocketBase for the competitions whose voting runs now" <|
+                \_ ->
+                    votingCompetitionsUrl "http://127.0.0.1:8080"
+                        |> Expect.equal
+                            "http://127.0.0.1:8080/api/collections/competitions/records?filter=voting_enabled%20%3D%20true%20%26%26%20status%20!%3D%20%22draft%22%20%26%26%20voting_start_date%20!%3D%20%22%22%20%26%26%20voting_start_date%20%3C%3D%20%40now%20%26%26%20voting_end_date%20%3E%20%40now&sort=voting_end_date"
             , test "a missing status is a draft" <|
                 \_ ->
                     let
@@ -327,6 +350,11 @@ suite =
 
                         Err err ->
                             Expect.fail (Decode.errorToString err)
+            , test "decodes the submitter's profile id" <|
+                \_ ->
+                    Decode.decodeString entryDecoder """{"id":"e1","competition":"c1","submitter":"p1","title":"My MOC","images":[],"status":"approved"}"""
+                        |> Result.map .submitterId
+                        |> Expect.equal (Ok "p1")
             , test "decodes status submitted" <|
                 \_ ->
                     let

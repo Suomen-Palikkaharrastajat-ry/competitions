@@ -31,6 +31,17 @@ This document defines the canonical terminology for the **Palikkakilpailu** (LEG
 
 ---
 
+## Voting (ADR-0007)
+
+- **Voting** (`äänestys`, `yleisöäänestys`): A competition's ranked vote, next to reviews. Enabled per competition (`voting_enabled`). Any signed-in user may vote.
+- **Voting period** (`äänestysaika`): `voting_start_date` to `voting_end_date`; ballots are cast and changed only within it.
+- **Ballot** (`ääni`, `äänestyslista`): One voter's ranking of at most five approved entries of a competition, in preference order. Represented by the `votes` collection (`ranking`: entry ids, 1st first). Readable only by the voter and reviewers.
+- **Vote points** (`äänestyspisteet`): 1st = 8, 2nd = 5, 3rd = 3, 4th = 2, 5th = 1, summed over all ballots. Ties are broken by first places, then second places, and so on.
+- **Required voting** (`pakollinen äänestys`): `voting_required`; an entry whose submitter cast no ballot gets no place in the vote result.
+- **Vote result** (`äänestystulos`): The entries ranked by vote points. Shown live to reviewers in the admin, and in the gallery once the voting period has ended.
+
+---
+
 ## User Roles
 
 - **Participant** (`osallistuja`): Any authenticated user. Can submit entries to open competitions.

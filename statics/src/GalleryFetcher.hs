@@ -10,6 +10,7 @@ module GalleryFetcher (
     groupByCompetition,
     parseDisplayNames,
     shouldFetchDisplayNames,
+    voteResults,
 ) where
 
 import Data.Aeson (FromJSON, Value, parseJSON, withObject, (.:), (.:?))
@@ -20,6 +21,8 @@ import Data.Maybe (mapMaybe)
 import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time.Clock (getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 
 import GalleryTypes
 import PocketBase
@@ -31,6 +34,7 @@ import PocketBase
 data GalleryData = GalleryData
     { gdCompetitions :: [Competition] -- sorted by end_date desc
     , gdRankedByComp :: Map.Map Text [RankedEntry] -- comp id → ranked entries
+    , gdVoteResults :: Map.Map Text [VoteRankedEntry] -- comp id → vote result (ended votes only)
     , gdDisplayNames :: Map.Map Text Text -- user id → display name
     , gdPbUrl :: Text
     }
@@ -95,6 +99,22 @@ shouldFetchDisplayNames :: PbConfig -> Bool
 shouldFetchDisplayNames cfg =
     not $ T.null $ T.strip $ pbApiToken cfg
 
+{- | The vote results of the competitions whose voting has ended by @now@
+("YYYY-MM-DD HH:MM:SS", UTC), counted over their approved entries. A running
+vote is never counted, so the gallery does not reveal it, and a vote without
+ballots (none cast, or not readable without the API token) has no result.
+-}
+voteResults :: Text -> [Competition] -> [Entry] -> [Vote] -> Map.Map Text [VoteRankedEntry]
+voteResults now comps entries votes =
+    Map.fromList
+        [ (compId c, rankByVotes (compVotingRequired c) (forComp entryCompetition c entries) (forComp voteCompetition c votes))
+        | c <- comps
+        , votingClosed now c
+        , not (null (forComp voteCompetition c votes))
+        ]
+  where
+    forComp field c = filter ((== compId c) . field)
+
 {- | Fetch all gallery data from PocketBase.
 Only approved entries and published reviews are included.
 -}
@@ -108,10 +128,12 @@ fetchGalleryData cfg = do
             then fetchAll cfg "profiles"
             else pure []
 
+    now <- T.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" <$> getCurrentTime
     let comps = parseAll compsRaw :: [Competition]
         entries = parseAll entriesRaw :: [Entry]
         reviews = parseAll reviewsRaw :: [Review]
         displayNames = parseDisplayNames profilesRaw
+        votingEnded = any (votingClosed now) comps
 
         approvedEntries = filter ((== Approved) . entryStatus) entries
         publishedReviews = filter reviewIsPublished reviews
@@ -133,10 +155,17 @@ fetchGalleryData cfg = do
                 )
                 entriesByComp
 
+    -- Ballots are readable with the superuser token only (ADR-0007).
+    votesRaw <-
+        if votingEnded && shouldFetchDisplayNames cfg
+            then fetchAll cfg "votes"
+            else pure []
+
     return $
         GalleryData
             { gdCompetitions = sortCompetitions comps
             , gdRankedByComp = rankedByComp
+            , gdVoteResults = voteResults now comps approvedEntries (parseAll votesRaw)
             , gdDisplayNames = displayNames
             , gdPbUrl = pbBaseUrl cfg
             }

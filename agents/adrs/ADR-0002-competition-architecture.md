@@ -35,6 +35,7 @@ The platform is split into three distinct components with clear boundaries:
 - Submitting and editing draft entries (file upload, title, description)
 - Viewing own submissions and their status
 - Reviewer tools: scoring entries on 4 criteria, commenting, approving/rejecting
+- Ranked voting during a competition's voting period, next to reviews (ADR-0007)
 
 **Not responsible for:**
 - The public gallery (that is the Haskell pipeline's output)

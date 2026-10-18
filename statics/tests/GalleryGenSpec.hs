@@ -52,6 +52,9 @@ testComp =
         , compEndDate = "2026-12-31"
         , compMinImagesPerEntry = Just 1
         , compMaxImagesPerEntry = Just 10
+        , compVotingEnabled = False
+        , compVotingRequired = False
+        , compVotingEndDate = Nothing
         }
 
 testEntry :: Entry
@@ -92,6 +95,7 @@ galleryWithRankings =
     GalleryData
         { gdCompetitions = [testComp]
         , gdRankedByComp = Map.singleton "comp1" [testRanked]
+        , gdVoteResults = Map.empty
         , gdDisplayNames = Map.singleton "user1" "Pekka"
         , gdPbUrl = "http://localhost:8090"
         }
@@ -177,6 +181,18 @@ tests =
             let html = render testConfig galleryWithRankings
             assertBool "alt contains 'by Pekka'" $
                 "by Pekka" `T.isInfixOf` html
+        , -- Given a competition whose voting has ended (ADR-0007)
+          -- When the gallery is rendered
+          -- Then the vote result is shown next to the review ranking
+          testCase "renderGallery shows the vote result with places and points" $ do
+            let voted = VoteRankedEntry{votedEntry = testEntry, votedPoints = 21, votedPlace = 1}
+                html = render testConfig galleryWithRankings{gdVoteResults = Map.singleton "comp1" [voted]}
+            assertBool "has the vote result heading" $ "Yleisöäänestys" `T.isInfixOf` html
+            assertBool "has the points" $ "21 p" `T.isInfixOf` html
+            assertBool "has the vote list" $ "vote-results" `T.isInfixOf` html
+        , testCase "renderGallery has no vote result without votes" $ do
+            let html = render testConfig galleryWithRankings
+            assertBool "no vote result" $ not $ "Yleisöäänestys" `T.isInfixOf` html
         , testCase "renderGallery alt text omits submitter when anonymized" $ do
             let html = render anonConfig galleryWithRankings
             assertBool "alt does not contain 'by Pekka'" $

@@ -88,6 +88,19 @@ Arvostelijat tarkistavat, että työ täyttää säännöt:
 - **Hyväksy (`approved`):** Työ etenee tuloslaskentaan ja julkiseen galleriaan.
 - **Hylkää (`rejected`):** Jos työ rikkoo sääntöjä tai kuvarajoja, se merkitään hylätyksi perustelujen kera.
 
+### Yleisöäänestys
+
+Arvostelun rinnalla kilpailussa voi olla yleisöäänestys (ADR-0007). Ne eivät korvaa toisiaan: kummastakin tulee oma tuloksensa.
+
+- **Käyttöönotto:** Valitse kilpailun lomakkeella *Yleisöäänestys käytössä* ja anna äänestyksen alku- ja loppupäivä. Äänestys alkaa alkupäivän alussa ja päättyy loppupäivän alussa (klo 00.00 UTC). Jos äänestys päättyy 14.7. klo 23.59, anna loppupäiväksi 15.7.
+- **Kuka äänestää:** Kuka tahansa kirjautunut käyttäjä. Äänestäjä valitsee enintään viisi kilpailun hyväksyttyä työtä paremmuusjärjestyksessä. Ääntä voi muuttaa äänestyksen loppuun asti.
+- **Pisteet:** 1. sija 8, 2. sija 5, 3. sija 3, 4. sija 2 ja 5. sija 1 piste. Tasapisteissä ratkaisee 1. sijojen määrä, sitten 2. sijojen ja niin edelleen.
+- **Pakollinen äänestys:** Valitse *Osallistujien on äänestettävä*, jos äänestämättä jättäneen osallistujan työ ei saa sijoitusta äänestyksessä.
+- **Sarjat:** Pro- ja Casual-sarjat ovat kumpikin oma kilpailunsa, joissa äänestetään erikseen.
+- **Ääntenlasku:** Osallistumisten ylläpitosivulla näkyy äänten määrä, tulos ja ne työt, jotka jäävät tuloksen ulkopuolelle. Yksittäisiä ääniä näkevät vain äänestäjä itse ja arvostelijat.
+- **Galleria:** Tulos näkyy galleriassa, kun galleria generoidaan äänestyksen päätyttyä ja `POCKETBASE_API_KEY` on asetettu (äänet luetaan ylläpitäjän avaimella). Äänestäjille näytetään viimeinen äänestyspäivä eli loppupäivää edeltävä päivä.
+- **Hyväksy työt ennen äänestystä:** Äänestää voi vain hyväksyttyjä töitä.
+
 ---
 
 ## 5. Tulosten julkaisu ja staattinen galleria

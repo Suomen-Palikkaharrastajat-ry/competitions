@@ -22,6 +22,7 @@ import TestSite
 import Time
 import Types exposing (..)
 import View
+import Voting
 
 
 testUser : AuthUser
@@ -76,6 +77,7 @@ loggedOutModel =
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
     , criteria = TestSite.criteria Fi
+    , voting = Voting.init
     }
 
 
@@ -91,6 +93,10 @@ testCompetition =
     , maxEntriesPerUser = Just 3
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = Nothing
+    , votingEndDate = Nothing
     , startDate = "2026-06-01 00:00:00.000Z"
     , judgingEndDate = Nothing
     , status = COpen
@@ -116,6 +122,7 @@ testEntry =
     , description = Nothing
     , images = [ "photo.jpg" ]
     , status = Submitted
+    , submitterId = "profile1"
     , publishedReviews = []
     }
 
@@ -146,7 +153,7 @@ suite =
                         { loggedOutModel
                             | auth = LoggedIn { testUser | isReviewer = True }
                             , page = AdminCompetitionPage Nothing
-                            , adminForm = Just { title = "", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", status = CDraft }
+                            , adminForm = Just { title = "", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", votingEnabled = False, votingRequired = False, votingStartDate = "", votingEndDate = "", status = CDraft }
                             , adminFormErrors = [ TitleRequired ]
                         }
                         |> Query.fromHtml
@@ -160,7 +167,7 @@ suite =
                             | auth = LoggedIn { testUser | isReviewer = True }
                             , page = AdminCompetitionPage (Just "c1")
                             , adminCompetitions = RemoteData.Success [ { testCompetition | status = COpen } ]
-                            , adminForm = Just { title = "Kevat", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", status = COpen }
+                            , adminForm = Just { title = "Kevat", slug = "kevat", theme = "", description = "", startDate = "2026-01-01", endDate = "2026-06-01", judgingEndDate = "", maxEntriesPerUser = "", minImagesPerEntry = "", maxImagesPerEntry = "", votingEnabled = False, votingRequired = False, votingStartDate = "", votingEndDate = "", status = COpen }
                         }
                         |> Query.fromHtml
                         |> Expect.all

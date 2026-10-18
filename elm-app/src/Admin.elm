@@ -7,6 +7,7 @@ module Admin exposing
     , statusFromString
     , statusToString
     , updateField
+    , updateFlag
     , validateCompetitionForm
     )
 
@@ -19,7 +20,7 @@ names them.
 -}
 
 import Json.Encode as Encode
-import Types exposing (AdminField(..), Competition, CompetitionForm, CompetitionStatus(..), FormError(..))
+import Types exposing (AdminField(..), AdminFlag(..), Competition, CompetitionForm, CompetitionStatus(..), FormError(..))
 
 
 {-| A new competition: no values, a draft.
@@ -36,6 +37,10 @@ emptyCompetitionForm =
     , maxEntriesPerUser = ""
     , minImagesPerEntry = ""
     , maxImagesPerEntry = ""
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = ""
+    , votingEndDate = ""
     , status = CDraft
     }
 
@@ -74,6 +79,24 @@ updateField field value form =
 
         FieldMaxImages ->
             { form | maxImagesPerEntry = value }
+
+        FieldVotingStartDate ->
+            { form | votingStartDate = value }
+
+        FieldVotingEndDate ->
+            { form | votingEndDate = value }
+
+
+{-| The form with one yes/no setting changed.
+-}
+updateFlag : AdminFlag -> Bool -> CompetitionForm -> CompetitionForm
+updateFlag flag value form =
+    case flag of
+        FlagVotingEnabled ->
+            { form | votingEnabled = value }
+
+        FlagVotingRequired ->
+            { form | votingRequired = value }
 
 
 {-| The status a competition moves to next, if any.
@@ -194,7 +217,25 @@ validateCompetitionForm form =
 
           else
             Just ImageLimitsInvalid
+        , if votingPeriodValid form then
+            Nothing
+
+          else
+            Just VotingDatesInvalid
         ]
+
+
+{-| Voting needs its whole period, ending after it starts. Without voting the
+dates may be empty, but a date typed in must still be a date.
+-}
+votingPeriodValid : CompetitionForm -> Bool
+votingPeriodValid form =
+    if form.votingEnabled then
+        isDate form.votingStartDate && isDate form.votingEndDate && form.votingStartDate < form.votingEndDate
+
+    else
+        (String.isEmpty form.votingStartDate || isDate form.votingStartDate)
+            && (String.isEmpty form.votingEndDate || isDate form.votingEndDate)
 
 
 {-| The competition as PocketBase stores it. A new competition leaves out
@@ -212,7 +253,11 @@ encodeCompetition original form =
             , Just ( "description", Encode.string (String.trim form.description) )
             , Just ( "start_date", Encode.string (timestamp (Maybe.map .startDate original) form.startDate) )
             , Just ( "end_date", Encode.string (timestamp (Maybe.map .endDate original) form.endDate) )
-            , judgingField original form.judgingEndDate
+            , optionalDateField "judging_end_date" (Maybe.andThen .judgingEndDate original) original form.judgingEndDate
+            , Just ( "voting_enabled", Encode.bool form.votingEnabled )
+            , Just ( "voting_required", Encode.bool form.votingRequired )
+            , optionalDateField "voting_start_date" (Maybe.andThen .votingStartDate original) original form.votingStartDate
+            , optionalDateField "voting_end_date" (Maybe.andThen .votingEndDate original) original form.votingEndDate
             , Just ( "status", Encode.string (statusToString form.status) )
             , numberField "max_entries_per_user" original form.maxEntriesPerUser
             , numberField "min_images_per_entry" original form.minImagesPerEntry
@@ -221,20 +266,23 @@ encodeCompetition original form =
         )
 
 
-judgingField : Maybe Competition -> String -> Maybe ( String, Encode.Value )
-judgingField original value =
+{-| An optional date: left out of a new competition when empty, cleared on an
+edit, and otherwise sent like the required dates.
+-}
+optionalDateField : String -> Maybe String -> Maybe Competition -> String -> Maybe ( String, Encode.Value )
+optionalDateField name stored original value =
     case ( original, String.isEmpty value ) of
         ( Nothing, True ) ->
             Nothing
 
         ( Nothing, False ) ->
-            Just ( "judging_end_date", Encode.string (timestamp Nothing value) )
+            Just ( name, Encode.string (timestamp Nothing value) )
 
         ( Just _, True ) ->
-            Just ( "judging_end_date", Encode.string "" )
+            Just ( name, Encode.string "" )
 
         ( Just _, False ) ->
-            Just ( "judging_end_date", Encode.string (timestamp (Maybe.andThen .judgingEndDate original) value) )
+            Just ( name, Encode.string (timestamp stored value) )
 
 
 numberField : String -> Maybe Competition -> String -> Maybe ( String, Encode.Value )
@@ -264,6 +312,10 @@ formFromCompetition competition =
     , maxEntriesPerUser = maybeIntText competition.maxEntriesPerUser
     , minImagesPerEntry = maybeIntText competition.minImagesPerEntry
     , maxImagesPerEntry = maybeIntText competition.maxImagesPerEntry
+    , votingEnabled = competition.votingEnabled
+    , votingRequired = competition.votingRequired
+    , votingStartDate = Maybe.withDefault "" (Maybe.map (String.left 10) competition.votingStartDate)
+    , votingEndDate = Maybe.withDefault "" (Maybe.map (String.left 10) competition.votingEndDate)
     , status = competition.status
     }
 

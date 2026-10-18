@@ -22,6 +22,7 @@ module Main exposing
     , validateEmail
     , validateForm
     , validateOtpCode
+    , votingCompetitionsUrl
     )
 
 {-| Entry point for the Palikkakilpailu competition platform application.
@@ -48,7 +49,9 @@ import SiteSettings
 import Task
 import Time
 import Types exposing (..)
+import Url
 import View
+import Voting
 
 
 main : Program Flags Model Msg
@@ -137,6 +140,7 @@ init flags =
                 , adminFormErrors = []
                 , adminEntries = RemoteData.NotAsked
                 , criteria = Result.withDefault [] criteriaResult
+                , voting = Voting.init
                 }
 
         -- A deep link the app does not keep (unknown, or not allowed for the
@@ -196,10 +200,46 @@ enterPage page_ model =
     case ( page, model.auth ) of
         ( DashboardPage, LoggedIn user ) ->
             -- The user's own entries tell which competitions are full.
-            ( { model | page = page, competitions = RemoteData.Loading, myEntries = RemoteData.Loading }
+            let
+                voting =
+                    model.voting
+            in
+            ( { model
+                | page = page
+                , competitions = RemoteData.Loading
+                , myEntries = RemoteData.Loading
+                , voting = { voting | openCompetitions = RemoteData.Loading }
+              }
             , Cmd.batch
                 [ fetchCompetitions model.pbUrl user.token
                 , fetchMyEntries model.pbUrl user.token user.profileId
+                , fetchVotingCompetitions model.pbUrl user.token
+                ]
+            )
+
+        ( VotePage competitionId, LoggedIn user ) ->
+            -- The ballot starts empty until the voter's stored one is loaded.
+            let
+                voting =
+                    model.voting
+            in
+            ( { model
+                | page = page
+                , voting =
+                    { voting
+                        | competition = RemoteData.Loading
+                        , candidates = RemoteData.Loading
+                        , ballot = Voting.emptyBallot competitionId user.profileId
+                        , ballotLoaded = False
+                        , saving = False
+                        , saved = False
+                        , error = Nothing
+                    }
+              }
+            , Cmd.batch
+                [ fetchVoteCompetition model.pbUrl user.token competitionId
+                , fetchVoteCandidates model.pbUrl user.token competitionId
+                , fetchMyBallot model.pbUrl user.token competitionId user.profileId
                 ]
             )
 
@@ -219,10 +259,19 @@ enterPage page_ model =
             )
 
         ( AdminEntriesPage competitionId, LoggedIn user ) ->
-            ( { model | page = page, adminEntries = RemoteData.Loading }
+            let
+                voting =
+                    model.voting
+            in
+            ( { model
+                | page = page
+                , adminEntries = RemoteData.Loading
+                , voting = { voting | adminBallots = RemoteData.Loading }
+              }
             , Cmd.batch
                 [ fetchAdminEntries model.pbUrl user.token competitionId
                 , fetchAdminCompetitions model.pbUrl user.token
+                , fetchAdminBallots model.pbUrl user.token competitionId
                 ]
             )
 
@@ -483,6 +532,7 @@ updateModelWith msg model =
                 , competitions = RemoteData.NotAsked
                 , myEntries = RemoteData.NotAsked
                 , menuOpen = False
+                , voting = Voting.init
               }
             , Cmd.batch
                 [ Ports.clearAuth ()
@@ -1053,6 +1103,9 @@ updateModelWith msg model =
         AdminFieldChanged field value ->
             ( { model | adminForm = Maybe.map (Admin.updateField field value) model.adminForm }, Cmd.none )
 
+        AdminFlagChanged flag value ->
+            ( { model | adminForm = Maybe.map (Admin.updateFlag flag value) model.adminForm }, Cmd.none )
+
         SaveCompetition ->
             case ( model.adminForm, model.auth ) of
                 ( Just form, LoggedIn user ) ->
@@ -1288,6 +1341,122 @@ updateModelWith msg model =
                 _ ->
                     ( { model | authError = Just (t model.lang I18n.ErrStatusChange) }, Cmd.none )
 
+        -- Voting
+        VotingCompetitionsLoaded result ->
+            updateVoting result (\loaded voting -> { voting | openCompetitions = loaded }) model
+
+        VoteCompetitionLoaded competitionId result ->
+            onVotePage competitionId model <|
+                updateVoting result (\loaded voting -> { voting | competition = loaded }) model
+
+        VoteCandidatesLoaded competitionId result ->
+            onVotePage competitionId model <|
+                updateVoting result (\loaded voting -> dropUnknownEntries { voting | candidates = loaded }) model
+
+        MyBallotLoaded competitionId (Ok stored) ->
+            let
+                voting =
+                    model.voting
+            in
+            onVotePage competitionId model <|
+                ( { model
+                    | voting =
+                        dropUnknownEntries
+                            { voting
+                                | ballot = Maybe.withDefault voting.ballot stored
+                                , ballotLoaded = True
+                                , saved = stored /= Nothing
+                            }
+                  }
+                , Cmd.none
+                )
+
+        MyBallotLoaded competitionId (Err err) ->
+            case err of
+                Http.BadStatus 401 ->
+                    handleHttpError err model
+
+                _ ->
+                    let
+                        voting =
+                            model.voting
+                    in
+                    onVotePage competitionId model <|
+                        ( { model | voting = { voting | error = Just (t model.lang I18n.ErrBallotLoad) } }, Cmd.none )
+
+        PickEntry entryId ->
+            changeRanking (Voting.pick entryId) model
+
+        UnpickEntry entryId ->
+            changeRanking (Voting.unpick entryId) model
+
+        MoveEntryUp entryId ->
+            changeRanking (Voting.moveUp entryId) model
+
+        MoveEntryDown entryId ->
+            changeRanking (Voting.moveDown entryId) model
+
+        SaveBallot ->
+            let
+                voting =
+                    model.voting
+            in
+            case model.auth of
+                LoggedIn user ->
+                    if not voting.ballotLoaded || voting.saving then
+                        ( model, Cmd.none )
+
+                    else if List.isEmpty voting.ballot.ranking then
+                        ( { model | voting = { voting | error = Just (t model.lang I18n.ErrBallotEmpty) } }, Cmd.none )
+
+                    else
+                        ( { model | voting = { voting | saving = True, error = Nothing } }
+                        , saveBallotCmd model.pbUrl user.token voting.ballot
+                        )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        BallotSaved competitionId (Ok saved) ->
+            let
+                voting =
+                    model.voting
+            in
+            onVotePage competitionId model <|
+                ( { model | voting = { voting | ballot = saved, saving = False, saved = True, error = Nothing } }, Cmd.none )
+
+        BallotSaved competitionId (Err failure) ->
+            case failure.error of
+                Http.BadStatus 401 ->
+                    handleHttpError failure.error model
+
+                _ ->
+                    let
+                        voting =
+                            model.voting
+
+                        -- The hook says why it refused the ballot.
+                        message =
+                            case ( failure.error, failure.message ) of
+                                ( Http.BadStatus 400, Just reason ) ->
+                                    reason
+
+                                ( Http.BadStatus 400, Nothing ) ->
+                                    t model.lang I18n.ErrBallotRejected
+
+                                _ ->
+                                    t model.lang I18n.ErrBallotSave
+                    in
+                    onVotePage competitionId model <|
+                        ( { model | voting = { voting | saving = False, error = Just message } }, Cmd.none )
+
+        AdminBallotsLoaded competitionId result ->
+            if model.page == AdminEntriesPage competitionId then
+                updateVoting result (\loaded voting -> { voting | adminBallots = loaded }) model
+
+            else
+                ( model, Cmd.none )
+
         Tick time ->
             ( { model | now = time }, Cmd.none )
 
@@ -1456,6 +1625,87 @@ updateDraftScore f model =
             ( model, Cmd.none )
 
 
+{-| Store a loaded part of the voting state; a 401 signs out.
+-}
+updateVoting : Result Http.Error a -> (RemoteData.RemoteData Http.Error a -> VotingModel -> VotingModel) -> Model -> ( Model, Cmd Msg )
+updateVoting result store model =
+    case result of
+        Err (Http.BadStatus 401) ->
+            handleHttpError (Http.BadStatus 401) model
+
+        _ ->
+            ( { model | voting = store (RemoteData.fromResult result) model.voting }, Cmd.none )
+
+
+{-| Apply a response about a competition's vote page only while that page is
+shown: a late answer about the previous page must not change this one.
+-}
+onVotePage : String -> Model -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+onVotePage competitionId model result =
+    if model.page == VotePage competitionId then
+        result
+
+    else
+        ( model, Cmd.none )
+
+
+{-| Once both the stored ballot and the entries have loaded, take off the
+ballot the entries that are no longer approved (ADR-0007): the server would
+refuse the ballot with them, and the voter could not see them to remove them.
+The ballot must then be saved again.
+-}
+dropUnknownEntries : VotingModel -> VotingModel
+dropUnknownEntries voting =
+    case ( voting.ballotLoaded, voting.candidates ) of
+        ( True, RemoteData.Success candidates ) ->
+            let
+                ballot =
+                    voting.ballot
+
+                ids =
+                    List.map .id candidates
+
+                ranking =
+                    List.filter (\entryId -> List.member entryId ids) ballot.ranking
+            in
+            if ranking == ballot.ranking then
+                voting
+
+            else
+                { voting | ballot = { ballot | ranking = ranking }, saved = False }
+
+        _ ->
+            voting
+
+
+{-| Change the ballot being made. Nothing changes while it loads or saves.
+-}
+changeRanking : (List String -> List String) -> Model -> ( Model, Cmd Msg )
+changeRanking change model =
+    let
+        voting =
+            model.voting
+
+        ballot =
+            voting.ballot
+    in
+    if not voting.ballotLoaded || voting.saving then
+        ( model, Cmd.none )
+
+    else
+        let
+            ranking =
+                change ballot.ranking
+        in
+        if ranking == ballot.ranking then
+            ( model, Cmd.none )
+
+        else
+            ( { model | voting = { voting | ballot = { ballot | ranking = ranking }, saved = False, error = Nothing } }
+            , Cmd.none
+            )
+
+
 
 -- | Map an Http.Error to a user-facing message in the given language.
 
@@ -1587,12 +1837,168 @@ fetchCompetitions pbUrl token =
             pbUrl
                 ++ "/api/collections/competitions/records"
                 ++ "?filter=status%3D%22open%22&sort=end_date"
-                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cstart_date%2Cend_date%2Cjudging_end_date%2Cstatus%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry"
+                ++ "&fields=id%2Ctitle%2Cslug%2Ctheme%2Cdescription%2Cstart_date%2Cend_date%2Cjudging_end_date%2Cstatus%2Ccover_image%2Cmax_entries_per_user%2Cmin_images_per_entry%2Cmax_images_per_entry%2Cvoting_enabled%2Cvoting_required%2Cvoting_start_date%2Cvoting_end_date"
         , body = Http.emptyBody
         , expect = Http.expectJson CompetitionsLoaded (pbListDecoder competitionDecoder)
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+{-| The competitions whose voting period is running now, the one ending
+first first. PocketBase decides what "now" is.
+-}
+fetchVotingCompetitions : String -> String -> Cmd Msg
+fetchVotingCompetitions pbUrl token =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url = votingCompetitionsUrl pbUrl
+        , body = Http.emptyBody
+        , expect = Http.expectJson VotingCompetitionsLoaded (pbListDecoder competitionDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+votingCompetitionsUrl : String -> String
+votingCompetitionsUrl pbUrl =
+    pbUrl
+        ++ "/api/collections/competitions/records?filter="
+        ++ Url.percentEncode "voting_enabled = true && status != \"draft\" && voting_start_date != \"\" && voting_start_date <= @now && voting_end_date > @now"
+        ++ "&sort=voting_end_date"
+
+
+fetchVoteCompetition : String -> String -> String -> Cmd Msg
+fetchVoteCompetition pbUrl token competitionId =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url = pbUrl ++ "/api/collections/competitions/records/" ++ competitionId
+        , body = Http.emptyBody
+        , expect = Http.expectJson (VoteCompetitionLoaded competitionId) competitionDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| The entries one can vote for: the approved entries of the competition.
+-}
+fetchVoteCandidates : String -> String -> String -> Cmd Msg
+fetchVoteCandidates pbUrl token competitionId =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            pbUrl
+                ++ "/api/collections/entries/records?filter="
+                ++ Url.percentEncode ("competition = \"" ++ competitionId ++ "\" && status = \"approved\"")
+                ++ "&sort=created&perPage=200"
+        , body = Http.emptyBody
+        , expect = Http.expectJson (VoteCandidatesLoaded competitionId) (pbListDecoder entryDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| The voter's own ballot in the competition, if one is stored.
+-}
+fetchMyBallot : String -> String -> String -> String -> Cmd Msg
+fetchMyBallot pbUrl token competitionId profileId =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            pbUrl
+                ++ "/api/collections/votes/records?filter="
+                ++ Url.percentEncode ("competition = \"" ++ competitionId ++ "\" && voter = \"" ++ profileId ++ "\"")
+                ++ "&perPage=1"
+        , body = Http.emptyBody
+        , expect = Http.expectJson (MyBallotLoaded competitionId) (pbListDecoder Voting.ballotDecoder |> Decode.map List.head)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Every ballot of a competition, for the admin's count. Only reviewers may
+read them.
+-}
+fetchAdminBallots : String -> String -> String -> Cmd Msg
+fetchAdminBallots pbUrl token competitionId =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            pbUrl
+                ++ "/api/collections/votes/records?filter="
+                ++ Url.percentEncode ("competition = \"" ++ competitionId ++ "\"")
+                ++ "&perPage=1000"
+        , body = Http.emptyBody
+        , expect = Http.expectJson (AdminBallotsLoaded competitionId) (pbListDecoder Voting.ballotDecoder)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Cast the ballot (POST) or change the stored one (PATCH).
+-}
+saveBallotCmd : String -> String -> Ballot -> Cmd Msg
+saveBallotCmd pbUrl token ballot =
+    let
+        url =
+            pbUrl ++ "/api/collections/votes/records"
+    in
+    Http.request
+        { method =
+            case ballot.id of
+                Just _ ->
+                    "PATCH"
+
+                Nothing ->
+                    "POST"
+        , headers = [ Http.header "Authorization" token ]
+        , url =
+            case ballot.id of
+                Just ballotId ->
+                    url ++ "/" ++ ballotId
+
+                Nothing ->
+                    url
+        , body = Http.jsonBody (Voting.encodeBallot ballot)
+        , expect = expectWithMessage (BallotSaved ballot.competitionId) Voting.ballotDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+{-| Like `Http.expectJson`, but a failure keeps the `message` PocketBase sent
+with it, such as the reason a hook refused the request.
+-}
+expectWithMessage : (Result ServerError a -> msg) -> Decode.Decoder a -> Http.Expect msg
+expectWithMessage toMsg decoder =
+    Http.expectStringResponse toMsg
+        (\response ->
+            let
+                failure error body =
+                    Err { error = error, message = Decode.decodeString (Decode.field "message" Decode.string) body |> Result.toMaybe }
+            in
+            case response of
+                Http.BadUrl_ url ->
+                    Err { error = Http.BadUrl url, message = Nothing }
+
+                Http.Timeout_ ->
+                    Err { error = Http.Timeout, message = Nothing }
+
+                Http.NetworkError_ ->
+                    Err { error = Http.NetworkError, message = Nothing }
+
+                Http.BadStatus_ metadata body ->
+                    failure (Http.BadStatus metadata.statusCode) body
+
+                Http.GoodStatus_ _ body ->
+                    Decode.decodeString decoder body
+                        |> Result.mapError (\problem -> { error = Http.BadBody (Decode.errorToString problem), message = Nothing })
+        )
 
 
 {-| Every competition, whatever its status, newest first.
@@ -1855,7 +2261,8 @@ competitionDecoder =
     Decode.map8
         (\id title slug theme description startDate endDate coverImage ->
             \maxEntriesPerUser minImagesPerEntry maxImagesPerEntry judgingEndDate status ->
-                Competition id title slug theme description startDate endDate judgingEndDate status coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry
+                \votingEnabled votingRequired votingStartDate votingEndDate ->
+                    Competition id title slug theme description startDate endDate judgingEndDate status coverImage maxEntriesPerUser minImagesPerEntry maxImagesPerEntry votingEnabled votingRequired votingStartDate votingEndDate
         )
         (Decode.field "id" Decode.string)
         (Decode.field "title" Decode.string)
@@ -1884,6 +2291,37 @@ competitionDecoder =
                     (Decode.maybe (Decode.field "max_images_per_entry" Decode.int))
                     (Decode.maybe (Decode.field "judging_end_date" Decode.string))
                     (Decode.map (Maybe.withDefault CDraft) (Decode.maybe (Decode.field "status" competitionStatusDecoder)))
+            )
+        |> Decode.andThen
+            (\build ->
+                Decode.map4 build
+                    (optionalBool "voting_enabled")
+                    (optionalBool "voting_required")
+                    (optionalDate "voting_start_date")
+                    (optionalDate "voting_end_date")
+            )
+
+
+optionalBool : String -> Decode.Decoder Bool
+optionalBool name =
+    Decode.maybe (Decode.field name Decode.bool)
+        |> Decode.map (Maybe.withDefault False)
+
+
+{-| A PocketBase date field: empty when not set.
+-}
+optionalDate : String -> Decode.Decoder (Maybe String)
+optionalDate name =
+    Decode.maybe (Decode.field name Decode.string)
+        |> Decode.map
+            (Maybe.andThen
+                (\value ->
+                    if String.isEmpty value then
+                        Nothing
+
+                    else
+                        Just value
+                )
             )
 
 
@@ -1967,11 +2405,12 @@ entryDecoder =
         (Decode.field "id" Decode.string)
         (Decode.field "competition" Decode.string)
         (Decode.maybe (Decode.at [ "expand", "competition" ] competitionDecoder))
+        (Decode.oneOf [ Decode.field "submitter" Decode.string, Decode.succeed "" ])
         (Decode.field "title" Decode.string)
         (Decode.maybe (Decode.field "description" Decode.string))
         (Decode.field "images" (Decode.list Decode.string))
         (Decode.field "status" entryStatusDecoder)
-        publishedReviewsDecoder
+        |> Decode.andThen (\build -> Decode.map build publishedReviewsDecoder)
 
 
 fetchReviewQueue : String -> String -> String -> Cmd Msg

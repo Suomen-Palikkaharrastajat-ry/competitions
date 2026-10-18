@@ -36,6 +36,8 @@ data Messages = Messages
     , msgEntries :: Text
     , msgBy :: Text
     , msgOpenImage :: Text
+    , msgVoteResults :: Text
+    , msgPointsSuffix :: Text
     }
 
 messagesEn :: Messages
@@ -56,6 +58,8 @@ messagesEn =
         , msgEntries = "Entries"
         , msgBy = "by"
         , msgOpenImage = "Open image: "
+        , msgVoteResults = "Public vote"
+        , msgPointsSuffix = " pts"
         }
 
 messagesFi :: Messages
@@ -76,6 +80,8 @@ messagesFi =
         , msgEntries = "Osallistujat"
         , msgBy = ""
         , msgOpenImage = "Avaa kuva: "
+        , msgVoteResults = "Yleisöäänestys"
+        , msgPointsSuffix = " p"
         }
 
 getMessages :: Locale -> Messages

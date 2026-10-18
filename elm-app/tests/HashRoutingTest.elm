@@ -20,6 +20,7 @@ import Test exposing (Test, describe, test)
 import TestSite
 import Time
 import Types exposing (..)
+import Voting
 
 
 user : AuthUser
@@ -79,6 +80,7 @@ loggedOut =
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
     , criteria = TestSite.criteria Fi
+    , voting = Voting.init
     }
 
 

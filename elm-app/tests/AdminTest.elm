@@ -13,7 +13,7 @@ import Admin
 import Expect
 import Json.Encode as Encode
 import Test exposing (Test, describe, test)
-import Types exposing (AdminField(..), Competition, CompetitionForm, CompetitionStatus(..), FormError(..))
+import Types exposing (AdminField(..), AdminFlag(..), Competition, CompetitionForm, CompetitionStatus(..), FormError(..))
 
 
 validForm : CompetitionForm
@@ -28,6 +28,10 @@ validForm =
     , maxEntriesPerUser = ""
     , minImagesPerEntry = ""
     , maxImagesPerEntry = ""
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = ""
+    , votingEndDate = ""
     , status = CDraft
     }
 
@@ -47,6 +51,10 @@ sampleCompetition =
     , maxEntriesPerUser = Just 3
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = Nothing
+    , votingEndDate = Nothing
     }
 
 
@@ -94,6 +102,25 @@ suite =
                 \_ ->
                     Admin.validateCompetitionForm { validForm | minImagesPerEntry = "3", maxImagesPerEntry = "2" }
                         |> Expect.equal [ ImageLimitsInvalid ]
+
+            -- Given voting is enabled, when its period is missing or ends
+            -- before it starts, then the form cannot be saved.
+            , test "voting needs a start and an end date" <|
+                \_ ->
+                    Admin.validateCompetitionForm { validForm | votingEnabled = True, votingStartDate = "2026-07-07" }
+                        |> Expect.equal [ VotingDatesInvalid ]
+            , test "voting must end after it starts" <|
+                \_ ->
+                    Admin.validateCompetitionForm { validForm | votingEnabled = True, votingStartDate = "2026-07-07", votingEndDate = "2026-07-07" }
+                        |> Expect.equal [ VotingDatesInvalid ]
+            , test "a voting period with valid dates is accepted" <|
+                \_ ->
+                    Admin.validateCompetitionForm { validForm | votingEnabled = True, votingStartDate = "2026-07-07", votingEndDate = "2026-07-15" }
+                        |> Expect.equal []
+            , test "without voting, the voting dates may be left empty" <|
+                \_ ->
+                    Admin.validateCompetitionForm { validForm | votingRequired = True }
+                        |> Expect.equal []
             ]
         , describe "updateField"
             [ test "sets the named field and leaves the others" <|
@@ -101,6 +128,20 @@ suite =
                     Admin.updateField FieldSlug "kevat-2027" validForm
                         |> (\form -> ( form.slug, form.title ))
                         |> Expect.equal ( "kevat-2027", "Kaupunki" )
+            , test "updateFlag turns voting on and makes it required" <|
+                \_ ->
+                    validForm
+                        |> Admin.updateFlag FlagVotingEnabled True
+                        |> Admin.updateFlag FlagVotingRequired True
+                        |> (\form -> ( form.votingEnabled, form.votingRequired ))
+                        |> Expect.equal ( True, True )
+            , test "updateField sets the voting dates" <|
+                \_ ->
+                    validForm
+                        |> Admin.updateField FieldVotingStartDate "2026-07-07"
+                        |> Admin.updateField FieldVotingEndDate "2026-07-15"
+                        |> (\form -> ( form.votingStartDate, form.votingEndDate ))
+                        |> Expect.equal ( "2026-07-07", "2026-07-15" )
             ]
         , describe "formFromCompetition"
             [ test "fills the form with the competition's dates as YYYY-MM-DD" <|
@@ -119,9 +160,13 @@ suite =
                         , maxEntriesPerUser = Just 3
                         , minImagesPerEntry = Nothing
                         , maxImagesPerEntry = Nothing
+                        , votingEnabled = True
+                        , votingRequired = True
+                        , votingStartDate = Just "2026-07-07 00:00:00.000Z"
+                        , votingEndDate = Just "2026-07-15 00:00:00.000Z"
                         }
-                        |> (\form -> ( ( form.startDate, form.endDate ), ( form.judgingEndDate, form.status ) ))
-                        |> Expect.equal ( ( "2026-01-01", "2026-06-01" ), ( "2026-07-01", COpen ) )
+                        |> (\form -> ( ( form.startDate, form.endDate ), ( form.judgingEndDate, form.status ), ( ( form.votingEnabled, form.votingRequired ), ( form.votingStartDate, form.votingEndDate ) ) ))
+                        |> Expect.equal ( ( "2026-01-01", "2026-06-01" ), ( "2026-07-01", COpen ), ( ( True, True ), ( "2026-07-07", "2026-07-15" ) ) )
             ]
         , describe "encodeCompetition when editing"
             [ test "keeps the stored time of a date whose day did not change" <|
@@ -162,5 +207,24 @@ suite =
                         |> Encode.encode 0
                         |> String.contains "\"end_date\":\"2026-06-01 00:00:00.000Z\""
                         |> Expect.equal True
+            , test "sends the voting settings and period" <|
+                \_ ->
+                    Admin.encodeCompetition Nothing { validForm | votingEnabled = True, votingRequired = True, votingStartDate = "2026-07-07", votingEndDate = "2026-07-15" }
+                        |> Encode.encode 0
+                        |> (\json ->
+                                List.map (\part -> String.contains part json)
+                                    [ "\"voting_enabled\":true"
+                                    , "\"voting_required\":true"
+                                    , "\"voting_start_date\":\"2026-07-07 00:00:00.000Z\""
+                                    , "\"voting_end_date\":\"2026-07-15 00:00:00.000Z\""
+                                    ]
+                           )
+                        |> Expect.equal [ True, True, True, True ]
+            , test "a new competition without voting omits the voting period" <|
+                \_ ->
+                    Admin.encodeCompetition Nothing validForm
+                        |> Encode.encode 0
+                        |> (\json -> ( String.contains "\"voting_enabled\":false" json, String.contains "voting_start_date" json ))
+                        |> Expect.equal ( True, False )
             ]
         ]

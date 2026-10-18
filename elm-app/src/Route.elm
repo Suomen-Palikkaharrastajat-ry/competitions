@@ -44,6 +44,9 @@ toHash page =
         AdminEntriesPage competitionId ->
             "#/admin/osallistumiset/" ++ competitionId
 
+        VotePage competitionId ->
+            "#/aanestys/" ++ competitionId
+
         LoginPage ->
             "#/"
 
@@ -87,6 +90,13 @@ fromHash hash =
 
                 [ "#", "omat", entryId, "muokkaa" ] ->
                     participation entryId
+
+                [ "#", "aanestys", competitionId ] ->
+                    if String.all Char.isAlphaNum competitionId then
+                        nonEmpty competitionId VotePage
+
+                    else
+                        Nothing
 
                 [ "#", "admin" ] ->
                     Just AdminPage

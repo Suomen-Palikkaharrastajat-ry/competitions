@@ -98,6 +98,9 @@ renderCompetitionSection config msgs gd comp = do
                 Nothing -> return ()
             when hasScores $
                 renderPodium config msgs gd (take 3 ranked)
+            case Map.lookup (compId comp) (gdVoteResults gd) of
+                Just voted@(_ : _) -> renderVoteResults config msgs gd voted
+                _ -> return ()
             H.div ! HA.class_ "entry-grid" $
                 mapM_ (renderEntryCard config msgs gd) ranked
 
@@ -141,6 +144,30 @@ renderPodiumItem config msgs gd re = do
                     H.span ! HA.class_ "podium-submitter" $
                         H.toHtml name
                 Nothing -> return ()
+
+-- ---------------------------------------------------------------------------
+-- Vote result (ADR-0007)
+-- ---------------------------------------------------------------------------
+
+-- | The public vote's result: place, entry and points. Ballots are not shown.
+renderVoteResults :: Config -> Messages -> GalleryData -> [VoteRankedEntry] -> H.Html
+renderVoteResults config msgs gd voted =
+    H.div ! HA.class_ "vote-results" $ do
+        H.h3 ! HA.class_ "podium-title" $ H.toHtml (msgVoteResults msgs)
+        H.ol ! HA.class_ "vote-results-list" $
+            mapM_ item voted
+  where
+    item v = do
+        let entry = votedEntry v
+        H.li ! HA.class_ "vote-results-item" $ do
+            H.span ! HA.class_ "vote-results-place" $ H.toHtml (show (votedPlace v) <> ".")
+            H.span ! HA.class_ "vote-results-title" $ do
+                H.toHtml (entryTitle entry)
+                case submitterName config msgs gd entry of
+                    Just name -> H.span ! HA.class_ "podium-submitter" $ H.toHtml (" " <> name)
+                    Nothing -> return ()
+            H.span ! HA.class_ "vote-results-points" $
+                H.toHtml (T.pack (show (votedPoints v)) <> msgPointsSuffix msgs)
 
 -- ---------------------------------------------------------------------------
 -- Entry card

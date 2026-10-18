@@ -42,6 +42,16 @@ suite =
             \_ ->
                 Route.fromHash "#/omat/entry1/muokkaa"
                     |> Expect.equal (Just (ParticipationPage "entry1"))
+        , test "the vote page of a competition has its own hash" <|
+            \_ -> Expect.equal "#/aanestys/c1" (Route.toHash (VotePage "c1"))
+        , test "the vote page round-trips" <|
+            \_ ->
+                Route.fromHash (Route.toHash (VotePage "c1"))
+                    |> Expect.equal (Just (VotePage "c1"))
+        , test "a vote hash with a malformed competition id is ignored" <|
+            \_ -> Expect.equal Nothing (Route.fromHash "#/aanestys/c1\"||x")
+        , test "a vote hash without a competition id is ignored" <|
+            \_ -> Expect.equal Nothing (Route.fromHash "#/aanestys/")
         , test "a participation hash without an entry id is ignored" <|
             \_ -> Expect.equal Nothing (Route.fromHash "#/omat/")
         , test "the admin pages have hashes of their own" <|

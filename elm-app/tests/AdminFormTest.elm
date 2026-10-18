@@ -19,6 +19,7 @@ import Test exposing (Test, describe, test)
 import TestSite
 import Time
 import Types exposing (..)
+import Voting
 
 
 validForm : CompetitionForm
@@ -33,6 +34,10 @@ validForm =
     , maxEntriesPerUser = ""
     , minImagesPerEntry = ""
     , maxImagesPerEntry = ""
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = ""
+    , votingEndDate = ""
     , status = CDraft
     }
 
@@ -64,6 +69,10 @@ competitionForTest =
     , maxEntriesPerUser = Nothing
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = Nothing
+    , votingEndDate = Nothing
     }
 
 
@@ -103,6 +112,7 @@ editing =
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
     , criteria = TestSite.criteria Fi
+    , voting = Voting.init
     }
 
 
@@ -141,7 +151,7 @@ suite =
                 \_ ->
                     let
                         reviewable =
-                            { entry = { id = "e1", competitionId = "c1", competition = Nothing, title = "MOC", description = Nothing, images = [], status = Submitted, publishedReviews = [] }
+                            { entry = { id = "e1", competitionId = "c1", competition = Nothing, submitterId = "p1", title = "MOC", description = Nothing, images = [], status = Submitted, publishedReviews = [] }
                             , competition = competitionForTest
                             , submitterName = "Aino"
                             , myReview = Nothing

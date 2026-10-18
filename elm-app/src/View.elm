@@ -18,6 +18,7 @@ import Time
 import Types exposing (..)
 import View.Admin exposing (viewAdminCompetition, viewAdminEntries, viewAdminHome)
 import View.Layout
+import View.Vote exposing (viewVotePage, viewVotingCompetitions)
 
 
 {-| Top-level view — the shared layout around the page for the auth state.
@@ -198,6 +199,9 @@ viewPage user model =
         AdminEntriesPage competitionId ->
             viewAdminEntries model competitionId
 
+        VotePage _ ->
+            viewVotePage model
+
         NotFoundPage ->
             div [] [ text (t model.lang I18n.PageNotFound) ]
 
@@ -205,7 +209,8 @@ viewPage user model =
 viewDashboard : AuthUser -> Model -> Html Msg
 viewDashboard user model =
     div []
-        [ h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text (t model.lang I18n.OpenCompetitions) ]
+        [ viewVotingCompetitions model
+        , h2 [ Attr.class "type-h3 text-brand mb-6" ] [ text (t model.lang I18n.OpenCompetitions) ]
         , case model.competitions of
             RemoteData.NotAsked ->
                 text ""

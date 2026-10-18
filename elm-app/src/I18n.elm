@@ -170,6 +170,40 @@ type MsgKey
     | AdminApprove
     | AdminReject
     | AdminReset
+    | VotingOpenHeading
+    | Vote
+    | VotingEndsPrefix
+    | VoteHeading
+    | VoteInstructions
+    | VoteRequiredNote
+    | VoteBallotHeading
+    | VoteEmptySlot
+    | VotePointsSuffix
+    | VoteMoveUp
+    | VoteMoveDown
+    | VoteRemove
+    | VoteCandidatesHeading
+    | VotePick
+    | VotePickedPrefix
+    | VoteBallotFull
+    | VoteSave
+    | VoteSaving
+    | VoteSaved
+    | VoteUnsaved
+    | VoteNoCandidates
+    | VoteNotEnabled
+    | ErrBallotLoad
+    | ErrBallotEmpty
+    | ErrBallotRejected
+    | ErrBallotSave
+    | AdminFieldVotingEnabled
+    | AdminFieldVotingRequired
+    | AdminFieldVotingStart
+    | AdminFieldVotingEnd
+    | AdminErrVotingDates
+    | AdminVoteResultHeading
+    | AdminBallotCount
+    | AdminNotVoted
 
 
 {-| The text of a key in the given language.
@@ -674,6 +708,108 @@ fi key =
         AdminReset ->
             "Palauta lähetetyksi"
 
+        VotingOpenHeading ->
+            "Äänestys käynnissä"
+
+        Vote ->
+            "Äänestä"
+
+        VotingEndsPrefix ->
+            "Äänestä viimeistään "
+
+        VoteHeading ->
+            "Äänestys"
+
+        VoteInstructions ->
+            "Valitse enintään viisi parasta työtä paremmuusjärjestyksessä. 1. sija saa 8 pistettä, 2. sija 5, 3. sija 3, 4. sija 2 ja 5. sija 1 pisteen. Voit muuttaa ääntäsi äänestyksen loppuun asti."
+
+        VoteRequiredNote ->
+            "Osallistujien on äänestettävä: jos osallistuja ei äänestä, hänen työnsä ei saa sijoitusta äänestyksen tuloksissa."
+
+        VoteBallotHeading ->
+            "Äänestyslistasi"
+
+        VoteEmptySlot ->
+            "Valitse työ alta"
+
+        VotePointsSuffix ->
+            " p"
+
+        VoteMoveUp ->
+            "Siirrä ylemmäs"
+
+        VoteMoveDown ->
+            "Siirrä alemmas"
+
+        VoteRemove ->
+            "Poista listalta"
+
+        VoteCandidatesHeading ->
+            "Kilpailun työt"
+
+        VotePick ->
+            "Valitse"
+
+        VotePickedPrefix ->
+            "Valittu sijalle "
+
+        VoteBallotFull ->
+            "Lista on täynnä"
+
+        VoteSave ->
+            "Tallenna ääni"
+
+        VoteSaving ->
+            "Tallennetaan…"
+
+        VoteSaved ->
+            "Äänesi on tallennettu."
+
+        VoteUnsaved ->
+            "Muutoksia ei ole vielä tallennettu."
+
+        VoteNoCandidates ->
+            "Kilpailussa ei ole vielä hyväksyttyjä töitä."
+
+        VoteNotEnabled ->
+            "Tässä kilpailussa ei äänestetä."
+
+        ErrBallotLoad ->
+            "Äänesi lataaminen epäonnistui. Lataa sivu uudelleen."
+
+        ErrBallotEmpty ->
+            "Valitse vähintään yksi työ."
+
+        ErrBallotRejected ->
+            "Ääntä ei hyväksytty: äänestys ei ole käynnissä, tai valittu työ ei ole enää mukana."
+
+        ErrBallotSave ->
+            "Äänen tallennus epäonnistui. Yritä uudelleen."
+
+        AdminFieldVotingEnabled ->
+            "Yleisöäänestys käytössä"
+
+        AdminFieldVotingRequired ->
+            "Osallistujien on äänestettävä"
+
+        AdminFieldVotingStart ->
+            "Äänestys alkaa"
+
+        AdminFieldVotingEnd ->
+            "Äänestys suljetaan (päivän alussa)"
+
+        AdminErrVotingDates ->
+            "Äänestykseen tarvitaan alku- ja loppupäivä, ja loppupäivän on oltava alun jälkeen."
+
+        AdminVoteResultHeading ->
+            "Äänestystulos"
+
+        AdminBallotCount ->
+            "Ääniä: "
+
+        AdminNotVoted ->
+            "Ei sijoitusta, koska osallistuja ei äänestänyt: "
+
 
 en : MsgKey -> String
 en key =
@@ -1157,3 +1293,105 @@ en key =
 
         AdminReset ->
             "Reset to submitted"
+
+        VotingOpenHeading ->
+            "Voting open"
+
+        Vote ->
+            "Vote"
+
+        VotingEndsPrefix ->
+            "Vote by "
+
+        VoteHeading ->
+            "Voting"
+
+        VoteInstructions ->
+            "Choose at most five best entries in order of preference. 1st place gets 8 points, 2nd 5, 3rd 3, 4th 2 and 5th 1 point. You can change your vote until voting ends."
+
+        VoteRequiredNote ->
+            "Participants must vote: an entry whose submitter does not vote gets no place in the vote result."
+
+        VoteBallotHeading ->
+            "Your ballot"
+
+        VoteEmptySlot ->
+            "Choose an entry below"
+
+        VotePointsSuffix ->
+            " pts"
+
+        VoteMoveUp ->
+            "Move up"
+
+        VoteMoveDown ->
+            "Move down"
+
+        VoteRemove ->
+            "Remove from ballot"
+
+        VoteCandidatesHeading ->
+            "Entries"
+
+        VotePick ->
+            "Choose"
+
+        VotePickedPrefix ->
+            "Chosen for place "
+
+        VoteBallotFull ->
+            "Ballot is full"
+
+        VoteSave ->
+            "Save vote"
+
+        VoteSaving ->
+            "Saving…"
+
+        VoteSaved ->
+            "Your vote has been saved."
+
+        VoteUnsaved ->
+            "Your changes are not saved yet."
+
+        VoteNoCandidates ->
+            "The competition has no approved entries yet."
+
+        VoteNotEnabled ->
+            "This competition has no voting."
+
+        ErrBallotLoad ->
+            "Your vote could not be loaded. Reload the page."
+
+        ErrBallotEmpty ->
+            "Choose at least one entry."
+
+        ErrBallotRejected ->
+            "The vote was not accepted: voting is not open, or a chosen entry is no longer in the competition."
+
+        ErrBallotSave ->
+            "Saving the vote failed. Try again."
+
+        AdminFieldVotingEnabled ->
+            "Public voting enabled"
+
+        AdminFieldVotingRequired ->
+            "Participants must vote"
+
+        AdminFieldVotingStart ->
+            "Voting starts"
+
+        AdminFieldVotingEnd ->
+            "Voting closes (at the start of the day)"
+
+        AdminErrVotingDates ->
+            "Voting needs a start and an end date, and the end must be after the start."
+
+        AdminVoteResultHeading ->
+            "Vote result"
+
+        AdminBallotCount ->
+            "Ballots: "
+
+        AdminNotVoted ->
+            "No place, as the submitter did not vote: "

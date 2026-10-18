@@ -67,7 +67,7 @@ cp "$SNAPSHOT" "$WORK/baseline-migrations/"
 schema "$WORK/baseline" >"$WORK/baseline.schema"
 
 "${PB_BIN[@]}" migrate up --dir "$WORK/fresh" --migrationsDir ./pb_migrations >/dev/null
-for collection in competitions entries reviews profiles local_users; do
+for collection in competitions entries reviews profiles local_users votes; do
   count "$WORK/fresh" "$collection" >/dev/null || fail "Expected collection $collection"
 done
 revert "$WORK/fresh"

@@ -85,7 +85,8 @@ competitions/
 │   │   ├── Types.elm           ← Model, Msg, AuthState, Page, Competition, Entry, Review
 │   │   ├── View.elm            ← All page views and UI components
 │   │   ├── View/Layout.elm     ← Wraps the page in the shared Component.Layout (header, drawer, footer)
-│   │   ├── Route.elm           ← Location hashes (#/, #/omat, #/arvostelu) of the pages
+│   │   ├── Route.elm           ← Location hashes (#/, #/omat, #/arvostelu, #/aanestys/<id>) of the pages
+│   │   ├── Voting.elm          ← Ranked voting: ballot editing, 8-5-3-2-1 tally (ADR-0007)
 │   │   ├── Ports.elm           ← JS interop (auth persistence)
 │   ├── tests/                  ← Elm test suite (elm-test)
 │   │   ├── AuthTest.elm
@@ -99,19 +100,21 @@ competitions/
 │   └── packages → ../vendor/master-builder/packages
 │
 ├── pocketbase/                 ← Copy of the production PocketBase (gitignored; real data, never commit or publish)
-├── pb_hooks/                   ← PocketBase JSVM hooks: Keycloak-first auth, entry/review validation, production events/locations (helpers in lib/)
+├── pb_hooks/                   ← PocketBase JSVM hooks: Keycloak-first auth, entry/review/vote validation, production events/locations (helpers in lib/)
 │
 ├── pb_migrations/              ← PocketBase schema migrations (all environments)
 │   ├── 1792266035_collections_snapshot.js  ← production baseline (users, events, locations); applied there already
 │   ├── 1792266036_competitions_schema.js   ← competitions, entries, reviews, profiles, local_users; users fields
-│   └── 1792266037_members_only_events_locations.js
+│   ├── 1792266037_members_only_events_locations.js
+│   └── 1792266038_competition_voting.js    ← voting settings on competitions; votes (ranked ballots), ADR-0007
 ├── pb_migrations_dev/          ← Local-only fixture/settings migrations (never production)
 │   ├── 001_seed_competition.js
 │   ├── 002_configure_mailpit_smtp.js
 │   ├── 003_seed_demo_fixture.js
 │   ├── 004_seed_local_participants.js
 │   ├── 005_seed_keycloak_shadow_users.js
-│   └── 006_keycloak_issuer_localhost.js   ← local Keycloak provider on users
+│   ├── 006_keycloak_issuer_localhost.js   ← local Keycloak provider on users
+│   └── 007_seed_voting.js                 ← competition with a running vote, entries and ballots
 ├── keycloak/
 │   └── competitions-realm.json ← Local Keycloak realm/client/users fixture
 │
@@ -128,7 +131,8 @@ competitions/
 │       ├── ADR-0003-dual-auth-keycloak.md
 │       ├── ADR-0004-in-app-admin.md
 │       ├── ADR-0005-dynamic-review-criteria.md
-│       └── ADR-0006-shared-production-pocketbase.md
+│       ├── ADR-0006-shared-production-pocketbase.md
+│       └── ADR-0007-ranked-voting.md
 │
 └── devenv.nix                  ← Nix devenv: GHC, Elm/Vite tools, PocketBase, Caddy, Mailpit, Keycloak
 ```
@@ -233,6 +237,7 @@ devenv shell --no-eval-cache -- make pb-test-fixture    # smoke-test schema + lo
 devenv shell --no-eval-cache -- make pb-test-auth-policy # smoke-test Keycloak-first OTP hooks + members-only events
 devenv shell --no-eval-cache -- make pb-test-production-baseline # migrations on the production snapshot (PB_PRODUCTION_COPY=pocketbase/pb_data for a data copy)
 devenv shell --no-eval-cache -- make pb-test-entry-limits # smoke-test entry image limit hooks
+devenv shell --no-eval-cache -- make pb-test-votes-policy # smoke-test ranked voting (period, ranking, secret ballots)
 devenv shell --no-eval-cache -- make pb-seed            # apply local-only fixture migrations to pb_data/
 
 # Everything

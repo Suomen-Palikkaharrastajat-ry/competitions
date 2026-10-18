@@ -5,14 +5,15 @@ actions on it.
 -}
 
 import Admin
-import Html exposing (Html, a, button, div, h1, h2, img, input, label, li, p, span, text, textarea, ul)
+import Html exposing (Html, a, button, div, h1, h2, img, input, label, li, ol, p, span, text, textarea, ul)
 import Html.Attributes as Attr
 import Html.Events as Events
 import I18n exposing (t)
 import Lang exposing (Lang)
 import RemoteData
 import Scoring
-import Types exposing (AdminField(..), Competition, CompetitionForm, CompetitionStatus(..), Entry, EntryStatus(..), FormError(..), Model, Msg(..), Page(..), ReviewableEntry)
+import Types exposing (AdminField(..), AdminFlag(..), Ballot, Competition, CompetitionForm, CompetitionStatus(..), Entry, EntryStatus(..), FormError(..), Model, Msg(..), Page(..), ReviewableEntry)
+import Voting
 
 
 viewAdminHome : Model -> Html Msg
@@ -127,6 +128,16 @@ viewAdminCompetition model target =
                     , viewNumberField model.lang "admin-max-entries" I18n.AdminFieldMaxEntries FieldMaxEntries form.maxEntriesPerUser
                     , viewNumberField model.lang "admin-min-images" I18n.AdminFieldMinImages FieldMinImages form.minImagesPerEntry
                     , viewNumberField model.lang "admin-max-images" I18n.AdminFieldMaxImages FieldMaxImages form.maxImagesPerEntry
+                    , viewCheckbox model.lang "admin-voting-enabled" I18n.AdminFieldVotingEnabled FlagVotingEnabled form.votingEnabled
+                    , if form.votingEnabled then
+                        div [ Attr.class "grid gap-4 pl-4 border-l-2 border-border-default" ]
+                            [ viewCheckbox model.lang "admin-voting-required" I18n.AdminFieldVotingRequired FlagVotingRequired form.votingRequired
+                            , viewDateField model.lang "admin-voting-start" I18n.AdminFieldVotingStart FieldVotingStartDate form.votingStartDate
+                            , viewDateField model.lang "admin-voting-end" I18n.AdminFieldVotingEnd FieldVotingEndDate form.votingEndDate
+                            ]
+
+                      else
+                        text ""
                     , case target of
                         Just _ ->
                             viewStatusControl model.lang form.status
@@ -209,6 +220,9 @@ errorKey error =
         ImageLimitsInvalid ->
             I18n.AdminErrImageLimits
 
+        VotingDatesInvalid ->
+            I18n.AdminErrVotingDates
+
         ServerRejected ->
             I18n.AdminErrServer
 
@@ -243,6 +257,21 @@ viewDateField lang fieldId labelKey field value =
             ]
             []
         )
+
+
+viewCheckbox : Lang -> String -> I18n.MsgKey -> AdminFlag -> Bool -> Html Msg
+viewCheckbox lang fieldId labelKey flag value =
+    label [ Attr.for fieldId, Attr.class "flex items-center gap-3 type-body-small text-brand" ]
+        [ input
+            [ Attr.id fieldId
+            , Attr.type_ "checkbox"
+            , Attr.checked value
+            , Attr.class "h-5 w-5 accent-brand outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            , Events.onCheck (AdminFlagChanged flag)
+            ]
+            []
+        , text (t lang labelKey)
+        ]
 
 
 viewNumberField : Lang -> String -> I18n.MsgKey -> AdminField -> String -> Html Msg
@@ -297,22 +326,46 @@ fieldClass =
 viewAdminEntries : Model -> String -> Html Msg
 viewAdminEntries model competitionId =
     let
-        competitionTitle =
+        competition =
             case model.adminCompetitions of
                 RemoteData.Success competitions ->
                     competitions
-                        |> List.filter (\competition -> competition.id == competitionId)
+                        |> List.filter (\c -> c.id == competitionId)
                         |> List.head
-                        |> Maybe.map .title
-                        |> Maybe.withDefault ""
 
                 _ ->
-                    ""
+                    Nothing
+
+        competitionTitle =
+            Maybe.map .title competition |> Maybe.withDefault ""
+
+        lang =
+            model.lang
     in
     div [ Attr.class "max-w-5xl mx-auto px-4" ]
-        [ h1 [ Attr.class "type-h1 text-brand mb-2" ] [ text (t model.lang I18n.AdminEntries) ]
+        [ h1 [ Attr.class "type-h1 text-brand mb-2" ] [ text (t lang I18n.AdminEntries) ]
         , p [ Attr.class "type-caption text-text-muted mb-6" ] [ text competitionTitle ]
         , viewAdminError model.authError
+        , case ( competition, model.adminEntries, model.voting.adminBallots ) of
+            ( Just c, RemoteData.Success entries, RemoteData.Success ballots ) ->
+                if c.votingEnabled then
+                    viewVoteResult lang c entries ballots
+
+                else
+                    text ""
+
+            ( Just c, _, RemoteData.Failure _ ) ->
+                if c.votingEnabled then
+                    div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-6 mb-6", Attr.id "vote-result" ]
+                        [ h2 [ Attr.class "type-h3 text-brand mb-2" ] [ text (t lang I18n.AdminVoteResultHeading) ]
+                        , p [ Attr.class "text-brand-red" ] [ text (t lang I18n.LoadFailed) ]
+                        ]
+
+                else
+                    text ""
+
+            _ ->
+                text ""
         , case model.adminEntries of
             RemoteData.Success entries ->
                 if List.isEmpty entries then
@@ -329,6 +382,53 @@ viewAdminEntries model competitionId =
 
             RemoteData.NotAsked ->
                 text ""
+        ]
+
+
+{-| The live count of the votes, for the organiser (ADR-0007): the approved
+entries by points, and those left out because their submitter did not vote.
+-}
+viewVoteResult : Lang -> Competition -> List ReviewableEntry -> List Ballot -> Html Msg
+viewVoteResult lang competition reviewables ballots =
+    let
+        approved =
+            List.filter (\r -> r.entry.status == Approved) reviewables
+
+        result =
+            Voting.tally competition.votingRequired (List.map .entry approved) ballots
+
+        submitterOf entry =
+            approved
+                |> List.filter (\r -> r.entry.id == entry.id)
+                |> List.head
+                |> Maybe.map .submitterName
+                |> Maybe.withDefault ""
+    in
+    div [ Attr.class "rounded-lg bg-white shadow-sm border border-border-default p-6 mb-6", Attr.id "vote-result" ]
+        [ h2 [ Attr.class "type-h3 text-brand mb-2" ] [ text (t lang I18n.AdminVoteResultHeading) ]
+        , p [ Attr.class "type-caption text-text-muted mb-4" ]
+            [ text (t lang I18n.AdminBallotCount ++ String.fromInt (List.length ballots)) ]
+        , ol [ Attr.class "grid gap-1" ]
+            (List.map
+                (\row ->
+                    li [ Attr.class "type-body-small text-brand flex gap-3" ]
+                        [ span [ Attr.class "w-8" ] [ text (String.fromInt row.place ++ ".") ]
+                        , span [ Attr.class "flex-1" ] [ text (row.entry.title ++ " — " ++ submitterOf row.entry) ]
+                        , span [] [ text (String.fromInt row.points ++ t lang I18n.VotePointsSuffix) ]
+                        ]
+                )
+                result.ranked
+            )
+        , if List.isEmpty result.excluded then
+            text ""
+
+          else
+            p [ Attr.class "type-caption text-text-muted mt-4" ]
+                [ text
+                    (t lang I18n.AdminNotVoted
+                        ++ String.join ", " (List.map (\entry -> entry.title ++ " (" ++ submitterOf entry ++ ")") result.excluded)
+                    )
+                ]
         ]
 
 

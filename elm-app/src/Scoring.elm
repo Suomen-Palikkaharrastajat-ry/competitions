@@ -1,4 +1,4 @@
-module Scoring exposing (canEditEntry, canSubmitMore, deadlineUrgency, entryAverage, findEntry, formatDate, isDeadlinePassed, reviewTotal, scoreMax)
+module Scoring exposing (canEditEntry, canSubmitMore, deadlineUrgency, entryAverage, findEntry, formatDate, isDeadlinePassed, parseDateToMillis, reviewTotal, scoreMax)
 
 {-| Canonical score aggregation formula used by both Elm and Haskell gallery.
 
@@ -78,6 +78,9 @@ isDeadlinePassed endDate now =
             False
 
 
+{-| A PocketBase timestamp ("YYYY-MM-DD HH:MM:SS.mmmZ") in milliseconds since
+the epoch, UTC.
+-}
 parseDateToMillis : String -> Maybe Int
 parseDateToMillis s =
     case List.filterMap String.toInt (String.split "-" (String.left 10 s)) of

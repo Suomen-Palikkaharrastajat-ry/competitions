@@ -20,6 +20,7 @@ import Test exposing (Test, describe, test)
 import TestSite
 import Time
 import Types exposing (..)
+import Voting
 
 
 emptyForm : SubmitForm
@@ -49,6 +50,10 @@ testCompetition =
     , maxEntriesPerUser = Just 3
     , minImagesPerEntry = Nothing
     , maxImagesPerEntry = Nothing
+    , votingEnabled = False
+    , votingRequired = False
+    , votingStartDate = Nothing
+    , votingEndDate = Nothing
     , startDate = "2026-06-01 00:00:00.000Z"
     , judgingEndDate = Nothing
     , status = COpen
@@ -64,6 +69,7 @@ testEntry =
     , description = Nothing
     , images = [ "photo.jpg" ]
     , status = Draft
+    , submitterId = "profile1"
     , publishedReviews = []
     }
 
@@ -125,6 +131,7 @@ baseModel =
     , adminFormErrors = []
     , adminEntries = RemoteData.NotAsked
     , criteria = TestSite.criteria Fi
+    , voting = Voting.init
     }
 
 

@@ -1,8 +1,10 @@
 module Types exposing
     ( AdminField(..)
+    , AdminFlag(..)
     , AuthResponse
     , AuthState(..)
     , AuthUser
+    , Ballot
     , Competition
     , CompetitionForm
     , CompetitionStatus(..)
@@ -19,8 +21,10 @@ module Types exposing
     , ReviewForm
     , ReviewSummary
     , ReviewableEntry
+    , ServerError
     , SubmitForm
     , SubmitFormStep(..)
+    , VotingModel
     )
 
 {-| Core types for the competition platform application.
@@ -85,6 +89,15 @@ type AdminField
     | FieldMaxEntries
     | FieldMinImages
     | FieldMaxImages
+    | FieldVotingStartDate
+    | FieldVotingEndDate
+
+
+{-| A yes/no setting of the competition form.
+-}
+type AdminFlag
+    = FlagVotingEnabled
+    | FlagVotingRequired
 
 
 {-| Why a competition form cannot be saved.
@@ -96,6 +109,7 @@ type FormError
     | EndBeforeStart
     | MaxEntriesInvalid
     | ImageLimitsInvalid
+    | VotingDatesInvalid
     | ServerRejected
 
 
@@ -113,6 +127,10 @@ type alias CompetitionForm =
     , maxEntriesPerUser : String
     , minImagesPerEntry : String
     , maxImagesPerEntry : String
+    , votingEnabled : Bool
+    , votingRequired : Bool
+    , votingStartDate : String
+    , votingEndDate : String
     , status : CompetitionStatus
     }
 
@@ -144,6 +162,10 @@ type alias Competition =
     , maxEntriesPerUser : Maybe Int
     , minImagesPerEntry : Maybe Int
     , maxImagesPerEntry : Maybe Int
+    , votingEnabled : Bool
+    , votingRequired : Bool
+    , votingStartDate : Maybe String
+    , votingEndDate : Maybe String
     }
 
 
@@ -170,6 +192,7 @@ type alias Entry =
     { id : String
     , competitionId : String
     , competition : Maybe Competition
+    , submitterId : String
     , title : String
     , description : Maybe String
     , images : List String
@@ -217,6 +240,42 @@ type alias Review =
     }
 
 
+{-| A voter's ranking of a competition's entries: entry ids in preference
+order, 1st to at most 5th (ADR-0007).
+-}
+type alias Ballot =
+    { id : Maybe String
+    , competitionId : String
+    , voterId : String
+    , ranking : List String
+    }
+
+
+{-| A failed request with the server's message, when it sent one.
+-}
+type alias ServerError =
+    { error : Http.Error
+    , message : Maybe String
+    }
+
+
+{-| The state of ranked voting: the competitions whose voting is running (on
+the dashboard), the vote page of one competition with the ballot being made,
+and the ballots an admin counts.
+-}
+type alias VotingModel =
+    { openCompetitions : RemoteData Http.Error (List Competition)
+    , competition : RemoteData Http.Error Competition
+    , candidates : RemoteData Http.Error (List Entry)
+    , ballot : Ballot
+    , ballotLoaded : Bool
+    , saving : Bool
+    , saved : Bool
+    , error : Maybe String
+    , adminBallots : RemoteData Http.Error (List Ballot)
+    }
+
+
 {-| An entry with its expanded competition and submitter, ready for review.
 -}
 type alias ReviewableEntry =
@@ -258,6 +317,7 @@ type Page
     | AdminPage
     | AdminCompetitionPage (Maybe String)
     | AdminEntriesPage String
+    | VotePage String
     | NotFoundPage
 
 
@@ -298,6 +358,7 @@ type alias Model =
     , adminFormErrors : List FormError
     , adminEntries : RemoteData Http.Error (List ReviewableEntry)
     , criteria : List Criterion
+    , voting : VotingModel
     }
 
 
@@ -353,6 +414,7 @@ type Msg
     | AdminCompetitionsLoaded (Result Http.Error (List Competition))
     | AdminEntriesLoaded (Result Http.Error (List ReviewableEntry))
     | AdminFieldChanged AdminField String
+    | AdminFlagChanged AdminFlag Bool
     | SaveCompetition
     | SetCompetitionStatus CompetitionStatus
     | CompetitionSaved (Result Http.Error Competition)
@@ -371,5 +433,17 @@ type Msg
     | RejectEntry String
     | ResetEntry String
     | EntryStatusChanged String EntryStatus (Result Http.Error ())
+      -- Voting
+    | VotingCompetitionsLoaded (Result Http.Error (List Competition))
+    | VoteCompetitionLoaded String (Result Http.Error Competition)
+    | VoteCandidatesLoaded String (Result Http.Error (List Entry))
+    | MyBallotLoaded String (Result Http.Error (Maybe Ballot))
+    | PickEntry String
+    | UnpickEntry String
+    | MoveEntryUp String
+    | MoveEntryDown String
+    | SaveBallot
+    | BallotSaved String (Result ServerError Ballot)
+    | AdminBallotsLoaded String (Result Http.Error (List Ballot))
       -- Time
     | Tick Time.Posix
