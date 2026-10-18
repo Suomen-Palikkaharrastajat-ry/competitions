@@ -49,5 +49,8 @@ TODO*
 # Python bytecode (scripts/screencast)
 __pycache__/
 
+# Screencast test run outputs
+var/
+
 # Copy of the production PocketBase (real member data). Never commit it.
 /pocketbase/

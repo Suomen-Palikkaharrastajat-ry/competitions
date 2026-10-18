@@ -12,11 +12,14 @@
 - [ ] Given I try to submit without a title, when I click "Lähetä", then a validation error "Nimi on pakollinen" is shown.
 - [ ] Given I try to submit with no images, when I click "Lähetä", then a validation error "Lisää vähintään yksi kuva" is shown.
 - [ ] Given I add more than 10 images, when I try to add an 11th, then the file input is disabled and a note "Enintään 10 kuvaa" is shown.
+- [ ] Given I add images to the submission form, then large preview tiles are displayed showing each image with the filename visible as a tooltip.
 - [ ] Given I am on the submission form, I can remove individual images from the selection before saving.
 - [ ] Given the competition's end_date has passed, when I try to submit, then an error "Kilpailun ilmoittautumisaika on umpeutunut" is shown.
 
 ## Notes
 
-- Images: JPEG, PNG, WebP only. Max 10 MB per image. Max 10 images per entry.
+- Images: JPEG, PNG, WebP only. Max 10 MB per image. Max 10 images per entry (or the competition's `max_images_per_entry`).
+- Images are automatically resized and converted to WebP in the browser before upload.
+- Selected images are previewed as large tiles with file names in tooltips.
 - Draft auto-save is optional but recommended. MVP: explicit "Tallenna luonnos" button.
-- The submission confirmation dialog must say that the entry can be edited until the competition's end_date.
+- The submission confirmation dialog explains that the entry can be edited until the competition's end_date.

@@ -10,7 +10,7 @@
 - [ ] Given I enter an incorrect OTP, when I submit, then an error message "Väärä koodi tai vanhentunut linkki" is shown and I can try again.
 - [ ] Given I have logged in, when I reload the page, then I am still logged in (auth token persisted in localStorage).
 - [ ] Given I am logged in, when I click "Kirjaudu ulos", then my token is removed and I am returned to the login page.
-- [ ] Given I am a reviewer (`is_reviewer = true`), when I log in, then I see the "Arvosteltavat" nav item that regular participants do not see.
+- [ ] Given I am a reviewer (`is_reviewer = true`), when I log in, then I see the "Arvosteltavat" (`#/arvostelu`) and "Ylläpito" (`#/admin`) navigation items that regular participants do not see.
 
 ## Notes
 

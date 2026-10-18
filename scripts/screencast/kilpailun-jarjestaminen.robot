@@ -33,24 +33,22 @@ Olli Perustaa Kilpailun
     [Setup]    Start Actor Turn    olli    anonymous=${True}
     ...    eyebrow=Palikkakilpailun järjestäminen · 1 / 7
     ...    title=Kilpailun perustaminen
-    ...    subtitle=Järjestäjä luo kilpailun PocketBasen ylläpitonäkymässä
-    Open Admin Collection    competitions
-    Caption    Kilpailut ovat ylläpitonäkymän competitions-kokoelmassa.
-    Human Click    role=button[name="New Record"]
-    Wait Until Visible    role=textbox[name="title *"]
-    Fill Competition Form    ${COMPETITION}    majakka-2026    Majakka
+    ...    subtitle=Järjestäjä luo kilpailun sovelluksen ylläpidossa
+    Sign In As Member    keycloak-reviewer@example.test    reviewer
+    Caption    Kilpailut luodaan ja hallitaan sovelluksen omassa Ylläpito-osiossa.
+    Open In-App Admin
+    Caption    Ylläpidossa näkyvät kaikki kilpailut ja niiden tilat.
+    Fill In-App Competition Form    ${COMPETITION}    majakka-2026    Majakka
     ...    Rakenna majakka – pieni tai suuri, merellä tai maalla.
-    ...    Yksi osallistuminen per rakentaja. 1–3 kuvaa, joista ensimmäinen on pääkuva.
-    ...    2026-10-01T09:00    2026-11-30T21:59    2026-12-15T21:59
-    ...    ${IMAGES}/kansi.png
-    Caption    Ajat ovat UTC-aikaa: 21.59 UTC on 23.59 Suomen aikaa.
-    Set Entry Limits    1    1    3
-    Caption    Rajat: yksi osallistuminen per henkilö ja 1–3 kuvaa per osallistuminen.
-    Choose Status    open
-    Caption    Tila "open" näyttää kilpailun osallistujille. "draft" pitää sen piilossa.
-    Human Click    role=button[name="Create"s]
-    Wait Until Visible    role=cell[name="${COMPETITION}"s]
+    ...    2026-10-01    2026-11-30    2026-12-15    1    3    1
+    Caption    Lomakkeella asetetaan ajat, teema sekä osallistumis- ja kuvarajat.
+    Save In-App Competition
+    Caption    Uusi kilpailu luodaan luonnoksena. Avataan se muokkaukseen ja siirretään tilaan Avoin.
+    Open Competition Edit In App Admin    ${COMPETITION}
+    Transition In-App Status    Avoin
+    Caption    Kilpailu on nyt avoinna osallistujille.
     Take Screenshot    ${SHOTS_DIR}/01-kilpailu-luotu.png
+    Human Click    role=button[name="Kirjaudu ulos"]
     [Teardown]    End Actor Turn
 
 Iida Osallistuu Taustalla
@@ -75,7 +73,7 @@ Aino Osallistuu
     Wait Until Visible    text=Luonnos tallennettu.
     Caption    Luonnosta voi muokata, kunnes sen lähettää arvioitavaksi.
     Submit Entry
-    Caption    Lähettäminen vahvistetaan: sen jälkeen työtä ei voi enää muokata.
+    Caption    Lähettäminen vahvistetaan. Työtä voi vielä muokata osallistumisajan päättymiseen saakka.
     Open My Entries
     Wait Until Visible    text=${AINO_ENTRY}
     Human Click    role=link[name="Kilpailut"]

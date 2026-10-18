@@ -38,7 +38,7 @@ Open Admin Collection
     ${session}=    Admin Session
     Use Session    ${session}
     Go To    ${ADMIN}#/collections?collection=${collection}
-    Wait Until Visible    role=button[name="New Record"]
+    Wait Until Visible    role=button[name="New record"i]
 
 Choose Status
     [Arguments]    ${status}
@@ -157,3 +157,75 @@ Review Entry
     Human Click    css=div.p-4:has(p:text-is("${entry}")) >> role=button[name="Arvioi"]
     Wait Until Visible    role=dialog[name="Arvostele: ${entry}"]
     Score Entry    ${theme}    ${originality}    ${technique}    ${presentation}    ${comment}
+
+# ── In-App Admin (ADR-0004) ────────────────────────────────────────────────
+
+Open In-App Admin
+    Human Click    role=link[name="Ylläpito"]
+    Wait Until Visible    role=heading[name="Ylläpito"]
+
+Fill In-App Competition Form
+    [Arguments]    ${title}    ${slug}    ${theme}    ${description}
+    ...    ${start}    ${end}    ${judging_end}    ${min_img}    ${max_img}    ${max_entries}=${EMPTY}
+    Human Click    role=button[name="+ Uusi kilpailu"]
+    Wait Until Visible    role=heading[name="Uusi kilpailu"]
+    Human Type    label=Nimi    ${title}
+    Human Type    label=Tunniste (osoitteeseen)    ${slug}
+    Human Type    label=Teema    ${theme}
+    Human Type    label=Kuvaus    ${description}
+    Fill Field    label=Alkaa    ${start}
+    Fill Field    label=Osallistumisen päättyy    ${end}
+    Fill Field    label=Arvostelun päättyy    ${judging_end}
+    IF    "${max_entries}" != ""
+        Fill Field    label=Osallistumisia per osallistuja (tyhjä = oletus)    ${max_entries}
+    END
+    Fill Field    label=Kuvia vähintään    ${min_img}
+    Fill Field    label=Kuvia enintään    ${max_img}
+
+Enable Ranked Voting On Form
+    [Arguments]    ${start}    ${end}    ${required}=${False}
+    Human Click    label=Yleisöäänestys käytössä
+    Fill Field    label=Äänestys alkaa    ${start}
+    Fill Field    label=Äänestys päättyy    ${end}
+    IF    ${required}
+        Human Click    label=Osallistujien on äänestettävä
+    END
+
+Save In-App Competition
+    Human Click    role=button[name="Tallenna"s]
+    Wait Until Visible    role=heading[name="Ylläpito"]
+
+Open Competition Edit In App Admin
+    [Arguments]    ${title}
+    Open In-App Admin
+    Human Click    css=li:has(h2:text-is("${title}")) >> role=button[name="Muokkaa"]
+    Wait Until Visible    role=heading[name="Muokkaa kilpailua"]
+
+Transition In-App Status
+    [Arguments]    ${target_status}
+    Human Click    role=button[name="Siirrä tilaan: ${target_status}"]
+    Wait Until Visible    text=Tila: ${target_status}
+
+Open In-App Admin Entries
+    [Arguments]    ${title}
+    Open In-App Admin
+    Human Click    css=li:has(h2:text-is("${title}")) >> role=button[name="Osallistumiset"]
+    Wait Until Visible    role=heading[name="Osallistumiset"]
+
+# ── Voting UI (ADR-0007) ───────────────────────────────────────────────────
+
+Open Vote Page
+    [Arguments]    ${competition_title}
+    Go To    ${APP}/
+    Wait Until Visible    text=Äänestys käynnissä
+    Human Click    css=li:has-text("${competition_title}") >> role=button[name="Äänestä"]
+    Wait Until Visible    role=heading[name^="Äänestys:"]
+
+Choose Entry To Vote
+    [Arguments]    ${entry_title}
+    Human Click    role=button[name="Valitse: ${entry_title}"]
+
+Save Vote Ballot
+    Human Click    role=button[name="Tallenna ääni"]
+    Wait Until Visible    text=Äänesi on tallennettu.
+

@@ -38,6 +38,10 @@ def _env():
     return values
 
 
+def _quote(val):
+    return json.dumps(val, ensure_ascii=False)
+
+
 @library(scope="GLOBAL")
 class CompetitionsLibrary:
     def __init__(self):
@@ -113,12 +117,12 @@ class CompetitionsLibrary:
         for collection in ("reviews", "entries", "competitions"):
             for record in self._all(collection):
                 self._request("DELETE", f"/api/collections/{collection}/records/{record['id']}")
-        quoted = json.dumps(otp_email)
+        quoted = _quote(otp_email)
         for collection in ("local_users", "profiles"):
             for record in self._all(collection, f"email = {quoted}"):
                 self._request("DELETE", f"/api/collections/{collection}/records/{record['id']}")
         for email, name in display_names.items():
-            quoted = json.dumps(email)
+            quoted = _quote(email)
             for collection in ("profiles", "users", "local_users"):
                 for record in self._all(collection, f"email = {quoted}"):
                     self._request(
@@ -131,8 +135,8 @@ class CompetitionsLibrary:
     @keyword
     def create_submitted_entry(self, competition_title, submitter_email, title, description, *images):
         """Create an already submitted entry for `submitter_email` (a profile)."""
-        competition = self._all("competitions", f"title = {json.dumps(competition_title)}")[0]
-        profile = self._all("profiles", f"email = {json.dumps(submitter_email)}")[0]
+        competition = self._all("competitions", f"title = {_quote(competition_title)}")[0]
+        profile = self._all("profiles", f"email = {_quote(submitter_email)}")[0]
         fields = {
             "competition": competition["id"],
             "submitter": profile["id"],
@@ -148,16 +152,33 @@ class CompetitionsLibrary:
     @keyword
     def approve_entry(self, title):
         """Set the status of an entry to 'approved'."""
-        for record in self._all("entries", f"title = {json.dumps(title)}"):
+        for record in self._all("entries", f"title = {_quote(title)}"):
             self._request("PATCH", f"/api/collections/entries/records/{record['id']}", {"status": "approved"})
+
+    @keyword
+    def enable_competition_voting(
+        self, competition_title, start="2026-01-01 00:00:00.000Z", end="2099-01-01 00:00:00.000Z", required=False
+    ):
+        """Enable ranked voting on a competition."""
+        comp = self._all("competitions", f"title = {_quote(competition_title)}")[0]
+        self._request(
+            "PATCH",
+            f"/api/collections/competitions/records/{comp['id']}",
+            {
+                "voting_enabled": True,
+                "voting_start_date": start,
+                "voting_end_date": end,
+                "voting_required": bool(required),
+            },
+        )
 
     @keyword
     def create_published_review(
         self, entry_title, reviewer_email, theme=5, originality=5, technique=5, presentation=5, comment=""
     ):
         """Create a published review for an entry as reviewer_email."""
-        entry = self._all("entries", f"title = {json.dumps(entry_title)}")[0]
-        reviewer = self._all("profiles", f"email = {json.dumps(reviewer_email)}")[0]
+        entry = self._all("entries", f"title = {_quote(entry_title)}")[0]
+        reviewer = self._all("profiles", f"email = {_quote(reviewer_email)}")[0]
         fields = {
             "entry": entry["id"],
             "reviewer": reviewer["id"],

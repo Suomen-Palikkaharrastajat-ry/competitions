@@ -19,11 +19,12 @@ Valmistele Ymparisto
     Reset Demo Data
     Clear State
     Serve App
+    Start Observer    arvostelu    ${APP}/#/arvostelu
 
 Perusta Kilpailu Ja Osallistumiset
     # Create competition in judging state
     Open Admin Collection    competitions
-    Human Click    role=button[name="New Record"]
+    Human Click    role=button[name="New record"i]
     Wait Until Visible    role=textbox[name="title *"]
     Fill Competition Form    ${COMPETITION}    majakka-2026    Majakka
     ...    Rakenna majakka – pieni tai suuri, merellä tai maalla.
@@ -75,6 +76,10 @@ Hyvaksy Ja Hylkaa
     Caption    Sääntöjen vastainen tai puutteellinen työ merkitään hylätyksi.
     Take Screenshot    ${SHOTS_DIR}/02-hyvaksytty-ja-hylatty.png
     [Teardown]    End Actor Turn
+
+Lopuksi
+    Hold    2
+    End Observer
 
 *** Keywords ***
 Restore The Story State

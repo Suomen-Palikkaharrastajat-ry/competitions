@@ -12,9 +12,11 @@
 - [ ] Given I click on an entry image, then a lightbox opens showing the full image.
 - [ ] Given the gallery has more than one competition, then competitions are shown with the most recently finished first.
 - [ ] Given `anonymize_submitters = true` in `competition.toml`, when the gallery is generated, then submitter names are not shown.
+- [ ] Given a competition had voting enabled and its voting period has ended, when the gallery is generated with `POCKETBASE_API_KEY` set, then it displays "Yleisöäänestys" with ranks and points (8-5-3-2-1 system) next to the review podium.
 
 ## Notes
 
 - Gallery is a **build-time snapshot**: it does not update in real time.
+- Shows both reviewer rankings and public vote results (ADR-0007). Ballots themselves are secret and never shown.
 - The gallery must pass basic WCAG AA accessibility (alt text on images, sufficient colour contrast).
 - The gallery is published under the app's site at `/galleria/` and links the hub's self-hosted Outfit (`/fonts/outfit.css`) in `<head>` — its one dependency besides PocketBase image URLs.

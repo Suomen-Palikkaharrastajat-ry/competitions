@@ -17,11 +17,12 @@ Valmistele Ymparisto
     Reset Demo Data
     Clear State
     Serve App
+    Start Observer    etusivu    ${APP}/
 
 Perusta Kilpailu Taustalla
     # Create competition with 1-3 images limit
     Open Admin Collection    competitions
-    Human Click    role=button[name="New Record"]
+    Human Click    role=button[name="New record"i]
     Wait Until Visible    role=textbox[name="title *"]
     Fill Competition Form    ${COMPETITION}    majakka-2026    Majakka
     ...    Rakenna majakka – pieni tai suuri, merellä tai maalla.
@@ -35,7 +36,7 @@ Perusta Kilpailu Taustalla
 
 Tayta Lomake Ja Tallenna Luonnos
     [Setup]    Start Actor Turn    aino    anonymous=${True}
-    ...    eyebrow=Osallistuminen · 1 / 2
+    ...    eyebrow=Osallistuminen · 1 / 3
     ...    title=Lomakkeen täyttö ja luonnos
     ...    subtitle=Tietojen syöttö, kuvien WebP-optimointi ja luonnoksen tallennus
     Sign In As Member    keycloak-participant@example.test    participant
@@ -54,7 +55,7 @@ Tayta Lomake Ja Tallenna Luonnos
 
 Lisaa Kuvat Ja Laheta
     [Setup]    Start Actor Turn    aino    anonymous=${True}
-    ...    eyebrow=Osallistuminen · 2 / 2
+    ...    eyebrow=Osallistuminen · 2 / 3
     ...    title=Kuvien lisäys ja lähetys
     ...    subtitle=Täydennetään kuvat ja vahvistetaan lähetys arviointiin
     Open App As    aino_session    /#/omat
@@ -63,14 +64,37 @@ Lisaa Kuvat Ja Laheta
     Human Click    role=button[name="Muokkaa"]
     Wait Until Visible    role=textbox[name="Nimi *"]
     Upload Images    input[type=file]    ${IMAGES}/aino-2.png    ${IMAGES}/aino-3.png
-    Caption    Lisätään kaksi lisäkuvaa. Kuvalaskuri päivittyy automaattisesti.
+    Caption    Lisätään kaksi lisäkuvaa. Kuvalaskuri ja esikatselu päivittyvät automaattisesti.
     Submit Entry
-    Caption    Vahvistusikkuna varmistaa, ettei keskeneräistä työtä lähetetä vahingossa.
+    Caption    Vahvistusikkuna ilmoittaa, että työtä voi muokata määräaikaan asti.
     Open My Entries
     Wait Until Visible    text=${ENTRY_TITLE}
     Caption    Omat osallistumiset -sivulla näkyy työn tilana "Lähetetty".
     Take Screenshot    ${SHOTS_DIR}/02-tyo-lahetetty.png
     [Teardown]    End Actor Turn
+
+Muokkaa Lahetettya Tyota
+    [Setup]    Start Actor Turn    aino    anonymous=${True}
+    ...    eyebrow=Osallistuminen · 3 / 3
+    ...    title=Lähetetyn työn muokkaaminen
+    ...    subtitle=Osallistuja voi päivittää teostaan aina määräajan päättymiseen asti
+    Open App As    aino_session    /#/omat
+    Wait Until Visible    text=${ENTRY_TITLE}
+    Human Click    css=button:has-text("${ENTRY_TITLE}")
+    Wait Until Visible    role=button[name="Muokkaa"]
+    Caption    Oman työn sivulla näkyy kilpailun aikajänne, suuret kuvatiilet ja Muokkaa-painike.
+    Human Click    role=button[name="Muokkaa"]
+    Wait Until Visible    role=textbox[name="Nimi *"]
+    Paste Text    role=textbox[name="Kuvaus"]    Punavalkoinen majakka kalliosaarella. Valo pyörii pienellä moottorilla ja loistaa pimeässä.
+    Human Click    role=button[name="Tallenna muutokset"]
+    Wait Until Visible    text=Muutokset tallennettu.
+    Caption    Lähetetyn työn muutokset tallentuvat ilman että arviointitila katkeaa.
+    Take Screenshot    ${SHOTS_DIR}/03-muutokset-tallennettu.png
+    [Teardown]    End Actor Turn
+
+Lopuksi
+    Hold    2
+    End Observer
 
 *** Keywords ***
 Restore The Story State

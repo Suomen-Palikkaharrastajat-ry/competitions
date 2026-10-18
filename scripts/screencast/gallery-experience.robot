@@ -17,11 +17,12 @@ Valmistele Galleria
     Reset Demo Data
     Clear State
     Serve App
+    Start Observer    galleria    ${APP}/
     ${builder}=    Prepare Gallery Builder
     Save State    gallery_builder    ${builder}
     # Create finished competition
     Open Admin Collection    competitions
-    Human Click    role=button[name="New Record"]
+    Human Click    role=button[name="New record"i]
     Wait Until Visible    role=textbox[name="title *"]
     Fill Competition Form    ${COMPETITION}    majakka-2026    Majakka
     ...    Rakenna majakka – pieni tai suuri, merellä tai maalla.
@@ -66,6 +67,10 @@ Selaa Tuloksia Ja Galleriaa
     Caption    Lightbox sulkeutuu kätevästi Esc-näppäimellä.
     Take Screenshot    ${SHOTS_DIR}/01-galleria-nakyma.png
     [Teardown]    End Actor Turn
+
+Lopuksi
+    Hold    2
+    End Observer
 
 *** Keywords ***
 Restore The Story State

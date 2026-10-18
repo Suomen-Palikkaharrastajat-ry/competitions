@@ -19,6 +19,7 @@ Valmistele Ymparisto
     Reset Demo Data
     Clear State
     Serve App
+    Start Observer    etusivu    ${APP}/
 
 Jasen Kirjautuu Keycloakilla
     [Setup]    Start Actor Turn    aino    anonymous=${True}
@@ -69,6 +70,10 @@ Tunnusten Ristiriitatilanne
     Caption    Turvallisuussääntö: Jäsentilin omistajaa estetään kirjautumasta ulkopuolisena OTP-koodilla.
     Take Screenshot    ${SHOTS_DIR}/03-keycloak-conflict.png
     [Teardown]    End Actor Turn
+
+Lopuksi
+    Hold    2
+    End Observer
 
 *** Keywords ***
 Restore The Story State

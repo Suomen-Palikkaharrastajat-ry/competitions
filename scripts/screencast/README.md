@@ -9,7 +9,7 @@ Tallenteet ajavat Playwright-selainta paikallista `devenv`-ympäristöä (`http:
 ## Saatavilla olevat tarinat
 
 ### 1. `kilpailun-jarjestaminen.robot` (Pääohjevideo järjestäjille)
-Kattava kilpailun elinkaari: Olli perustaa kilpailun PocketBase-ylläpidossa, Aino (Keycloak-jäsen) ja Ville (OTP-vieras) osallistuvat, Olli sulkee osallistumisen, arvostelee ja hyväksyy/hylkää työt, Aino näkee tuloksensa ja valmis kilpailu julkaistaan staattiseen galleriaan.
+Kattava kilpailun elinkaari: Olli perustaa kilpailun sovelluksen omassa Ylläpito-osiossa (`/#/admin`, ADR-0004) ja asettaa sille aikarajat ja säännöt. Aino (Keycloak-jäsen) ja Ville (OTP-vieras) osallistuvat, Olli siirtää kilpailun arviointiin, arvostelee ja hyväksyy/hylkää työt, Aino näkee tuloksensa ja valmis kilpailu julkaistaan staattiseen galleriaan.
 
 ### 2. `auth-flow.robot` (Kirjautumistavat ja tunnistautuminen)
 Keskittyy kahteen kirjautumismalliin (ADR-0003):
@@ -17,12 +17,13 @@ Keskittyy kahteen kirjautumismalliin (ADR-0003):
 - Vieras-/avoin kirjautuminen sähköpostiin tulevalla 6-numeroisella OTP-koodilla (Mailpit) ja näyttönimen valinta.
 - Tunnusristiriitojen hallinta (Keycloak-sähköpostilla ei voi pyytää OTP-koodia).
 
-### 3. `entry-submission.robot` (Kilpailutyön jättäminen ja kuvien optimointi)
+### 3. `entry-submission.robot` (Kilpailutyön jättäminen, esikatselu ja muokkaus)
 Keskittyy osallistujan työnkulkuun:
-- Teoksen nimen ja tarinan syöttö.
+- Teoksen nimen ja kuvauksen syöttö.
+- Kuvien valinta, suurikokoiset esikatseluruudut ja poistopainikkeet.
 - Selaimessa tapahtuva automaattinen WebP-pakkaus ja kuvalaskurin validointi.
 - Työn tallennus luonnoksena ja jatkaminen myöhemmin.
-- Lopullinen lähetys ja vahvistusikkuna.
+- Lähetys ja lähetetyn työn muokkaaminen määräaikaan asti.
 
 ### 4. `review-workflow.robot` (Arvostelijan työkalut ja pisteytys)
 Keskittyy arviointiprosessiin:
@@ -31,9 +32,16 @@ Keskittyy arviointiprosessiin:
 - Luonnosarvostelu vs julkaistu arvostelu.
 - Töiden hyväksyminen tai hylkääminen.
 
-### 5. `gallery-experience.robot` (Staattinen galleria ja saavutettavuus)
+### 5. `voting-flow.robot` (Yleisöäänestys ja tulosseuranta, ADR-0007)
+Keskittyy ranked voting -äänestykseen:
+- Äänestysvaiheen näyttäminen etusivulla "Äänestys käynnissä" -osiossa.
+- Suosikkien valinta sijoille 1.–5. (8-5-3-2-1 pistettä) ja lipukkeen järjestäminen nuolinäppäimillä.
+- Äänen tallentaminen ja muuttaminen äänestysajan puitteissa.
+- Reaaliaikainen äänestystulosten ja annettujen äänien seuranta järjestäjän Ylläpito-näkymässä (`/#/admin/osallistumiset/<id>`).
+
+### 6. `gallery-experience.robot` (Staattinen galleria ja saavutettavuus)
 Keskittyy julkiseen tulossivustoon:
-- Palkintopallin esitys (kulta, hopea, pronssi) ja keskiarvopisteet.
+- Palkintopallin esitys (kulta, hopea, pronssi) ja keskiarvopisteet sekä mahdollinen yleisöäänestyksen tulos.
 - Saavutettava, täysikokoinen Lightbox-kuvakatselin.
 - Näppäimistöohjaus (`Esc`, nuolinäppäimet).
 
