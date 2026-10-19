@@ -49,6 +49,8 @@ Arvioi Ja Pisteyta Tyot
     ...    title=Töiden arviointi ja pisteytys
     ...    subtitle=Arvostelija pisteyttää teoksen 4 kriteerillä ja kirjoittaa palautteen
     Sign In As Member    keycloak-reviewer@example.test    reviewer
+    ${session}=    App Session
+    Save State    olli_session    ${session}
     Caption    Arvostelijalla on pääsy Arvosteltavat-osioon ylävalikosta.
     Human Click    role=link[name="Arvosteltavat"]
     Wait Until Visible    role=button[name="Ei vielä arvosteltu"]
@@ -67,7 +69,7 @@ Hyvaksy Ja Hylkaa
     ...    eyebrow=Arviointi · 2 / 2
     ...    title=Töiden hyväksyminen ja hylkääminen
     ...    subtitle=Sääntöjen mukaisten töiden hyväksyntä ja virheellisten hylkäys
-    Go To    ${APP}/#/arvostelu
+    Open App As    olli_session    /#/arvostelu
     Human Click    role=button[name="Kaikki"s]
     Caption    Kaikki-näkymässä näkyvät kaikki osallistumiset ja niiden arviointitila.
     Human Click    role=button[name="Hyväksy osallistuminen: ${VALID_ENTRY}"]
